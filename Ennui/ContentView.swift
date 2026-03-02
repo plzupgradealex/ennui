@@ -124,10 +124,15 @@ struct ContentView: View {
         .onTapGesture(count: 2) {
             showPickerBriefly()
         }
-        .onTapGesture(count: 1) { location in
-            interaction.tapLocation = location
-            interaction.tapCount += 1
-        }
+        // Use simultaneousGesture so single-click fires instantly without
+        // waiting for multi-tap disambiguation — feels natural, not clunky.
+        .simultaneousGesture(
+            DragGesture(minimumDistance: 0)
+                .onEnded { value in
+                    interaction.tapLocation = value.location
+                    interaction.tapCount += 1
+                }
+        )
         .gesture(
             MagnifyGesture()
                 .onChanged { value in interaction.magnification = value.magnification }

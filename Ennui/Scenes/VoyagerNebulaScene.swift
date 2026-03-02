@@ -213,40 +213,43 @@ struct VoyagerNebulaScene: View {
     // MARK: - Gas clouds (by layer)
 
     private func drawGasCloudLayer(ctx: inout GraphicsContext, size: CGSize, t: Double, depth: Int) {
-        for cloud in gasClouds where cloud.layerDepth == depth {
-            let x = (cloud.cx + sin(t * 0.05 + cloud.phase) * 0.03
-                     + t * cloud.driftX) * size.width
-            let y = (cloud.cy + cos(t * 0.04 + cloud.phase) * 0.025
-                     + t * cloud.driftY) * size.height
+        let clouds = gasClouds.filter { $0.layerDepth == depth }
+        guard !clouds.isEmpty else { return }
 
-            let breathe = sin(t * 0.08 + cloud.phase) * 0.06 + 1.0
-            let baseR = cloud.radius * max(size.width, size.height) * breathe
+        // Single shared blur layer for all sub-ellipses at this depth
+        // (was 4 separate layers per cloud = ~30 layers × 3 depths = 90!)
+        ctx.drawLayer { layerCtx in
+            layerCtx.addFilter(.blur(radius: size.width * 0.08))
 
-            let color = Color(red: cloud.r, green: cloud.g, blue: cloud.b)
+            for cloud in clouds {
+                let x = (cloud.cx + sin(t * 0.05 + cloud.phase) * 0.03
+                         + t * cloud.driftX) * size.width
+                let y = (cloud.cy + cos(t * 0.04 + cloud.phase) * 0.025
+                         + t * cloud.driftY) * size.height
 
-            // Multiple overlapping ellipses for organic shape
-            for sub in 0..<4 {
-                let angle = Double(sub) / 4.0 * .pi * 2 + cloud.phase
-                let offsetX = cos(angle + t * 0.02) * baseR * 0.25
-                let offsetY = sin(angle + t * 0.015) * baseR * 0.2
-                let subR = baseR * (0.6 + Double(sub) * 0.12)
+                let breathe = sin(t * 0.08 + cloud.phase) * 0.06 + 1.0
+                let baseR = cloud.radius * max(size.width, size.height) * breathe
+                let color = Color(red: cloud.r, green: cloud.g, blue: cloud.b)
 
-                let sx = x + offsetX
-                let sy = y + offsetY
+                for sub in 0..<4 {
+                    let angle = Double(sub) / 4.0 * .pi * 2 + cloud.phase
+                    let offsetX = cos(angle + t * 0.02) * baseR * 0.25
+                    let offsetY = sin(angle + t * 0.015) * baseR * 0.2
+                    let subR = baseR * (0.6 + Double(sub) * 0.12)
 
-                let rect = CGRect(x: sx - subR, y: sy - subR * 0.7,
-                                 width: subR * 2, height: subR * 1.4)
+                    let sx = x + offsetX
+                    let sy = y + offsetY
 
-                ctx.drawLayer { layerCtx in
-                    layerCtx.addFilter(.blur(radius: subR * 0.35))
-                    layerCtx.opacity = cloud.density * 0.25
+                    let rect = CGRect(x: sx - subR, y: sy - subR * 0.7,
+                                     width: subR * 2, height: subR * 1.4)
+
                     layerCtx.fill(
                         Ellipse().path(in: rect),
                         with: .radialGradient(
                             Gradient(colors: [
-                                color.opacity(0.8),
-                                color.opacity(0.35),
-                                color.opacity(0.08),
+                                color.opacity(cloud.density * 0.25 * 0.8),
+                                color.opacity(cloud.density * 0.25 * 0.35),
+                                color.opacity(cloud.density * 0.25 * 0.08),
                                 .clear
                             ]),
                             center: CGPoint(x: sx, y: sy),
@@ -255,19 +258,16 @@ struct VoyagerNebulaScene: View {
                         )
                     )
                 }
-            }
 
-            // Bright inner edge — HDR glow
-            let innerR = baseR * 0.2
-            let innerRect = CGRect(x: x - innerR, y: y - innerR,
-                                   width: innerR * 2, height: innerR * 2)
-            ctx.drawLayer { layerCtx in
-                layerCtx.addFilter(.blur(radius: innerR * 0.6))
-                layerCtx.opacity = cloud.density * 0.12
+                // Bright inner edge — HDR glow
+                let innerR = baseR * 0.2
+                let innerRect = CGRect(x: x - innerR, y: y - innerR,
+                                       width: innerR * 2, height: innerR * 2)
                 let hdrColor = Color(red: min(cloud.r * 1.5, 1.5),
                                      green: min(cloud.g * 1.5, 1.5),
                                      blue: min(cloud.b * 1.5, 1.5))
-                layerCtx.fill(Ellipse().path(in: innerRect), with: .color(hdrColor))
+                layerCtx.fill(Ellipse().path(in: innerRect),
+                             with: .color(hdrColor.opacity(cloud.density * 0.12)))
             }
         }
     }
@@ -287,24 +287,24 @@ struct VoyagerNebulaScene: View {
     // MARK: - Dust lanes — dark ribbons snaking through the nebula
 
     private func drawDustLanes(ctx: inout GraphicsContext, size: CGSize, t: Double) {
-        for lane in dustLanes {
-            let sx = lane.startX * size.width
-            let sy = lane.startY * size.height
-            let ex = lane.endX * size.width
-            let ey = lane.endY * size.height
-            let thick = lane.thickness * size.height
+        // Single shared blur layer for all dust lanes (was 8 separate layers)
+        ctx.drawLayer { layerCtx in
+            layerCtx.addFilter(.blur(radius: size.height * 0.02))
+            for lane in dustLanes {
+                let sx = lane.startX * size.width
+                let sy = lane.startY * size.height
+                let ex = lane.endX * size.width
+                let ey = lane.endY * size.height
+                let thick = lane.thickness * size.height
 
-            // Curving path
-            let midX = (sx + ex) / 2 + lane.curl * size.width + sin(t * 0.03) * 20
-            let midY = (sy + ey) / 2 + lane.curl * size.height * 0.5
+                let midX = (sx + ex) / 2 + lane.curl * size.width + sin(t * 0.03) * 20
+                let midY = (sy + ey) / 2 + lane.curl * size.height * 0.5
 
-            var path = Path()
-            path.move(to: CGPoint(x: sx, y: sy))
-            path.addQuadCurve(to: CGPoint(x: ex, y: ey),
-                              control: CGPoint(x: midX, y: midY))
+                var path = Path()
+                path.move(to: CGPoint(x: sx, y: sy))
+                path.addQuadCurve(to: CGPoint(x: ex, y: ey),
+                                  control: CGPoint(x: midX, y: midY))
 
-            ctx.drawLayer { layerCtx in
-                layerCtx.addFilter(.blur(radius: thick * 0.5))
                 layerCtx.stroke(path, with: .color(.black.opacity(lane.opacity)),
                                 lineWidth: thick)
             }
