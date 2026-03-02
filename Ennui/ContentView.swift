@@ -19,6 +19,7 @@ struct ContentView: View {
     @State private var pickerTimer: Timer? = nil
     @State private var launched = false
     @State private var isActive = true  // battery: false when window not focused
+    @State private var warmingScenes: Set<SceneKind> = []  // preload on hover / adjacency
     @StateObject private var interaction = InteractionState()
     @EnvironmentObject var multipeerManager: MultipeerManager
 
@@ -86,6 +87,20 @@ struct ContentView: View {
                 .ignoresSafeArea()
                 .allowsHitTesting(false)
                 .transition(.opacity)
+            }
+
+            // Hidden preload layer — scenes rendered at 1×1 so their
+            // generate() runs, Metal shaders compile, and SwiftUI caches
+            // the view body.  Nearly zero GPU cost at this size.
+            ForEach(Array(warmingScenes), id: \.self) { warming in
+                if warming != currentScene && warming != previousScene {
+                    sceneView(for: warming)
+                        .frame(width: 1, height: 1)
+                        .clipped()
+                        .opacity(0.001)
+                        .allowsHitTesting(false)
+                        .accessibilityHidden(true)
+                }
             }
 
             // Gentle vignette always on
@@ -349,6 +364,11 @@ struct ContentView: View {
                                 .animation(.easeInOut(duration: 0.6), value: isActive)
                             }
                             .buttonStyle(.plain)
+                            .onHover { hovering in
+                                if hovering && scene != currentScene {
+                                    warmingScenes.insert(scene)
+                                }
+                            }
                             .accessibilityLabel(scene.displayName)
                             .accessibilityHint(isActive ? "Currently viewing" : "Switch to \(scene.displayName)")
                             .accessibilityAddTraits(isActive ? .isSelected : [])
@@ -552,11 +572,31 @@ struct ContentView: View {
         previousScene = currentScene
         crossfade = 0.0
         currentScene = scene
+        warmingScenes.remove(scene) // no longer needs warming
         withAnimation(.easeInOut(duration: 2.0)) { crossfade = 1.0 }
         // Clean up previous after transition
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) { previousScene = nil }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) {
+            previousScene = nil
+            warmingScenes.removeAll() // clear stale preloads
+        }
+        // Preload adjacent scenes for arrow-key navigation
+        preloadNeighbors(of: scene)
         multipeerManager.send(sceneID: scene.rawValue)
         showPickerBriefly()
+    }
+
+    /// Pre-warm the scenes immediately before and after the current one
+    /// so left/right arrow key switches feel instant.
+    private func preloadNeighbors(of scene: SceneKind) {
+        let all = SceneKind.allCases
+        guard let idx = all.firstIndex(of: scene) else { return }
+        let prev = all[(idx - 1 + all.count) % all.count]
+        let next = all[(idx + 1) % all.count]
+        // Slight delay so the current transition isn't competing for resources
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            warmingScenes.insert(prev)
+            warmingScenes.insert(next)
+        }
     }
 
     private func switchScene(direction: Int) {
