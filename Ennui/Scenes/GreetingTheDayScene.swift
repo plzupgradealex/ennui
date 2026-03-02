@@ -25,27 +25,14 @@ struct GreetingTheDayScene: View {
         let puffs: Int
     }
 
-    struct CarData: Identifiable {
-        let id: Int
-        let lane: Double   // y position (road lane)
-        let speed: Double
-        let length, height: Double
-        let r, g, b: Double
-        let birthTime: Double
-        let goingRight: Bool
-    }
-
     struct BirdData {
         let phase, speed, amplitude, yBase: Double
     }
 
     @State private var buildings: [BuildingData] = []
     @State private var clouds: [CloudData] = []
-    @State private var cars: [CarData] = []
     @State private var birds: [BirdData] = []
     @State private var buildingIdCounter = 0
-    @State private var carIdCounter = 0
-    @State private var lastCarTime: Double = 0
     @State private var ready = false
 
     var body: some View {
@@ -64,7 +51,6 @@ struct GreetingTheDayScene: View {
                 drawCars(ctx: &ctx, size: size, t: t)
                 drawGround(ctx: &ctx, size: size, sunProgress: sunProgress)
                 drawCommuterTrain(ctx: &ctx, size: size, t: t, sunProgress: sunProgress)
-                spawnCarsIfNeeded(t: t)
             }
         }
         .background(Color(red: 0.12, green: 0.08, blue: 0.18))
@@ -112,7 +98,7 @@ struct GreetingTheDayScene: View {
     }
 
     private func addBuildingInternal(rng: inout SplitMix64) {
-        let style = BuildingStyle.allCases[Int(nextDouble(&rng) * Double(BuildingStyle.allCases.count))]
+        let style = BuildingStyle.allCases[min(Int(nextDouble(&rng) * Double(BuildingStyle.allCases.count)), BuildingStyle.allCases.count - 1)]
         let (minH, maxH, minW, maxW, minFloors, maxFloors): (Double, Double, Double, Double, Int, Int) = {
             switch style {
             case .house: return (40, 70, 35, 50, 1, 2)
@@ -425,55 +411,51 @@ struct GreetingTheDayScene: View {
 
     private func drawCars(ctx: inout GraphicsContext, size: CGSize, t: Double) {
         let roadY = size.height * 0.76
+        // Procedural cars — each car is a pure function of time, no state mutation
+        let carInterval: Double = 3.0 // one car every 3 seconds
+        let carCount = 12 // total car "slots" cycling
+        var rng = SplitMix64(seed: 3030)
 
-        for car in cars {
-            let age = t - car.birthTime
-            let direction: Double = car.goingRight ? 1.0 : -1.0
-            let cx = (car.goingRight ? -car.length : size.width + car.length) + direction * age * car.speed
+        for i in 0..<carCount {
+            var cRng = SplitMix64(seed: UInt64(i * 13 + 42))
+            let goingRight = nextDouble(&cRng) > 0.5
+            let speed = 40 + nextDouble(&cRng) * 30
+            let length = 18 + nextDouble(&cRng) * 14
+            let height = 7 + nextDouble(&cRng) * 4
+            let cr = 0.1 + nextDouble(&cRng) * 0.3
+            let cg = 0.1 + nextDouble(&cRng) * 0.2
+            let cb = 0.15 + nextDouble(&cRng) * 0.3
+            let lane = goingRight ? 4.0 : 14.0
 
-            guard cx > -car.length * 2 && cx < size.width + car.length * 2 else { continue }
+            // Each car appears at its interval offset and crosses the screen
+            let birthTime = Double(i) * carInterval
+            let age = t - birthTime
+            // Repeat cycle: car reappears every carCount * carInterval seconds
+            let cycle = Double(carCount) * carInterval
+            let effectiveAge = fmod(age, cycle)
+            guard effectiveAge > 0 else { continue }
 
-            let cy = roadY + car.lane
-            let carRect = CGRect(x: cx, y: cy - car.height, width: car.length, height: car.height)
-            ctx.fill(RoundedRectangle(cornerRadius: 2).path(in: carRect), with: .color(Color(red: car.r, green: car.g, blue: car.b)))
+            let direction: Double = goingRight ? 1.0 : -1.0
+            let cx = (goingRight ? -length : size.width + length) + direction * effectiveAge * speed
+
+            guard cx > -length * 2 && cx < size.width + length * 2 else { continue }
+
+            let cy = roadY + lane
+            let carRect = CGRect(x: cx, y: cy - height, width: length, height: height)
+            ctx.fill(RoundedRectangle(cornerRadius: 2).path(in: carRect), with: .color(Color(red: cr, green: cg, blue: cb)))
 
             // Windshield
-            let wsW = car.length * 0.25
-            let wsX = car.goingRight ? cx + car.length * 0.6 : cx + car.length * 0.15
-            let wsRect = CGRect(x: wsX, y: cy - car.height + 1, width: wsW, height: car.height * 0.5)
+            let wsW = length * 0.25
+            let wsX = goingRight ? cx + length * 0.6 : cx + length * 0.15
+            let wsRect = CGRect(x: wsX, y: cy - height + 1, width: wsW, height: height * 0.5)
             ctx.fill(Rectangle().path(in: wsRect), with: .color(Color(red: 0.3, green: 0.4, blue: 0.5).opacity(0.5)))
 
             // Headlights (tiny)
-            let hlX = car.goingRight ? cx + car.length - 2 : cx
-            let hlRect = CGRect(x: hlX, y: cy - car.height * 0.4, width: 3, height: 2)
+            let hlX = goingRight ? cx + length - 2 : cx
+            let hlRect = CGRect(x: hlX, y: cy - height * 0.4, width: 3, height: 2)
             ctx.fill(Rectangle().path(in: hlRect), with: .color(Color(red: 1.2, green: 1.1, blue: 0.8).opacity(0.6)))
         }
-    }
-
-    private func spawnCarsIfNeeded(t: Double) {
-        // Auto-spawn cars periodically
-        guard t - lastCarTime > 2.5 else { return }
-        DispatchQueue.main.async {
-            lastCarTime = t
-            var rng = SplitMix64(seed: UInt64(carIdCounter * 13 + 42))
-            let goingRight = nextDouble(&rng) > 0.5
-            let newCar = CarData(
-                id: carIdCounter,
-                lane: goingRight ? 4.0 : 14.0,
-                speed: 40 + nextDouble(&rng) * 30,
-                length: 18 + nextDouble(&rng) * 14,
-                height: 7 + nextDouble(&rng) * 4,
-                r: 0.1 + nextDouble(&rng) * 0.3,
-                g: 0.1 + nextDouble(&rng) * 0.2,
-                b: 0.15 + nextDouble(&rng) * 0.3,
-                birthTime: t,
-                goingRight: goingRight
-            )
-            cars.append(newCar)
-            carIdCounter += 1
-            // Clean old cars
-            cars.removeAll { t - $0.birthTime > 20 }
-        }
+        _ = rng // suppress unused warning
     }
 
     private func drawGround(ctx: inout GraphicsContext, size: CGSize, sunProgress: Double) {
