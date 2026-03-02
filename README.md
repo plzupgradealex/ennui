@@ -1,91 +1,97 @@
 # Ennui
 
-An ambient scene viewer for macOS. 29 procedural Canvas scenes rendered at
-60fps via Metal GPU compositing. No data collection, no accounts, no onboarding.
-Watch, breathe, tap sometimes.
+An ambient scene viewer for macOS. 29 procedural scenes rendered at 60 fps
+via Metal GPU compositing. No data collection, no accounts, no onboarding.
+You watch, breathe, tap sometimes.
 
----
+An anti-doomscroll tool.
+
+## Scenes
+
+Every scene is drawn entirely from math and code — no images, no video files.
+SwiftUI Canvas at 60 fps, flattened to a single Metal texture each frame.
+
+| | | |
+|---|---|---|
+| Ancient Ruins | Art Deco LA | Aurora Borealis |
+| Cel-Shaded Rainy Day | Celestial Scroll Hall | Conservatory |
+| Cosmic Drift | Deep Ocean | Desert Starscape |
+| Enchanted Archives | Floating Kingdom | Forgotten Library |
+| Greeting the Day | Jeonju Night | Late Night Rerun |
+| Lush Ruins | Medieval Village | Minnesota Small Town |
+| Mystify | Night Train | Ontario Countryside |
+| Paper Lantern Festival | Quiet Meal | Retro Garden |
+| Retro PS1 | Salt Lamp | Shimizu Evening |
+| Urban Dreamscape | Voyager Nebula | |
+
+Tapping does something gentle in each scene — a firefly, a ripple, a lantern
+released with a kind message, a warmth pulse. Nothing resets, nothing startles.
+
+Press **H** for haiku. On-device AI generates one, or the app falls back to
+hand-written poems.
 
 ## Requirements
 
-- **macOS 26.0 (Tahoe)** or later
-- **Apple Silicon Mac** (M1, M2, M3, M4 — no Intel)
-- **Xcode 18** with command-line tools
-
-If you don't have Xcode installed:
-1. Install Xcode from the Mac App Store
-2. Open Terminal and run: `xcode-select --install`
-
----
+- macOS 26.0 (Tahoe) or later
+- Apple Silicon (M1 / M2 / M3 / M4)
+- Xcode 18 with command-line tools
 
 ## Install
 
 ```bash
-git clone <repo-url> ennui
+git clone https://github.com/plzupgradealex/ennui.git
 cd ennui
 chmod +x scripts/install.sh
 ./scripts/install.sh
 ```
 
-The script builds from source and copies Ennui.app to `/Applications`.  
-First build takes ~60–90 seconds. After that, launch it from your Applications
-folder or Spotlight.
+Builds from source and copies `Ennui.app` to `/Applications`.
+First build takes about a minute.
 
----
+Or build manually:
 
-## Keyboard Shortcuts
+```bash
+xcodebuild -project Ennui.xcodeproj -scheme Ennui -configuration Release build
+```
+
+## Controls
 
 | Key | Action |
 |---|---|
 | ← → | Previous / next scene |
 | Space | Show scene picker |
-| Double-click | Show scene picker |
 | H | Toggle haiku overlay |
 | ? | About panel |
-| S | Toggle sharing (peer sync) |
-| Click/Tap | Scene-specific interaction |
+| S | Toggle peer sync |
+| Click | Scene-specific interaction |
 
 Hover near the bottom of the window to reveal the scene picker.
 
----
+## How It Works
 
-## What It Is
+Each scene is a SwiftUI `TimelineView` driving a `Canvas` at 60 fps.
+`.drawingGroup(opaque: false, colorMode: .extendedLinear)` composites the
+Canvas into a single Metal texture on the GPU. `.allowedDynamicRange(.high)`
+enables HDR on XDR displays. All animation is derived from elapsed time —
+Canvas closures are pure functions of `t`.
 
-29 hand-crafted procedural scenes — drifting nebulae, rainy conservatories,
-medieval villages settling for night, a Japanese neighborhood in the rain,
-Ontario countryside at dusk, a Windows 95 screensaver, Himalayan salt lamps,
-pixel-art gardens, bioluminescent deep oceans, and more.
+Procedural content is generated once in `.onAppear` using a deterministic
+SplitMix64 RNG, then drawn every frame from the pre-generated data.
 
-Every scene runs on a Canvas at 60fps, composited via Metal on the GPU.
-No images, no video files — everything is drawn from math and code.
-
-Tapping does something gentle in each scene: a firefly, a ripple, a lantern, a
-splash, a warmth pulse. Nothing resets, nothing startles.
-
-Haiku overlay (press H) generates poems with on-device AI, or falls back to
-hand-written ones.
-
----
+Scenes crossfade over 2 seconds. Neighboring scenes are preloaded off-screen
+when the picker is open for instant transitions.
 
 ## Privacy
 
-Zero data collection. No analytics, no telemetry, no network calls (except
-optional peer sync on local network). The privacy manifest declares nothing.
+Zero data collection. No analytics, no telemetry, no network calls except
+optional local-network peer sync (MultipeerConnectivity, encrypted). The
+privacy manifest declares nothing collected, nothing tracked.
 
----
+## License
 
-## Building Manually
-
-If you prefer to build yourself instead of using the install script:
-
-```bash
-cd ennui
-xcodebuild -project Ennui.xcodeproj -scheme Ennui -configuration Release build
-```
-
-The built app will be in:  
-`~/Library/Developer/Xcode/DerivedData/Ennui-*/Build/Products/Release/Ennui.app`
+MIT
 
 ---
 
 *Made by Alex Ruppel — alex.ruppel@pm.me*
+*[ennui.pages.dev](https://ennui.pages.dev)*

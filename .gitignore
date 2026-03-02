@@ -6,4 +6,5 @@ DerivedData/
 **/.DS_Store
 xcuserdata/
 site/
+.wrangler/
 .github/copilot-instructions.md
