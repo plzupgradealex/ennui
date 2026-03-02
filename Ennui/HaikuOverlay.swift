@@ -22,6 +22,7 @@ actor HaikuGenerator {
             .auroraBorealis: "the northern lights dancing in green and violet curtains over a frozen lake with silhouetted pine trees and a distant warm cabin",
             .paperLanternFestival: "hundreds of warm glowing paper lanterns rising gently into the twilight sky over a dark reflective lake, fireflies dancing between them",
             .forgottenLibrary: "an infinite twilight library with towering bookshelves, candlelight, floating golden letters drifting upward like embers, and moonlight through arched windows",
+            .lateNightRerun: "falling asleep to late-night TV reruns in a cozy 90s bedroom, CRT glow, lava lamp, glow-in-the-dark stars on the ceiling, rain on the window",
         ]
         let theme = themes[scene] ?? "a peaceful calming moment"
 
@@ -123,6 +124,11 @@ struct HaikuOverlayView: View {
             "Dust motes catch the flame\nOld pages breathe forgotten\nWords still drift upward",
             "Moonlight through the arch\nA thousand spines lean and wait\nSilence reads itself",
             "Candle flickers soft\nLetters rise from open books\nKnowledge turns to light",
+        ],
+        .lateNightRerun: [
+            "Static hums goodnight\nThe lava lamp keeps its watch\nGlow stars guard the dark",
+            "Reruns play for none\nRain and television light\nSafe beneath the sheets",
+            "Twelve fifteen glows red\nThe world outside falls asleep\nThis room holds me close",
         ],
     ]
 

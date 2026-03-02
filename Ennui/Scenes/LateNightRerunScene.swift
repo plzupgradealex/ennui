@@ -367,7 +367,7 @@ struct LateNightRerunScene: View {
         // Chunky CRT plastic body
         let pad: Double = 14.0
         let bodyRect = CGRect(x: tvX - pad, y: tvY - pad,
-                              width: tvW + pad * 2, height: tvH + pad * 2 + 18)
+                              width: tvW + pad * 2, height: tvH + pad * 2 + 18.0)
         ctx.fill(
             RoundedRectangle(cornerRadius: 8).path(in: bodyRect),
             with: .linearGradient(
@@ -481,7 +481,7 @@ struct LateNightRerunScene: View {
         // Dresser / surface TV sits on
         let dresserY = standTop
         let dresserRect = CGRect(x: tvX - pad - 15, y: dresserY,
-                                 width: tvW + pad * 2 + 30,
+                                 width: tvW + pad * 2 + 30.0,
                                  height: size.height * 0.85 - dresserY)
         ctx.fill(
             Rectangle().path(in: dresserRect),

@@ -16,6 +16,7 @@ enum SceneKind: String, CaseIterable, Identifiable {
     case auroraBorealis = "auroraBorealis"
     case paperLanternFestival = "paperLanternFestival"
     case forgottenLibrary = "forgottenLibrary"
+    case lateNightRerun = "lateNightRerun"
 
     var id: String { rawValue }
 
@@ -36,6 +37,7 @@ enum SceneKind: String, CaseIterable, Identifiable {
         case .auroraBorealis: return "wind.snow"
         case .paperLanternFestival: return "lamp.desk"
         case .forgottenLibrary: return "books.vertical"
+        case .lateNightRerun: return "tv"
         }
     }
 
@@ -56,6 +58,7 @@ enum SceneKind: String, CaseIterable, Identifiable {
         case .auroraBorealis: return Color(red: 0.15, green: 0.7, blue: 0.45)
         case .paperLanternFestival: return Color(red: 0.9, green: 0.6, blue: 0.15)
         case .forgottenLibrary: return Color(red: 0.55, green: 0.4, blue: 0.25)
+        case .lateNightRerun: return Color(red: 0.3, green: 0.25, blue: 0.55)
         }
     }
 }

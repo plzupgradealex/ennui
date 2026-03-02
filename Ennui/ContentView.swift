@@ -187,6 +187,7 @@ struct ContentView: View {
         case .auroraBorealis: AuroraBorealisScene(interaction: interaction)
         case .paperLanternFestival: PaperLanternFestivalScene(interaction: interaction)
         case .forgottenLibrary: ForgottenLibraryScene(interaction: interaction)
+        case .lateNightRerun: LateNightRerunScene(interaction: interaction)
         }
     }
 
