@@ -414,7 +414,6 @@ struct GreetingTheDayScene: View {
         // Procedural cars — each car is a pure function of time, no state mutation
         let carInterval: Double = 3.0 // one car every 3 seconds
         let carCount = 12 // total car "slots" cycling
-        var rng = SplitMix64(seed: 3030)
 
         for i in 0..<carCount {
             var cRng = SplitMix64(seed: UInt64(i * 13 + 42))
