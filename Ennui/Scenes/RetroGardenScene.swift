@@ -372,7 +372,7 @@ struct RetroGardenScene: View {
                 let px = b.x + cos(angle) * dist
                 let py = b.y + sin(angle) * dist - progress * 20
                 let s = 4.0 * fade
-                let hueShift = Double(i) / Double(petals)
+                let _ = Double(i) / Double(petals)
                 let colors: [(Double, Double, Double)] = [
                     (1.15, 0.65, 0.70), (0.70, 0.90, 1.15), (1.2, 1.0, 0.5),
                     (1.0, 0.65, 1.1), (0.70, 1.1, 0.8),

@@ -14,6 +14,8 @@ actor HaikuGenerator {
             .ancientRuins: "ancient stone ruins bathed in soft aurora light with fireflies",
             .saltLamp: "the warm amber glow of a himalayan salt lamp",
             .conservatory: "rain on greenhouse windows with plants swaying and steam from old pipes",
+            .nightTrain: "a gentle night train journey through moonlit countryside with warm glowing windows",
+            .greetingTheDay: "a city waking up at sunrise with buildings growing and a feeling of calm readiness",
         ]
         let theme = themes[scene] ?? "a peaceful calming moment"
 
@@ -75,6 +77,16 @@ struct HaikuOverlayView: View {
             "Rain taps on the glass\nWarm earth breathes beneath the ferns\nSteam curls like a thought",
             "Droplets find their way\nDown the greenhouse windowpanes\nPlants sway, slow and kind",
             "Grey sky holds the world\nInside, green and warm and still\nRain sings us to sleep",
+        ],
+        .nightTrain: [
+            "Wheels hum on the tracks\nMoonlight paints the sleeping fields\nWarm light rocks me home",
+            "Telegraph poles pass\nCounting moments until dawn\nThe journey is peace",
+            "Steam dissolves in dark\nWindows glow like amber stars\nMoving through the night",
+        ],
+        .greetingTheDay: [
+            "The city awakens\nEach window a gentle eye\nSunrise says begin",
+            "Buildings reach for light\nNew day stretches, safe and warm\nReady for the world",
+            "Morning paints the town\nEvery corner holds a hope\nSteady as the sun",
         ],
     ]
 

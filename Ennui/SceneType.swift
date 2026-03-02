@@ -8,6 +8,8 @@ enum SceneKind: String, CaseIterable, Identifiable {
     case ancientRuins = "ancientRuins"
     case saltLamp = "saltLamp"
     case conservatory = "conservatory"
+    case nightTrain = "nightTrain"
+    case greetingTheDay = "greetingTheDay"
 
     var id: String { rawValue }
 
@@ -20,6 +22,8 @@ enum SceneKind: String, CaseIterable, Identifiable {
         case .ancientRuins: return "building.columns"
         case .saltLamp: return "flame"
         case .conservatory: return "humidity"
+        case .nightTrain: return "train.side.front.car"
+        case .greetingTheDay: return "sunrise"
         }
     }
 
@@ -32,6 +36,8 @@ enum SceneKind: String, CaseIterable, Identifiable {
         case .ancientRuins: return Color(red: 0.3, green: 0.7, blue: 0.5)
         case .saltLamp: return Color(red: 0.95, green: 0.55, blue: 0.2)
         case .conservatory: return Color(red: 0.4, green: 0.65, blue: 0.45)
+        case .nightTrain: return Color(red: 0.3, green: 0.25, blue: 0.5)
+        case .greetingTheDay: return Color(red: 0.9, green: 0.65, blue: 0.3)
         }
     }
 }

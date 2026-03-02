@@ -174,6 +174,8 @@ struct ContentView: View {
         case .ancientRuins: AncientRuinsScene(interaction: interaction)
         case .saltLamp: SaltLampScene(interaction: interaction)
         case .conservatory: ConservatoryScene(interaction: interaction)
+        case .nightTrain: NightTrainScene(interaction: interaction)
+        case .greetingTheDay: GreetingTheDayScene(interaction: interaction)
         }
     }
 
