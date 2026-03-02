@@ -18,6 +18,7 @@ actor HaikuGenerator {
             .greetingTheDay: "a city waking up at sunrise with buildings growing and a feeling of calm readiness",
             .celShadedRainyDay: "bright flowers thriving in gentle rain, fat raindrops on petals, puddles forming, a cosy rainy day in a cartoon world",
             .voyagerNebula: "drifting through a magnificent nebula in deep space, swirling colours of teal and magenta, stellar nurseries glowing warmly",
+            .retroPS1: "a nostalgic PS1/N64 nighttime scene with low-poly mountains, a glowing cabin, fireflies, and chunky pixel stars",
         ]
         let theme = themes[scene] ?? "a peaceful calming moment"
 
@@ -99,6 +100,11 @@ struct HaikuOverlayView: View {
             "Teal and rose entwine\nGas clouds birth a thousand suns\nSilence paints the sky",
             "Dust lanes curve like roads\nStarlight finds its way between\nThe nebula breathes",
             "Colours without name\nSwirl through ancient cosmic dust\nWe drift, warm and still",
+        ],
+        .retroPS1: [
+            "Pixels hold the night\nA cabin glows in the dark\nFireflies remember",
+            "Low-poly mountains\nReflected in quiet lakes\nNostalgia is warm",
+            "Vertex jitter dreams\nChunky stars above the pines\nThe old world still hums",
         ],
     ]
 

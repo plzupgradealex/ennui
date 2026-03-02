@@ -2,7 +2,7 @@ import SwiftUI
 
 struct AncientRuinsScene: View {
     @ObservedObject var interaction: InteractionState
-    private let startDate = Date()
+    @State private var startDate = Date()
 
     struct Firefly {
         let bx, by, wander, speed, phase, brightness: Double

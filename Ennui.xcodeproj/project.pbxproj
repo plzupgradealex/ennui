@@ -24,6 +24,7 @@
 		CC0000000000000000000012 /* GreetingTheDayScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC0000000000000000000002 /* GreetingTheDayScene.swift */; };
 		CC0000000000000000000013 /* CelShadedRainyDayScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC0000000000000000000003 /* CelShadedRainyDayScene.swift */; };
 		CC0000000000000000000014 /* VoyagerNebulaScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC0000000000000000000004 /* VoyagerNebulaScene.swift */; };
+		CC0000000000000000000015 /* RetroPS1Scene.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC0000000000000000000005 /* RetroPS1Scene.swift */; };
 		BB0000000000000000000001 /* EnnuiUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0000000000000000000010 /* EnnuiUITests.swift */; };
 /* End PBXBuildFile section */
 
@@ -44,6 +45,7 @@
 		CC0000000000000000000002 /* GreetingTheDayScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GreetingTheDayScene.swift; sourceTree = "<group>"; };
 		CC0000000000000000000003 /* CelShadedRainyDayScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CelShadedRainyDayScene.swift; sourceTree = "<group>"; };
 		CC0000000000000000000004 /* VoyagerNebulaScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoyagerNebulaScene.swift; sourceTree = "<group>"; };
+		CC0000000000000000000005 /* RetroPS1Scene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RetroPS1Scene.swift; sourceTree = "<group>"; };
 		AA0000000000000000000018 /* MultipeerManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MultipeerManager.swift; sourceTree = "<group>"; };
 		AA000000000000000000001B /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		AA000000000000000000001A /* Ennui.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Ennui.entitlements; sourceTree = "<group>"; };
@@ -127,6 +129,7 @@
 				CC0000000000000000000002 /* GreetingTheDayScene.swift */,
 				CC0000000000000000000003 /* CelShadedRainyDayScene.swift */,
 				CC0000000000000000000004 /* VoyagerNebulaScene.swift */,
+				CC0000000000000000000005 /* RetroPS1Scene.swift */,
 			);
 			path = Scenes;
 			sourceTree = "<group>";
@@ -262,6 +265,7 @@
 				CC0000000000000000000012 /* GreetingTheDayScene.swift in Sources */,
 				CC0000000000000000000013 /* CelShadedRainyDayScene.swift in Sources */,
 				CC0000000000000000000014 /* VoyagerNebulaScene.swift in Sources */,
+				CC0000000000000000000015 /* RetroPS1Scene.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

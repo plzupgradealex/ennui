@@ -2,7 +2,7 @@ import SwiftUI
 
 struct DeepOceanScene: View {
     @ObservedObject var interaction: InteractionState
-    private let startDate = Date()
+    @State private var startDate = Date()
 
     struct Particle {
         let x, baseY, size, speed, brightness, hue, phase: Double
@@ -109,6 +109,7 @@ struct DeepOceanScene: View {
     }
 
     private func drawParticles(ctx: inout GraphicsContext, size: CGSize, t: Double) {
+        // Draw all particle cores directly (no layers)
         for p in particles {
             let li = min(p.layer, 2)
             let la = [0.3, 0.6, 1.0][li]
@@ -122,30 +123,45 @@ struct DeepOceanScene: View {
 
             ctx.fill(Ellipse().path(in: CGRect(x: x - s / 2, y: y - s / 2, width: s, height: s)),
                 with: .color(c.opacity(alpha * 0.6)))
+        }
 
-            if s > 3 {
-                ctx.drawLayer { l in
-                    l.addFilter(.blur(radius: s))
-                    l.fill(Ellipse().path(in: CGRect(x: x - s * 2, y: y - s * 2, width: s * 4, height: s * 4)),
-                        with: .color(c.opacity(alpha * 0.10)))
-                }
+        // Single shared glow layer for all large particles (was ~60 separate layers!)
+        ctx.drawLayer { l in
+            l.addFilter(.blur(radius: 6))
+            for p in particles {
+                let li = min(p.layer, 2)
+                let la = [0.3, 0.6, 1.0][li]
+                let ls = [0.6, 1.0, 1.5][li]
+                let x = (p.x + sin(t * 0.2 + p.phase) * 0.025) * size.width
+                let y = fmod(p.baseY - t * p.speed * ls + 10, 1.0) * size.height
+                let pulse = sin(t + p.phase) * 0.3 + 0.7
+                let alpha = p.brightness * pulse * la
+                let c = Color(hue: p.hue, saturation: 0.7, brightness: 1.3)
+                let s = p.size * (0.8 + pulse * 0.3)
+                guard s > 3 else { continue }
+                l.fill(Ellipse().path(in: CGRect(x: x - s * 2, y: y - s * 2, width: s * 4, height: s * 4)),
+                    with: .color(c.opacity(alpha * 0.10)))
             }
         }
     }
 
-    private func drawJellyBell(ctx: inout GraphicsContext, x: Double, y: Double, bw: Double, bh: Double, color: Color, pulse: Double) {
-        ctx.drawLayer { bl in
-            bl.addFilter(.blur(radius: 2))
-            bl.fill(Ellipse().path(in: CGRect(x: x - bw / 2, y: y - bh / 2, width: bw, height: bh)),
-                with: .radialGradient(
-                    Gradient(colors: [color.opacity(0.6), color.opacity(0.2), color.opacity(0.05)]),
-                    center: CGPoint(x: x, y: y - bh * 0.1), startRadius: 0, endRadius: bw * 0.5))
-        }
-        ctx.fill(Ellipse().path(in: CGRect(x: x - bw * 0.25, y: y - bh * 0.2, width: bw * 0.5, height: bh * 0.4)),
-            with: .color(Color(red: 0.7, green: 1.4, blue: 1.6).opacity(0.12 * pulse)))
-    }
-
     private func drawJellies(ctx: inout GraphicsContext, size: CGSize, t: Double) {
+        // Single shared glow layer for all jellies (was 8 separate nested layers)
+        ctx.drawLayer { gl in
+            gl.addFilter(.blur(radius: 25))
+            for jf in jellies {
+                let x = (jf.x + sin(t * jf.speed * 5 + jf.phase) * 0.06) * size.width
+                let y = (jf.baseY + sin(t * jf.speed * 3 + jf.phase) * 0.04) * size.height
+                let s = jf.size
+                let c = Color(hue: jf.hue, saturation: 0.5, brightness: 0.85)
+                let pulse = sin(t * 0.6 + jf.phase) * 0.5 + 0.5
+                let alpha = (0.25 + pulse * 0.25) * 0.12 * pulse
+                gl.fill(Ellipse().path(in: CGRect(x: x - s * 0.8, y: y - s * 0.5, width: s * 1.6, height: s)),
+                    with: .color(c.opacity(alpha)))
+            }
+        }
+
+        // Draw each jelly body + tentacles in one layer (no nesting)
         for jf in jellies {
             let x = (jf.x + sin(t * jf.speed * 5 + jf.phase) * 0.06) * size.width
             let y = (jf.baseY + sin(t * jf.speed * 3 + jf.phase) * 0.04) * size.height
@@ -153,24 +169,25 @@ struct DeepOceanScene: View {
             let c = Color(hue: jf.hue, saturation: 0.5, brightness: 0.85)
             let pulse = sin(t * 0.6 + jf.phase) * 0.5 + 0.5
             let contract = sin(t * 0.8 + jf.phase) * 0.1 + 0.9
+            let alpha = 0.25 + pulse * 0.25
 
             ctx.drawLayer { l in
-                l.opacity = 0.25 + pulse * 0.25
+                l.opacity = alpha
 
-                // Outer glow
-                l.drawLayer { g in
-                    g.addFilter(.blur(radius: s * 0.4))
-                    g.fill(Ellipse().path(in: CGRect(x: x - s * 0.8, y: y - s * 0.5, width: s * 1.6, height: s)),
-                        with: .color(c.opacity(0.12 * pulse)))
-                }
-
+                // Bell — radialGradient already provides softness, no inner blur layer needed
                 let bw = s * contract
                 let bh = s * 0.55 * (1.1 - contract * 0.1)
-                drawJellyBell(ctx: &l, x: x, y: y, bw: bw, bh: bh, color: c, pulse: pulse)
+                l.fill(Ellipse().path(in: CGRect(x: x - bw / 2, y: y - bh / 2, width: bw, height: bh)),
+                    with: .radialGradient(
+                        Gradient(colors: [c.opacity(0.6), c.opacity(0.2), c.opacity(0.05)]),
+                        center: CGPoint(x: x, y: y - bh * 0.1), startRadius: 0, endRadius: bw * 0.5))
+                // Inner highlight
+                l.fill(Ellipse().path(in: CGRect(x: x - bw * 0.25, y: y - bh * 0.2, width: bw * 0.5, height: bh * 0.4)),
+                    with: .color(Color(red: 0.7, green: 1.4, blue: 1.6).opacity(0.12 * pulse)))
 
                 // Tentacles
                 for ti in 0..<jf.tents {
-                    let f = Double(ti) / Double(jf.tents - 1)
+                    let f = Double(ti) / Double(max(jf.tents - 1, 1))
                     let tx = x - bw * 0.35 + bw * 0.7 * f
                     let tw = sin(t * 1.2 + Double(ti) * 0.6 + jf.phase) * (8 + s * 0.1)
                     let tl = s * 0.6 + sin(t * 0.5 + Double(ti)) * s * 0.15

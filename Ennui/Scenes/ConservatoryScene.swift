@@ -2,7 +2,7 @@ import SwiftUI
 
 struct ConservatoryScene: View {
     @ObservedObject var interaction: InteractionState
-    private let startDate = Date()
+    @State private var startDate = Date()
 
     struct Raindrop {
         let x, speed, length, phase: Double
@@ -167,11 +167,17 @@ struct ConservatoryScene: View {
             // Leaves
             drawPlantLeaves(ctx: &ctx, bx: bx, by: by, top: top, sway: plantSway,
                           hue: p.hue, height: p.height, t: t, phase: p.phase)
+        }
 
-            // Glow at tip
-            let breathe = sin(t * 0.2 + p.phase) * 0.1 + 0.9
-            ctx.drawLayer { l in
-                l.addFilter(.blur(radius: 8))
+        // Single shared glow layer for all plant tips (was 20 separate layers)
+        ctx.drawLayer { l in
+            l.addFilter(.blur(radius: 8))
+            for p in plants {
+                let plantSway = sin(t * p.sway + p.phase) * 0.015 * size.width
+                let bx = p.x * size.width
+                let by = p.y * size.height
+                let top = by - p.height * size.height
+                let breathe = sin(t * 0.2 + p.phase) * 0.1 + 0.9
                 let gr = CGRect(x: bx + plantSway - 8, y: top - 8, width: 16, height: 16)
                 l.fill(Ellipse().path(in: gr), with: .color(
                     Color(hue: p.hue, saturation: 0.5, brightness: 1.3).opacity(0.14 * breathe)))
@@ -209,26 +215,31 @@ struct ConservatoryScene: View {
     }
 
     private func drawDroplets(ctx: inout GraphicsContext, size: CGSize, t: Double) {
-        for d in droplets {
-            let age = t - d.birth
-            guard age < 2.5 else { continue }
-            let p = age / 2.5
-            let fade = 1 - p
-
-            // Water splash rings
-            for ring in 0..<4 {
-                let r = p * 50 * (0.4 + Double(ring) * 0.25)
-                let rf = fade * (1 - Double(ring) * 0.2)
-                ctx.drawLayer { l in
-                    l.addFilter(.blur(radius: 3))
+        // Single shared blur layer for all water splash rings (was up to 32 separate layers!)
+        ctx.drawLayer { l in
+            l.addFilter(.blur(radius: 3))
+            for d in droplets {
+                let age = t - d.birth
+                guard age < 2.5 else { continue }
+                let p = age / 2.5
+                let fade = 1 - p
+                for ring in 0..<4 {
+                    let r = p * 50 * (0.4 + Double(ring) * 0.25)
+                    let rf = fade * (1 - Double(ring) * 0.2)
                     l.stroke(
                         Ellipse().path(in: CGRect(x: d.x - r, y: d.y - r * 0.4, width: r * 2, height: r * 0.8)),
                         with: .color(Color(red: 0.6, green: 1.1, blue: 0.9).opacity(rf * 0.22)),
                         lineWidth: 1)
                 }
             }
+        }
 
-            // Tiny droplet splashes
+        // Tiny droplet splashes (no layer needed)
+        for d in droplets {
+            let age = t - d.birth
+            guard age < 2.5 else { continue }
+            let p = age / 2.5
+            let fade = 1 - p
             for i in 0..<8 {
                 let angle = Double(i) / 8 * .pi * 2 + age * 0.8
                 let dist = p * 35

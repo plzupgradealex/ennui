@@ -2,7 +2,7 @@ import SwiftUI
 
 struct GreetingTheDayScene: View {
     @ObservedObject var interaction: InteractionState
-    private let startDate = Date()
+    @State private var startDate = Date()
 
     struct BuildingData: Identifiable {
         let id: Int

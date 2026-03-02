@@ -2,7 +2,7 @@ import SwiftUI
 
 struct SaltLampScene: View {
     @ObservedObject var interaction: InteractionState
-    private let startDate = Date()
+    @State private var startDate = Date()
 
     struct LavaBlob {
         let baseX, baseY: Double

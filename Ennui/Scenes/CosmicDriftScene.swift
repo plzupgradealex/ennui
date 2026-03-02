@@ -2,7 +2,7 @@ import SwiftUI
 
 struct CosmicDriftScene: View {
     @ObservedObject var interaction: InteractionState
-    private let startDate = Date()
+    @State private var startDate = Date()
 
     struct StarData: Identifiable {
         let id: Int

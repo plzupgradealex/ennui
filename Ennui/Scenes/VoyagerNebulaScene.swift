@@ -8,7 +8,7 @@ import SwiftUI
 
 struct VoyagerNebulaScene: View {
     @ObservedObject var interaction: InteractionState
-    private let startDate = Date()
+    @State private var startDate = Date()
 
     // MARK: - Data types
 

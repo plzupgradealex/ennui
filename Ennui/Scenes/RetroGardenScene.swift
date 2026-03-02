@@ -7,7 +7,7 @@ import SwiftUI
 
 struct RetroGardenScene: View {
     @ObservedObject var interaction: InteractionState
-    private let startDate = Date()
+    @State private var startDate = Date()
     private let px: Double = 4.0
 
     struct FlowerData {

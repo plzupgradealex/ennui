@@ -12,6 +12,7 @@ enum SceneKind: String, CaseIterable, Identifiable {
     case greetingTheDay = "greetingTheDay"
     case celShadedRainyDay = "celShadedRainyDay"
     case voyagerNebula = "voyagerNebula"
+    case retroPS1 = "retroPS1"
 
     var id: String { rawValue }
 
@@ -28,6 +29,7 @@ enum SceneKind: String, CaseIterable, Identifiable {
         case .greetingTheDay: return "sunrise"
         case .celShadedRainyDay: return "cloud.rain"
         case .voyagerNebula: return "sparkle.magnifyingglass"
+        case .retroPS1: return "gamecontroller"
         }
     }
 
@@ -44,6 +46,7 @@ enum SceneKind: String, CaseIterable, Identifiable {
         case .greetingTheDay: return Color(red: 0.9, green: 0.65, blue: 0.3)
         case .celShadedRainyDay: return Color(red: 0.4, green: 0.5, blue: 0.35)
         case .voyagerNebula: return Color(red: 0.3, green: 0.55, blue: 0.75)
+        case .retroPS1: return Color(red: 0.25, green: 0.2, blue: 0.4)
         }
     }
 }

@@ -7,7 +7,7 @@ import SwiftUI
 
 struct NightTrainScene: View {
     @ObservedObject var interaction: InteractionState
-    private let startDate = Date()
+    @State private var startDate = Date()
 
     private let cycleDuration: Double = 120.0
 
