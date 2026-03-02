@@ -15,7 +15,7 @@ struct SaltLampScene: View {
     @State private var ready = false
 
     var body: some View {
-        TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { timeline in
+        TimelineView(.animation(minimumInterval: 1.0 / 60.0)) { timeline in
             let t = timeline.date.timeIntervalSince(startDate)
             Canvas { ctx, size in
                 guard ready else { return }
@@ -27,7 +27,8 @@ struct SaltLampScene: View {
         }
         .background(Color(red: 0.03, green: 0.02, blue: 0.02))
         .onAppear(perform: setup)
-        .drawingGroup()
+        .drawingGroup(opaque: false, colorMode: .extendedLinear)
+        .allowedDynamicRange(.high)
     }
 
     private func setup() {

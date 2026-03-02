@@ -1,4 +1,5 @@
 import SwiftUI
+import Combine
 
 // Shared interaction state that scenes can read
 class InteractionState: ObservableObject {
@@ -15,6 +16,7 @@ struct ContentView: View {
     @State private var showHaiku = false
     @State private var pickerTimer: Timer? = nil
     @State private var launched = false
+    @State private var isActive = true  // battery: false when window not focused
     @StateObject private var interaction = InteractionState()
     @EnvironmentObject var multipeerManager: MultipeerManager
 
@@ -149,6 +151,15 @@ struct ContentView: View {
                 showPickerBriefly(duration: 6.0)
             }
         }
+        // Battery: pause rendering when app goes to background
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didResignActiveNotification)) { _ in
+            isActive = false
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            isActive = true
+        }
+        // Wrap scenes only when active — completely pauses rendering when inactive
+        .allowsHitTesting(isActive)
     }
 
     // MARK: - Scene view builder
@@ -195,7 +206,7 @@ struct ContentView: View {
     // MARK: - Ethereal floating scene picker
 
     private var etherealPicker: some View {
-        TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { timeline in
+        TimelineView(.animation(minimumInterval: 1.0 / 60.0)) { timeline in
             let t = timeline.date.timeIntervalSinceReferenceDate
             VStack {
                 Spacer()

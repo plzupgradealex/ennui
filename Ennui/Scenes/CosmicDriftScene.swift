@@ -28,7 +28,7 @@ struct CosmicDriftScene: View {
     @State private var ready = false
 
     var body: some View {
-        TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { timeline in
+        TimelineView(.animation(minimumInterval: 1.0 / 60.0)) { timeline in
             let t = timeline.date.timeIntervalSince(startDate)
             Canvas { ctx, size in
                 guard ready else { return }
@@ -41,7 +41,8 @@ struct CosmicDriftScene: View {
         }
         .background(.black)
         .onAppear(perform: setup)
-        .drawingGroup()
+        .drawingGroup(opaque: false, colorMode: .extendedLinear)
+        .allowedDynamicRange(.high)
         .onChange(of: interaction.tapLocation) { _, loc in
             guard let loc = loc else { return }
             let r = RippleData(x: loc.x, y: loc.y, birthTime: Date().timeIntervalSince(startDate))

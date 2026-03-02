@@ -20,6 +20,7 @@
 		AA000000000000000000003A /* HaikuOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000000001D /* HaikuOverlay.swift */; };
 		AA000000000000000000003B /* SaltLampScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000000001E /* SaltLampScene.swift */; };
 		AA000000000000000000003C /* ConservatoryScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000000001F /* ConservatoryScene.swift */; };
+		BB0000000000000000000001 /* EnnuiUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0000000000000000000010 /* EnnuiUITests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -39,10 +40,37 @@
 		AA000000000000000000001B /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		AA000000000000000000001A /* Ennui.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Ennui.entitlements; sourceTree = "<group>"; };
 		AA0000000000000000000020 /* Ennui.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Ennui.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		BB0000000000000000000010 /* EnnuiUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EnnuiUITests.swift; sourceTree = "<group>"; };
+		BB0000000000000000000020 /* EnnuiUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = EnnuiUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
+
+/* Begin PBXContainerItemProxy section */
+		BB0000000000000000000080 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = AA0000000000000000000001 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = AA0000000000000000000040;
+			remoteInfo = Ennui;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXTargetDependency section */
+		BB0000000000000000000070 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = AA0000000000000000000040 /* Ennui */;
+			targetProxy = BB0000000000000000000080 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin PBXFrameworksBuildPhase section */
 		AA0000000000000000000051 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		BB0000000000000000000051 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -56,6 +84,7 @@
 			isa = PBXGroup;
 			children = (
 				AA0000000000000000000003 /* Ennui */,
+				BB0000000000000000000002 /* EnnuiUITests */,
 				AA0000000000000000000006 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -102,8 +131,17 @@
 			isa = PBXGroup;
 			children = (
 				AA0000000000000000000020 /* Ennui.app */,
+				BB0000000000000000000020 /* EnnuiUITests.xctest */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		BB0000000000000000000002 /* EnnuiUITests */ = {
+			isa = PBXGroup;
+			children = (
+				BB0000000000000000000010 /* EnnuiUITests.swift */,
+			);
+			path = EnnuiUITests;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -125,6 +163,24 @@
 			productName = Ennui;
 			productReference = AA0000000000000000000020 /* Ennui.app */;
 			productType = "com.apple.product-type.application";
+		};
+		BB0000000000000000000040 /* EnnuiUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = BB0000000000000000000065 /* Build configuration list for PBXNativeTarget "EnnuiUITests" */;
+			buildPhases = (
+				BB0000000000000000000050 /* Sources */,
+				BB0000000000000000000051 /* Frameworks */,
+				BB0000000000000000000052 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				BB0000000000000000000070 /* PBXTargetDependency */,
+			);
+			name = EnnuiUITests;
+			productName = EnnuiUITests;
+			productReference = BB0000000000000000000020 /* EnnuiUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
 		};
 /* End PBXNativeTarget section */
 
@@ -150,12 +206,20 @@
 			projectRoot = "";
 			targets = (
 				AA0000000000000000000040 /* Ennui */,
+				BB0000000000000000000040 /* EnnuiUITests */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
 		AA0000000000000000000052 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		BB0000000000000000000052 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -182,6 +246,14 @@
 				AA000000000000000000003A /* HaikuOverlay.swift in Sources */,
 				AA000000000000000000003B /* SaltLampScene.swift in Sources */,
 				AA000000000000000000003C /* ConservatoryScene.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		BB0000000000000000000050 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				BB0000000000000000000001 /* EnnuiUITests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -289,6 +361,38 @@
 			};
 			name = Release;
 		};
+		BB0000000000000000000062 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.ennui.app.uitests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_VERSION = 5.0;
+				TEST_TARGET_NAME = Ennui;
+			};
+			name = Debug;
+		};
+		BB0000000000000000000063 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.ennui.app.uitests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_VERSION = 5.0;
+				TEST_TARGET_NAME = Ennui;
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -306,6 +410,15 @@
 			buildConfigurations = (
 				AA0000000000000000000062 /* Debug */,
 				AA0000000000000000000063 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		BB0000000000000000000065 /* Build configuration list for PBXNativeTarget "EnnuiUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				BB0000000000000000000062 /* Debug */,
+				BB0000000000000000000063 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
