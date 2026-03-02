@@ -1,6 +1,10 @@
 import SwiftUI
 import AppKit
 
+extension Notification.Name {
+    static let showAboutEnnui = Notification.Name("showAboutEnnui")
+}
+
 @main
 struct EnnuiApp: App {
     @StateObject private var multipeerManager = MultipeerManager()
@@ -14,6 +18,13 @@ struct EnnuiApp: App {
         }
         .windowStyle(.hiddenTitleBar)
         .defaultSize(width: 1024, height: 768)
+        .commands {
+            CommandGroup(replacing: .appInfo) {
+                Button("About Ennui") {
+                    NotificationCenter.default.post(name: .showAboutEnnui, object: nil)
+                }
+            }
+        }
     }
 }
 

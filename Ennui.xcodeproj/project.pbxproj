@@ -11,6 +11,7 @@
 		AA0000000000000000000031 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000011 /* ContentView.swift */; };
 		AA0000000000000000000032 /* SceneType.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000012 /* SceneType.swift */; };
 		AA0000000000000000000039 /* RandomUtils.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000000001C /* RandomUtils.swift */; };
+		DD0000000000000000000002 /* AboutView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD0000000000000000000001 /* AboutView.swift */; };
 		AA0000000000000000000033 /* CosmicDriftScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000013 /* CosmicDriftScene.swift */; };
 		AA0000000000000000000034 /* RetroGardenScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000014 /* RetroGardenScene.swift */; };
 		AA0000000000000000000035 /* DeepOceanScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000015 /* DeepOceanScene.swift */; };
@@ -45,6 +46,7 @@
 		AA0000000000000000000012 /* SceneType.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneType.swift; sourceTree = "<group>"; };
 		AA000000000000000000001C /* RandomUtils.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RandomUtils.swift; sourceTree = "<group>"; };
 		AA000000000000000000001D /* HaikuOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HaikuOverlay.swift; sourceTree = "<group>"; };
+		DD0000000000000000000001 /* AboutView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AboutView.swift; sourceTree = "<group>"; };
 		AA0000000000000000000013 /* CosmicDriftScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CosmicDriftScene.swift; sourceTree = "<group>"; };
 		AA0000000000000000000014 /* RetroGardenScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RetroGardenScene.swift; sourceTree = "<group>"; };
 		AA0000000000000000000015 /* DeepOceanScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeepOceanScene.swift; sourceTree = "<group>"; };
@@ -129,6 +131,7 @@
 				AA0000000000000000000012 /* SceneType.swift */,
 				AA000000000000000000001C /* RandomUtils.swift */,
 				AA000000000000000000001D /* HaikuOverlay.swift */,
+				DD0000000000000000000001 /* AboutView.swift */,
 				AA0000000000000000000004 /* Scenes */,
 				AA0000000000000000000005 /* Multiplayer */,
 				AA000000000000000000001B /* Info.plist */,
@@ -292,6 +295,7 @@
 				AA0000000000000000000037 /* AncientRuinsScene.swift in Sources */,
 				AA0000000000000000000038 /* MultipeerManager.swift in Sources */,
 				AA000000000000000000003A /* HaikuOverlay.swift in Sources */,
+				DD0000000000000000000002 /* AboutView.swift in Sources */,
 				AA000000000000000000003B /* SaltLampScene.swift in Sources */,
 				AA000000000000000000003C /* ConservatoryScene.swift in Sources */,
 				CC0000000000000000000011 /* NightTrainScene.swift in Sources */,

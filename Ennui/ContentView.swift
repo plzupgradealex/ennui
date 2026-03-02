@@ -14,6 +14,7 @@ struct ContentView: View {
     @State private var crossfade: Double = 1.0    // 1 = fully showing current
     @State private var showPicker = false
     @State private var showHaiku = false
+    @State private var showAbout = false
     @State private var pickerTimer: Timer? = nil
     @State private var launched = false
     @State private var isActive = true  // battery: false when window not focused
@@ -116,6 +117,12 @@ struct ContentView: View {
                 }
             }
             .allowsHitTesting(false)
+
+            // About overlay
+            if showAbout {
+                AboutView(isPresented: $showAbout)
+                    .transition(.opacity)
+            }
         }
         .frame(minWidth: 800, minHeight: 600)
         .onTapGesture(count: 3) {
@@ -147,6 +154,10 @@ struct ContentView: View {
             withAnimation(.easeInOut(duration: 0.8)) { showHaiku.toggle() }
             return .handled
         }
+        .onKeyPress(characters: CharacterSet(charactersIn: "?")) { _ in
+            withAnimation(.easeInOut(duration: 0.5)) { showAbout.toggle() }
+            return .handled
+        }
         .onAppear {
             // Breathing light for 2.5s, then slowly reveal scene over 3.5s
             DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) {
@@ -162,6 +173,9 @@ struct ContentView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
             isActive = true
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .showAboutEnnui)) { _ in
+            withAnimation(.easeInOut(duration: 0.5)) { showAbout = true }
         }
         // Wrap scenes only when active — completely pauses rendering when inactive
         .allowsHitTesting(isActive)
