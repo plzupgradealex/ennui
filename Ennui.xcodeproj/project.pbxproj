@@ -29,6 +29,10 @@
 		CC0000000000000000000017 /* PaperLanternFestivalScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC0000000000000000000007 /* PaperLanternFestivalScene.swift */; };
 		CC0000000000000000000018 /* ForgottenLibraryScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC0000000000000000000008 /* ForgottenLibraryScene.swift */; };
 		CC0000000000000000000019 /* LateNightRerunScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC0000000000000000000009 /* LateNightRerunScene.swift */; };
+		CC000000000000000000001A /* MedievalVillageScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC000000000000000000000A /* MedievalVillageScene.swift */; };
+		CC000000000000000000001B /* UrbanDreamscapeScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC000000000000000000000B /* UrbanDreamscapeScene.swift */; };
+		CC000000000000000000001C /* LushRuinsScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC000000000000000000000C /* LushRuinsScene.swift */; };
+		CC000000000000000000001D /* EnchantedArchivesScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC000000000000000000000D /* EnchantedArchivesScene.swift */; };
 		BB0000000000000000000001 /* EnnuiUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0000000000000000000010 /* EnnuiUITests.swift */; };
 /* End PBXBuildFile section */
 
@@ -54,6 +58,10 @@
 		CC0000000000000000000007 /* PaperLanternFestivalScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaperLanternFestivalScene.swift; sourceTree = "<group>"; };
 		CC0000000000000000000008 /* ForgottenLibraryScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ForgottenLibraryScene.swift; sourceTree = "<group>"; };
 		CC0000000000000000000009 /* LateNightRerunScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LateNightRerunScene.swift; sourceTree = "<group>"; };
+		CC000000000000000000000A /* MedievalVillageScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MedievalVillageScene.swift; sourceTree = "<group>"; };
+		CC000000000000000000000B /* UrbanDreamscapeScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UrbanDreamscapeScene.swift; sourceTree = "<group>"; };
+		CC000000000000000000000C /* LushRuinsScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LushRuinsScene.swift; sourceTree = "<group>"; };
+		CC000000000000000000000D /* EnchantedArchivesScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EnchantedArchivesScene.swift; sourceTree = "<group>"; };
 		AA0000000000000000000018 /* MultipeerManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MultipeerManager.swift; sourceTree = "<group>"; };
 		AA000000000000000000001B /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		AA000000000000000000001A /* Ennui.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Ennui.entitlements; sourceTree = "<group>"; };
@@ -142,6 +150,10 @@
 				CC0000000000000000000007 /* PaperLanternFestivalScene.swift */,
 				CC0000000000000000000008 /* ForgottenLibraryScene.swift */,
 				CC0000000000000000000009 /* LateNightRerunScene.swift */,
+				CC000000000000000000000A /* MedievalVillageScene.swift */,
+				CC000000000000000000000B /* UrbanDreamscapeScene.swift */,
+				CC000000000000000000000C /* LushRuinsScene.swift */,
+				CC000000000000000000000D /* EnchantedArchivesScene.swift */,
 			);
 			path = Scenes;
 			sourceTree = "<group>";
@@ -282,6 +294,10 @@
 				CC0000000000000000000017 /* PaperLanternFestivalScene.swift in Sources */,
 				CC0000000000000000000018 /* ForgottenLibraryScene.swift in Sources */,
 				CC0000000000000000000019 /* LateNightRerunScene.swift in Sources */,
+				CC000000000000000000001A /* MedievalVillageScene.swift in Sources */,
+				CC000000000000000000001B /* UrbanDreamscapeScene.swift in Sources */,
+				CC000000000000000000001C /* LushRuinsScene.swift in Sources */,
+				CC000000000000000000001D /* EnchantedArchivesScene.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

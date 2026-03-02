@@ -11,7 +11,12 @@ struct SaltLampScene: View {
         let warmth: Double // 0=deep orange, 1=pale peach
     }
 
+    struct WarmthPulse {
+        let birth: Double
+    }
+
     @State private var blobs: [LavaBlob] = []
+    @State private var warmthPulses: [WarmthPulse] = []
     @State private var ready = false
 
     var body: some View {
@@ -23,12 +28,31 @@ struct SaltLampScene: View {
                 drawLampBody(ctx: &ctx, size: size, t: t)
                 drawBlobs(ctx: &ctx, size: size, t: t)
                 drawHighlight(ctx: &ctx, size: size, t: t)
+                drawWarmthPulse(ctx: &ctx, size: size, t: t)
             }
         }
         .background(Color(red: 0.03, green: 0.02, blue: 0.02))
         .onAppear(perform: setup)
         .drawingGroup(opaque: false, colorMode: .extendedLinear)
         .allowedDynamicRange(.high)
+        .onChange(of: interaction.tapCount) { _, _ in
+            let t = Date().timeIntervalSince(startDate)
+            // Add warmth pulse
+            warmthPulses.append(WarmthPulse(birth: t))
+            if warmthPulses.count > 3 { warmthPulses.removeFirst() }
+            // Spawn a new bright blob
+            blobs.append(LavaBlob(
+                baseX: .random(in: 0.40...0.60),
+                baseY: 1.0,
+                sizeBase: .random(in: 40...80),
+                riseSpeed: .random(in: 0.02...0.05),
+                wanderFreq: .random(in: 0.4...0.9),
+                wanderAmp: .random(in: 0.03...0.07),
+                phase: .random(in: 0...(.pi * 2)),
+                warmth: .random(in: 0.7...1.0)
+            ))
+            if blobs.count > 30 { blobs.removeFirst() }
+        }
     }
 
     private func setup() {
@@ -215,6 +239,44 @@ struct SaltLampScene: View {
             layerCtx.opacity = 0.25 * pulse
             let rect = CGRect(x: hlX - hlW / 2, y: hlY, width: hlW, height: hlH)
             layerCtx.fill(Ellipse().path(in: rect), with: .color(Color(red: 2.0, green: 1.5, blue: 1.1)))
+        }
+    }
+
+    // MARK: - Warmth pulse on tap — whole lamp glows brighter momentarily
+
+    private func drawWarmthPulse(ctx: inout GraphicsContext, size: CGSize, t: Double) {
+        var totalIntensity = 0.0
+        for pulse in warmthPulses {
+            let age = t - pulse.birth
+            guard age >= 0 && age < 2.5 else { continue }
+            let envelope: Double
+            if age < 0.15 {
+                envelope = age / 0.15
+            } else {
+                envelope = max(0, 1.0 - (age - 0.15) / 2.35)
+            }
+            totalIntensity += envelope
+        }
+        guard totalIntensity > 0 else { return }
+
+        let cx = size.width * 0.5
+        let cy = size.height * 0.5
+        let r = max(size.width, size.height) * 0.6
+        let intensity = min(totalIntensity, 1.0)
+
+        ctx.drawLayer { l in
+            l.addFilter(.blur(radius: r * 0.5))
+            let rect = CGRect(x: cx - r, y: cy - r, width: r * 2, height: r * 2)
+            l.fill(Ellipse().path(in: rect), with: .radialGradient(
+                Gradient(colors: [
+                    Color(red: 1.8, green: 0.9, blue: 0.3).opacity(0.12 * intensity),
+                    Color(red: 1.4, green: 0.5, blue: 0.15).opacity(0.05 * intensity),
+                    Color.clear,
+                ]),
+                center: CGPoint(x: cx, y: cy),
+                startRadius: 0,
+                endRadius: r
+            ))
         }
     }
 }

@@ -43,10 +43,16 @@ struct CelShadedRainyDayScene: View {
         let x, y, birth: Double
     }
 
+    struct RainBurst {
+        let birth: Double
+        let x: Double
+    }
+
     @State private var flowers: [FlowerData] = []
     @State private var clouds: [CloudData] = []
     @State private var puddles: [PuddleData] = []
     @State private var blooms: [Bloom] = []
+    @State private var rainBursts: [RainBurst] = []
     @State private var ready = false
 
     var body: some View {
@@ -74,8 +80,12 @@ struct CelShadedRainyDayScene: View {
         .onAppear(perform: setup)
         .onChange(of: interaction.tapCount) { _, _ in
             guard let loc = interaction.tapLocation else { return }
-            blooms.append(Bloom(x: loc.x, y: loc.y, birth: Date().timeIntervalSince(startDate)))
+            let t = Date().timeIntervalSince(startDate)
+            blooms.append(Bloom(x: loc.x, y: loc.y, birth: t))
             if blooms.count > 8 { blooms.removeFirst() }
+            // Rain burst — heavier rain near tap + puddle shimmer
+            rainBursts.append(RainBurst(birth: t, x: loc.x))
+            if rainBursts.count > 4 { rainBursts.removeFirst() }
         }
     }
 
@@ -454,26 +464,44 @@ struct CelShadedRainyDayScene: View {
         }
     }
 
-    // MARK: - Rain — fat PS1-style drops, visible and bold
+    // MARK: - Rain — fat PS1-style drops, visible and bold (intensifies near tap)
 
     private func drawRain(ctx: inout GraphicsContext, size: CGSize, t: Double) {
-        let dropCount = 200
+        // Calculate rain burst intensity
+        var burstIntensity: [(x: Double, strength: Double)] = []
+        for burst in rainBursts {
+            let age = t - burst.birth
+            guard age >= 0 && age < 4.0 else { continue }
+            let env = age < 0.3 ? age / 0.3 : max(0, 1.0 - (age - 0.3) / 3.7)
+            burstIntensity.append((x: burst.x, strength: env))
+        }
+
+        let baseDropCount = 200
+        let burstDropCount = burstIntensity.isEmpty ? 0 : 120
+        let totalDrops = baseDropCount + burstDropCount
         let windSway = sin(t * 0.15) * 0.08  // gentle wind
-        for i in 0..<dropCount {
+
+        for i in 0..<totalDrops {
+            let isBurstDrop = i >= baseDropCount
             let seed = Double(i) * 7.31 + 1.23
-            let cycle = 1.2 + fmod(seed * 3.7, 0.8)
+            let cycle = isBurstDrop ? (0.5 + fmod(seed * 1.7, 0.4)) : (1.2 + fmod(seed * 3.7, 0.8))
             let phase = fmod(t + seed * 0.13, cycle)
             let progress = phase / cycle
 
-            let laneX = fmod(seed * 13.37, 1.0)
+            var laneX = fmod(seed * 13.37, 1.0)
+
+            // Burst drops cluster near tap location
+            if isBurstDrop, let burst = burstIntensity.first {
+                laneX = (burst.x / size.width) + (laneX - 0.5) * 0.3
+                guard burst.strength > 0.05 else { continue }
+            }
+
             let x = (laneX + windSway + progress * windSway * 0.5) * size.width
             let y = progress * size.height * 1.15 - size.height * 0.1
 
-            // Fat drops — PS1 pixel rain feel
-            let dropLen = 8.0 + fmod(seed * 2.1, 6.0)
-            let dropW = 1.5 + fmod(seed * 1.3, 1.0)
+            let dropLen = isBurstDrop ? (12.0 + fmod(seed * 2.1, 8.0)) : (8.0 + fmod(seed * 2.1, 6.0))
+            let dropW = isBurstDrop ? (2.0 + fmod(seed * 1.3, 1.5)) : (1.5 + fmod(seed * 1.3, 1.0))
 
-            // Bright white-blue — HDR pop
             let brightness = 0.6 + fmod(seed * 0.731, 0.4)
             let dropColor = Color(red: 0.65 * brightness, green: 0.75 * brightness, blue: 1.1 * brightness)
 
@@ -482,18 +510,34 @@ struct CelShadedRainyDayScene: View {
             path.addLine(to: CGPoint(x: x + windSway * 8, y: y + dropLen))
             ctx.stroke(path, with: .color(dropColor.opacity(0.7)), lineWidth: dropW)
 
-            // Splash at bottom — small V when drop hits ground
+            // Splash at bottom
             if progress > 0.88 {
                 let splashProgress = (progress - 0.88) / 0.12
                 let splashY = size.height * 0.92 + fmod(seed * 2.3, size.height * 0.08)
-                let splashR = splashProgress * 5.0
+                let splashR = splashProgress * (isBurstDrop ? 7.0 : 5.0)
                 let splashAlpha = (1.0 - splashProgress) * 0.5
 
-                // Tiny splash circle
                 let sr = CGRect(x: x - splashR, y: splashY - splashR * 0.3,
                                width: splashR * 2, height: splashR * 0.6)
                 ctx.stroke(Ellipse().path(in: sr),
                            with: .color(Color.white.opacity(splashAlpha)), lineWidth: 0.8)
+            }
+        }
+
+        // Puddle shimmer effect from rain bursts
+        if !burstIntensity.isEmpty {
+            let totalStrength = burstIntensity.reduce(0.0) { $0 + $1.strength }
+            let shimmer = min(totalStrength, 1.0)
+            for p in puddles {
+                let cx = p.cx * size.width
+                let cy = p.cy * size.height
+                let rx = p.rx * size.width
+                let ry = p.ry * size.height
+                let glint = sin(t * 4 + p.cx * 20) * 0.3 + 0.7
+                let highlightRect = CGRect(x: cx - rx * 0.4, y: cy - ry * 0.5,
+                                           width: rx * 0.8, height: ry * 0.5)
+                ctx.fill(Ellipse().path(in: highlightRect),
+                         with: .color(Color(red: 1.1, green: 1.1, blue: 1.3).opacity(shimmer * glint * 0.25)))
             }
         }
     }

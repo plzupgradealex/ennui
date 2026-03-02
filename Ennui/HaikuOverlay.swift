@@ -23,6 +23,10 @@ actor HaikuGenerator {
             .paperLanternFestival: "hundreds of warm glowing paper lanterns rising gently into the twilight sky over a dark reflective lake, fireflies dancing between them",
             .forgottenLibrary: "an infinite twilight library with towering bookshelves, candlelight, floating golden letters drifting upward like embers, and moonlight through arched windows",
             .lateNightRerun: "falling asleep to late-night TV reruns in a cozy 90s bedroom, CRT glow, lava lamp, glow-in-the-dark stars on the ceiling, rain on the window",
+            .medievalVillage: "a peaceful medieval village settling down for the night, fires extinguished one by one, chimney smoke, moonlight on thatched roofs, aurora appearing as the village sleeps",
+            .urbanDreamscape: "a dreamy cel-shaded city blending Paris, Tokyo, Rome, Istanbul, and New York at night, neon signs reflecting in rain puddles, an elevated train passing, PS1-style lo-fi aesthetic",
+            .lushRuins: "ancient moss-covered temple ruins in a lush humid tropical jungle, waterfalls cascading over carved stone, god rays through dense canopy, butterflies, dripping water, Borobudur-inspired",
+            .enchantedArchives: "a wild magical library where books fly open and paper origami birds soar between living shelves, lightning arcs between bookcases, stained glass rosette windows cast kaleidoscopic light, golden glyphs orbit in galaxies",
         ]
         let theme = themes[scene] ?? "a peaceful calming moment"
 
@@ -129,6 +133,26 @@ struct HaikuOverlayView: View {
             "Static hums goodnight\nThe lava lamp keeps its watch\nGlow stars guard the dark",
             "Reruns play for none\nRain and television light\nSafe beneath the sheets",
             "Twelve fifteen glows red\nThe world outside falls asleep\nThis room holds me close",
+        ],
+        .medievalVillage: [
+            "Candles dim one more\nThe blacksmith rests his hammer\nMoonlight takes the watch",
+            "Thatched roofs catch the dew\nChimney smoke curls into stars\nThe village dreams now",
+            "One by one lights fade\nFireflies replace the torches\nAurora whispers",
+        ],
+        .urbanDreamscape: [
+            "Neon writes on rain\nTokyo blurs into Paris\nThe train hums past Rome",
+            "Puddles hold the sky\nA thousand cities in one\nPixels softly glow",
+            "Minarets and spires\nMeet beneath the scanline haze\nDreams in low-res light",
+        ],
+        .lushRuins: [
+            "Stone exhales green mist\nWater finds its ancient path\nThe jungle reclaims",
+            "Wet leaves catch the light\nTemple steps dissolve in moss\nButterflies keep time",
+            "Rain on carved Buddha\nVines embrace what hands once built\nSteam rises like prayer",
+        ],
+        .enchantedArchives: [
+            "Lightning finds the page\nPaper birds scatter like thoughts\nInk becomes the sky",
+            "Glyphs orbit in gold\nThe shelves breathe and lean toward\nKnowledge made of light",
+            "Books open and fly\nStained glass casts a thousand hues\nMagic reads itself",
         ],
     ]
 

@@ -188,6 +188,10 @@ struct ContentView: View {
         case .paperLanternFestival: PaperLanternFestivalScene(interaction: interaction)
         case .forgottenLibrary: ForgottenLibraryScene(interaction: interaction)
         case .lateNightRerun: LateNightRerunScene(interaction: interaction)
+        case .medievalVillage: MedievalVillageScene(interaction: interaction)
+        case .urbanDreamscape: UrbanDreamscapeScene(interaction: interaction)
+        case .lushRuins: LushRuinsScene(interaction: interaction)
+        case .enchantedArchives: EnchantedArchivesScene(interaction: interaction)
         }
     }
 

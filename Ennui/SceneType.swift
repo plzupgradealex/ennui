@@ -17,6 +17,10 @@ enum SceneKind: String, CaseIterable, Identifiable {
     case paperLanternFestival = "paperLanternFestival"
     case forgottenLibrary = "forgottenLibrary"
     case lateNightRerun = "lateNightRerun"
+    case medievalVillage = "medievalVillage"
+    case urbanDreamscape = "urbanDreamscape"
+    case lushRuins = "lushRuins"
+    case enchantedArchives = "enchantedArchives"
 
     var id: String { rawValue }
 
@@ -38,6 +42,10 @@ enum SceneKind: String, CaseIterable, Identifiable {
         case .paperLanternFestival: return "lamp.desk"
         case .forgottenLibrary: return "books.vertical"
         case .lateNightRerun: return "tv"
+        case .medievalVillage: return "house.lodge"
+        case .urbanDreamscape: return "building.2"
+        case .lushRuins: return "leaf.arrow.triangle.circlepath"
+        case .enchantedArchives: return "book.and.wrench"
         }
     }
 
@@ -59,6 +67,10 @@ enum SceneKind: String, CaseIterable, Identifiable {
         case .paperLanternFestival: return Color(red: 0.9, green: 0.6, blue: 0.15)
         case .forgottenLibrary: return Color(red: 0.55, green: 0.4, blue: 0.25)
         case .lateNightRerun: return Color(red: 0.3, green: 0.25, blue: 0.55)
+        case .medievalVillage: return Color(red: 0.7, green: 0.5, blue: 0.25)
+        case .urbanDreamscape: return Color(red: 0.6, green: 0.3, blue: 0.8)
+        case .lushRuins: return Color(red: 0.2, green: 0.65, blue: 0.35)
+        case .enchantedArchives: return Color(red: 0.45, green: 0.3, blue: 0.6)
         }
     }
 }
