@@ -314,23 +314,22 @@ struct VoyagerNebulaScene: View {
     // MARK: - Stellar cores — bright HDR points with blooming light
 
     private func drawStellarCores(ctx: inout GraphicsContext, size: CGSize, t: Double) {
-        for core in stellarCores {
-            let pulse = sin(t * core.pulseRate + core.pulsePhase) * 0.15 + 1.0
-            let x = core.cx * size.width
-            let y = core.cy * size.height
-            let coreR = core.coreSize * max(size.width, size.height) * pulse
+        // Single halo glow layer for all cores (was 5 separate layers)
+        ctx.drawLayer { layerCtx in
+            layerCtx.addFilter(.blur(radius: size.width * 0.04))
+            for core in stellarCores {
+                let pulse = sin(t * core.pulseRate + core.pulsePhase) * 0.15 + 1.0
+                let x = core.cx * size.width
+                let y = core.cy * size.height
+                let coreR = core.coreSize * max(size.width, size.height) * pulse
+                let hdrBright = core.brightness * pulse
+                let coreColor = Color(red: core.r * hdrBright,
+                                      green: core.g * hdrBright,
+                                      blue: core.b * hdrBright)
 
-            let hdrBright = core.brightness * pulse
-            let coreColor = Color(red: core.r * hdrBright,
-                                  green: core.g * hdrBright,
-                                  blue: core.b * hdrBright)
-
-            // Wide glow halo
-            let haloR = coreR * 6
-            let haloRect = CGRect(x: x - haloR, y: y - haloR,
-                                  width: haloR * 2, height: haloR * 2)
-            ctx.drawLayer { layerCtx in
-                layerCtx.addFilter(.blur(radius: haloR * 0.4))
+                let haloR = coreR * 6
+                let haloRect = CGRect(x: x - haloR, y: y - haloR,
+                                      width: haloR * 2, height: haloR * 2)
                 layerCtx.fill(
                     Ellipse().path(in: haloRect),
                     with: .radialGradient(
@@ -344,24 +343,30 @@ struct VoyagerNebulaScene: View {
                         endRadius: haloR
                     )
                 )
-            }
 
-            // Medium glow
-            let midR = coreR * 2.5
-            let midRect = CGRect(x: x - midR, y: y - midR,
-                                 width: midR * 2, height: midR * 2)
-            ctx.drawLayer { layerCtx in
-                layerCtx.addFilter(.blur(radius: midR * 0.3))
+                let midR = coreR * 2.5
+                let midRect = CGRect(x: x - midR, y: y - midR,
+                                     width: midR * 2, height: midR * 2)
                 layerCtx.fill(Ellipse().path(in: midRect),
                               with: .color(coreColor.opacity(0.5)))
             }
+        }
 
-            // Hard bright core
+        // Hard cores and spikes (no layer needed)
+        for core in stellarCores {
+            let pulse = sin(t * core.pulseRate + core.pulsePhase) * 0.15 + 1.0
+            let x = core.cx * size.width
+            let y = core.cy * size.height
+            let coreR = core.coreSize * max(size.width, size.height) * pulse
+            let hdrBright = core.brightness * pulse
+            let coreColor = Color(red: core.r * hdrBright,
+                                  green: core.g * hdrBright,
+                                  blue: core.b * hdrBright)
+
             let coreRect = CGRect(x: x - coreR, y: y - coreR,
                                   width: coreR * 2, height: coreR * 2)
             ctx.fill(Ellipse().path(in: coreRect), with: .color(coreColor))
 
-            // Spike cross (lens flare feel — Voyager style)
             for angle in [0.0, Double.pi / 2] {
                 let spikeLen = coreR * 4 * pulse
                 var spike = Path()
