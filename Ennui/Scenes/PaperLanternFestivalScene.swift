@@ -52,6 +52,7 @@ struct PaperLanternFestivalScene: View {
     @State private var mountains: [MountainPt] = []
     @State private var tapLanterns: [TapLantern] = []
     @State private var ready = false
+    @State private var viewSize: CGSize = CGSize(width: 1200, height: 800)
 
     var body: some View {
         TimelineView(.animation(minimumInterval: 1.0 / 60.0)) { tl in
@@ -72,11 +73,18 @@ struct PaperLanternFestivalScene: View {
         .drawingGroup(opaque: false, colorMode: .extendedLinear)
         .allowedDynamicRange(.high)
         .onAppear(perform: setup)
+        .background(
+            GeometryReader { geo in
+                Color.clear
+                    .onAppear { viewSize = geo.size }
+                    .onChange(of: geo.size) { _, newSize in viewSize = newSize }
+            }
+        )
         .onChange(of: interaction.tapCount) { _, _ in
             guard let loc = interaction.tapLocation else { return }
             let t = Date().timeIntervalSince(startDate)
-            let screenW = max(NSScreen.main?.frame.width ?? 1200, 1)
-            let screenH = max(NSScreen.main?.frame.height ?? 800, 1)
+            let screenW = max(viewSize.width, 1)
+            let screenH = max(viewSize.height, 1)
             let nx = loc.x / screenW
             let ny = loc.y / screenH
             var rng = SplitMix64(seed: UInt64(t * 10000))

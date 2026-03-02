@@ -3,6 +3,7 @@ import AppKit
 
 extension Notification.Name {
     static let showAboutEnnui = Notification.Name("showAboutEnnui")
+    static let toggleSharing = Notification.Name("toggleSharing")
 }
 
 @main
@@ -23,6 +24,13 @@ struct EnnuiApp: App {
                 Button("About Ennui") {
                     NotificationCenter.default.post(name: .showAboutEnnui, object: nil)
                 }
+            }
+            CommandGroup(after: .appInfo) {
+                Divider()
+                Button(multipeerManager.isEnabled ? "Stop Sharing" : "Share Experience\u{2026}") {
+                    NotificationCenter.default.post(name: .toggleSharing, object: nil)
+                }
+                .keyboardShortcut("s", modifiers: [.command, .shift])
             }
         }
     }

@@ -58,6 +58,7 @@ struct GreetingTheDayScene: View {
         .drawingGroup(opaque: false, colorMode: .extendedLinear)
         .allowedDynamicRange(.high)
         .onChange(of: interaction.tapCount) { _, _ in
+            guard buildings.count < 40 else { return }
             addBuilding()
         }
     }

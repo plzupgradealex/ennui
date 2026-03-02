@@ -15,6 +15,7 @@ struct ContentView: View {
     @State private var showPicker = false
     @State private var showHaiku = false
     @State private var showAbout = false
+    @State private var showShareConsent = false
     @State private var pickerTimer: Timer? = nil
     @State private var launched = false
     @State private var isActive = true  // battery: false when window not focused
@@ -37,6 +38,11 @@ struct ContentView: View {
             sceneView(for: currentScene)
                 .opacity(crossfade)
                 .ignoresSafeArea()
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(currentScene.displayName)
+                .accessibilityValue(currentScene.accessibilityDescription)
+                .accessibilityHint(currentScene.tapHint)
+                .accessibilityAddTraits(.updatesFrequently)
 
             // Ethereal opening — breathing light that dissolves into the scene
             if !launched {
@@ -122,6 +128,21 @@ struct ContentView: View {
             if showAbout {
                 AboutView(isPresented: $showAbout)
                     .transition(.opacity)
+                    .accessibilityAddTraits(.isModal)
+            }
+
+            // Share consent overlay
+            if showShareConsent {
+                shareConsentOverlay
+                    .transition(.opacity)
+                    .accessibilityAddTraits(.isModal)
+            }
+
+            // Peer invitation overlay
+            if multipeerManager.pendingInvitation != nil {
+                peerInvitationOverlay
+                    .transition(.opacity)
+                    .accessibilityAddTraits(.isModal)
             }
         }
         .frame(minWidth: 800, minHeight: 600)
@@ -158,6 +179,16 @@ struct ContentView: View {
             withAnimation(.easeInOut(duration: 0.5)) { showAbout.toggle() }
             return .handled
         }
+        .onKeyPress(characters: CharacterSet(charactersIn: "sS")) { _ in
+            withAnimation(.easeInOut(duration: 0.5)) {
+                if multipeerManager.isEnabled {
+                    multipeerManager.stopSharing()
+                } else {
+                    showShareConsent = true
+                }
+            }
+            return .handled
+        }
         .onAppear {
             // Breathing light for 2.5s, then slowly reveal scene over 3.5s
             DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) {
@@ -176,6 +207,21 @@ struct ContentView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: .showAboutEnnui)) { _ in
             withAnimation(.easeInOut(duration: 0.5)) { showAbout = true }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .toggleSharing)) { _ in
+            withAnimation(.easeInOut(duration: 0.5)) {
+                if multipeerManager.isEnabled {
+                    multipeerManager.stopSharing()
+                } else {
+                    showShareConsent = true
+                }
+            }
+        }
+        // Listen for scene changes from connected peers
+        .onChange(of: multipeerManager.receivedSceneID) { _, newID in
+            guard let id = newID, let scene = SceneKind(rawValue: id) else { return }
+            multipeerManager.receivedSceneID = nil
+            transitionToScene(scene)
         }
         // Wrap scenes only when active — completely pauses rendering when inactive
         .allowsHitTesting(isActive)
@@ -209,6 +255,8 @@ struct ContentView: View {
         case .celestialScrollHall: CelestialScrollHallScene(interaction: interaction)
         case .jeonjuNight: JeonjuNightScene(interaction: interaction)
         case .quietMeal: QuietMealScene(interaction: interaction)
+        case .artDecoLA: ArtDecoLAScene(interaction: interaction)
+        case .floatingKingdom: FloatingKingdomScene(interaction: interaction)
         }
     }
 
@@ -297,6 +345,9 @@ struct ContentView: View {
                             .animation(.easeInOut(duration: 0.6), value: isActive)
                         }
                         .buttonStyle(.plain)
+                        .accessibilityLabel(scene.displayName)
+                        .accessibilityHint(isActive ? "Currently viewing" : "Switch to \(scene.displayName)")
+                        .accessibilityAddTraits(isActive ? .isSelected : [])
                     }
                 }
                 .padding(.horizontal, 32)
@@ -321,6 +372,161 @@ struct ContentView: View {
         }
         .padding(8)
         .background(.ultraThinMaterial.opacity(0.2), in: Capsule())
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(multipeerManager.connectedPeers.count) nearby \(multipeerManager.connectedPeers.count == 1 ? "person" : "people") sharing this moment")
+    }
+
+    // MARK: - Share consent overlay
+
+    private var shareConsentOverlay: some View {
+        ZStack {
+            Color.black.opacity(0.7)
+                .ignoresSafeArea()
+                .onTapGesture {
+                    withAnimation(.easeIn(duration: 0.35)) { showShareConsent = false }
+                }
+
+            VStack(spacing: 0) {
+                Text("Share This Moment")
+                    .font(.system(size: 22, weight: .thin, design: .serif))
+                    .foregroundStyle(Color(red: 0.95, green: 0.91, blue: 0.84))
+                    .tracking(2)
+                    .padding(.bottom, 16)
+
+                Text("Share your current scene with someone nearby on the same Wi-Fi network, so you can drift through the same world together.")
+                    .font(.system(size: 13, weight: .light, design: .serif))
+                    .foregroundStyle(Color(red: 0.95, green: 0.91, blue: 0.84).opacity(0.6))
+                    .lineSpacing(5)
+                    .multilineTextAlignment(.center)
+                    .padding(.bottom, 12)
+
+                Text("Your name won't be shared — you'll appear anonymously. No personal data is ever sent. You can stop sharing at any time by pressing S again.")
+                    .font(.system(size: 12, weight: .light, design: .serif))
+                    .foregroundStyle(Color(red: 0.95, green: 0.91, blue: 0.84).opacity(0.45))
+                    .lineSpacing(4)
+                    .multilineTextAlignment(.center)
+                    .padding(.bottom, 24)
+
+                HStack(spacing: 20) {
+                    Button {
+                        withAnimation(.easeIn(duration: 0.35)) { showShareConsent = false }
+                    } label: {
+                        Text("Not now")
+                            .font(.system(size: 13, weight: .light, design: .serif))
+                            .foregroundStyle(Color(red: 0.65, green: 0.6, blue: 0.55).opacity(0.7))
+                            .padding(.horizontal, 20)
+                            .padding(.vertical, 10)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Not now")
+                    .accessibilityHint("Dismiss without sharing")
+
+                    Button {
+                        multipeerManager.startSharing()
+                        withAnimation(.easeIn(duration: 0.35)) { showShareConsent = false }
+                    } label: {
+                        Text("Share")
+                            .font(.system(size: 13, weight: .regular, design: .serif))
+                            .foregroundStyle(Color(red: 0.95, green: 0.91, blue: 0.84))
+                            .padding(.horizontal, 24)
+                            .padding(.vertical, 10)
+                            .background(
+                                Capsule()
+                                    .fill(Color(red: 0.78, green: 0.68, blue: 0.48).opacity(0.2))
+                            )
+                            .overlay(
+                                Capsule()
+                                    .strokeBorder(Color(red: 0.78, green: 0.68, blue: 0.48).opacity(0.3), lineWidth: 0.5)
+                            )
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Share")
+                    .accessibilityHint("Begin sharing your scene with nearby devices")
+                }
+            }
+            .frame(maxWidth: 380)
+            .padding(32)
+            .background(
+                RoundedRectangle(cornerRadius: 16)
+                    .fill(Color(red: 0.08, green: 0.07, blue: 0.06).opacity(0.95))
+                    .shadow(color: .black.opacity(0.5), radius: 40, y: 10)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 16)
+                    .strokeBorder(Color(red: 0.78, green: 0.68, blue: 0.48).opacity(0.08), lineWidth: 0.5)
+            )
+        }
+    }
+
+    // MARK: - Peer invitation overlay
+
+    private var peerInvitationOverlay: some View {
+        ZStack {
+            Color.black.opacity(0.7)
+                .ignoresSafeArea()
+
+            VStack(spacing: 0) {
+                Text("Someone Nearby")
+                    .font(.system(size: 22, weight: .thin, design: .serif))
+                    .foregroundStyle(Color(red: 0.95, green: 0.91, blue: 0.84))
+                    .tracking(2)
+                    .padding(.bottom, 16)
+
+                Text("Someone on your network would like to share a calm moment with you. Your scenes will stay in sync while connected.")
+                    .font(.system(size: 13, weight: .light, design: .serif))
+                    .foregroundStyle(Color(red: 0.95, green: 0.91, blue: 0.84).opacity(0.6))
+                    .lineSpacing(5)
+                    .multilineTextAlignment(.center)
+                    .padding(.bottom, 24)
+
+                HStack(spacing: 20) {
+                    Button {
+                        multipeerManager.declineInvitation()
+                    } label: {
+                        Text("Decline")
+                            .font(.system(size: 13, weight: .light, design: .serif))
+                            .foregroundStyle(Color(red: 0.65, green: 0.6, blue: 0.55).opacity(0.7))
+                            .padding(.horizontal, 20)
+                            .padding(.vertical, 10)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Decline")
+                    .accessibilityHint("Decline the connection request")
+
+                    Button {
+                        multipeerManager.acceptInvitation()
+                    } label: {
+                        Text("Accept")
+                            .font(.system(size: 13, weight: .regular, design: .serif))
+                            .foregroundStyle(Color(red: 0.95, green: 0.91, blue: 0.84))
+                            .padding(.horizontal, 24)
+                            .padding(.vertical, 10)
+                            .background(
+                                Capsule()
+                                    .fill(Color(red: 0.78, green: 0.68, blue: 0.48).opacity(0.2))
+                            )
+                            .overlay(
+                                Capsule()
+                                    .strokeBorder(Color(red: 0.78, green: 0.68, blue: 0.48).opacity(0.3), lineWidth: 0.5)
+                            )
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Accept")
+                    .accessibilityHint("Accept and share scenes with this person")
+                }
+            }
+            .frame(maxWidth: 380)
+            .padding(32)
+            .background(
+                RoundedRectangle(cornerRadius: 16)
+                    .fill(Color(red: 0.08, green: 0.07, blue: 0.06).opacity(0.95))
+                    .shadow(color: .black.opacity(0.5), radius: 40, y: 10)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 16)
+                    .strokeBorder(Color(red: 0.78, green: 0.68, blue: 0.48).opacity(0.08), lineWidth: 0.5)
+            )
+        }
     }
 
     // MARK: - Helpers

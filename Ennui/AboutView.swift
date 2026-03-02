@@ -58,16 +58,18 @@ struct AboutView: View {
                     """)
 
                     bodyText("""
-                    Every scene runs at 60 frames per second, rendered entirely on \
-                    your CPU using SwiftUI Canvas. There are no third-party libraries, \
-                    no cloud services, no analytics. The app collects no data whatsoever. \
-                    It does not know who you are and it does not need to.
+                    Every scene runs at 60 frames per second, rendered using SwiftUI Canvas \
+                    with Metal GPU acceleration on Apple Silicon. There are no third-party \
+                    libraries, no cloud services, no analytics. The app collects no data \
+                    whatsoever. It does not know who you are and it does not need to.
                     """)
 
                     bodyText("""
                     Tap a scene and something gentle happens. Double-tap to see the \
                     scene picker. Triple-tap for haiku. Press H for haiku too. \
-                    Arrow keys move between scenes. That's everything.
+                    Arrow keys move between scenes. Press S to share your scene with \
+                    someone nearby — you'll be asked first, always. Press ? for this page. \
+                    That's everything.
                     """)
 
                     Spacer().frame(height: 28)

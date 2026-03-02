@@ -48,6 +48,7 @@ struct AuroraBorealisScene: View {
     @State private var crystals: [IceCrystal] = []
     @State private var flares: [SolarFlare] = []
     @State private var ready = false
+    @State private var viewSize: CGSize = CGSize(width: 1200, height: 800)
 
     var body: some View {
         TimelineView(.animation(minimumInterval: 1.0 / 60.0)) { tl in
@@ -71,10 +72,17 @@ struct AuroraBorealisScene: View {
         .drawingGroup(opaque: false, colorMode: .extendedLinear)
         .allowedDynamicRange(.high)
         .onAppear(perform: setup)
+        .background(
+            GeometryReader { geo in
+                Color.clear
+                    .onAppear { viewSize = geo.size }
+                    .onChange(of: geo.size) { _, newSize in viewSize = newSize }
+            }
+        )
         .onChange(of: interaction.tapCount) { _, _ in
             guard let loc = interaction.tapLocation else { return }
             let t = Date().timeIntervalSince(startDate)
-            let nx = loc.x / max(NSScreen.main?.frame.width ?? 1200, 1)
+            let nx = loc.x / max(viewSize.width, 1)
             flares.append(SolarFlare(x: nx, birth: t))
             if flares.count > 5 { flares.removeFirst() }
         }

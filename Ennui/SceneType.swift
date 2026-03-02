@@ -24,8 +24,106 @@ enum SceneKind: String, CaseIterable, Identifiable {
     case celestialScrollHall = "celestialScrollHall"
     case jeonjuNight = "jeonjuNight"
     case quietMeal = "quietMeal"
+    case artDecoLA = "artDecoLA"
+    case floatingKingdom = "floatingKingdom"
 
     var id: String { rawValue }
+
+    // MARK: - Display name (human-readable, used in accessibility)
+
+    var displayName: String {
+        switch self {
+        case .cosmicDrift: return "Cosmic Drift"
+        case .retroGarden: return "Retro Garden"
+        case .deepOcean: return "Deep Ocean"
+        case .desertStarscape: return "Desert Starscape"
+        case .ancientRuins: return "Ancient Ruins"
+        case .saltLamp: return "Salt Lamp"
+        case .conservatory: return "Conservatory"
+        case .nightTrain: return "Night Train"
+        case .greetingTheDay: return "Greeting the Day"
+        case .celShadedRainyDay: return "Rainy Day"
+        case .voyagerNebula: return "Voyager Nebula"
+        case .retroPS1: return "Retro PS1"
+        case .auroraBorealis: return "Aurora Borealis"
+        case .paperLanternFestival: return "Paper Lantern Festival"
+        case .forgottenLibrary: return "Forgotten Library"
+        case .lateNightRerun: return "Late Night Rerun"
+        case .medievalVillage: return "Medieval Village"
+        case .urbanDreamscape: return "Urban Dreamscape"
+        case .lushRuins: return "Lush Ruins"
+        case .enchantedArchives: return "Enchanted Archives"
+        case .celestialScrollHall: return "Celestial Scroll Hall"
+        case .jeonjuNight: return "Jeonju Night"
+        case .quietMeal: return "Quiet Meal"
+        case .artDecoLA: return "Art Deco LA"
+        case .floatingKingdom: return "Floating Kingdom"
+        }
+    }
+
+    // MARK: - Accessibility description (rich VoiceOver context)
+
+    var accessibilityDescription: String {
+        switch self {
+        case .cosmicDrift: return "Gentle nebulae and twinkling stars drifting through warm cosmic space"
+        case .retroGarden: return "A peaceful pixel-art garden with flowers, butterflies, and soft sunlight"
+        case .deepOcean: return "Bioluminescent creatures glowing softly in the deep ocean"
+        case .desertStarscape: return "Warm desert dunes beneath a vast starry sky"
+        case .ancientRuins: return "Ancient stone ruins bathed in soft aurora light with fireflies"
+        case .saltLamp: return "The warm amber glow of a Himalayan salt lamp breathing gently"
+        case .conservatory: return "Rain on greenhouse windows with plants swaying and steam rising"
+        case .nightTrain: return "A gentle night train journey through moonlit countryside"
+        case .greetingTheDay: return "A city waking up at sunrise with buildings growing toward the light"
+        case .celShadedRainyDay: return "Bright flowers thriving in gentle rain, puddles forming in a cartoon world"
+        case .voyagerNebula: return "Drifting through a magnificent nebula, swirling teal and magenta"
+        case .retroPS1: return "A nostalgic low-poly nighttime scene with a glowing cabin and fireflies"
+        case .auroraBorealis: return "Northern lights dancing in green and violet over a frozen lake with pine trees"
+        case .paperLanternFestival: return "Hundreds of warm paper lanterns rising into the twilight over a dark lake"
+        case .forgottenLibrary: return "An infinite twilight library with towering bookshelves and floating golden letters"
+        case .lateNightRerun: return "Falling asleep to late-night TV reruns in a cosy nineties bedroom"
+        case .medievalVillage: return "A peaceful medieval village settling down for the night under moonlight"
+        case .urbanDreamscape: return "A dreamy cel-shaded city blending world capitals at night"
+        case .lushRuins: return "Ancient moss-covered temple ruins in a lush tropical jungle with waterfalls"
+        case .enchantedArchives: return "A wild magical library where books fly open and paper birds soar"
+        case .celestialScrollHall: return "A moonlit Chinese study hall with calligraphy scrolls and glowing characters"
+        case .jeonjuNight: return "A quiet Korean neighbourhood at night in the nineteen-nineties"
+        case .quietMeal: return "Two friends sharing a quiet meal, seen through the window on a rainy evening"
+        case .artDecoLA: return "An art deco Los Angeles boulevard at golden hour with palm trees, streamline moderne buildings, and a vintage red streetcar"
+        case .floatingKingdom: return "A sky kingdom floating above an ocean of clouds, with crystalline spires, waterfalls cascading into mist, and motes of ancient magical energy drifting upward"
+        }
+    }
+
+    // MARK: - Tap hint for accessibility
+
+    var tapHint: String {
+        switch self {
+        case .cosmicDrift: return "Tap to send a ripple through the stars"
+        case .retroGarden: return "Tap to plant a flower"
+        case .deepOcean: return "Tap to attract bioluminescent creatures"
+        case .desertStarscape: return "Tap to send a ripple across the dunes"
+        case .ancientRuins: return "Tap to release fireflies"
+        case .saltLamp: return "Tap to brighten the glow"
+        case .conservatory: return "Tap to make it rain harder"
+        case .nightTrain: return "Tap to light a window"
+        case .greetingTheDay: return "Tap to grow a new building"
+        case .celShadedRainyDay: return "Tap for a splash"
+        case .voyagerNebula: return "Tap to pulse the nebula"
+        case .retroPS1: return "Tap to scatter fireflies"
+        case .auroraBorealis: return "Tap to send a solar flare through the aurora"
+        case .paperLanternFestival: return "Tap to release a cluster of lanterns"
+        case .forgottenLibrary: return "Tap to open a book and release glowing letters"
+        case .lateNightRerun: return "Tap to change the channel"
+        case .medievalVillage: return "Tap to snuff a candle"
+        case .urbanDreamscape: return "Tap to send a ripple through the puddles"
+        case .lushRuins: return "Tap to release butterflies"
+        case .enchantedArchives: return "Tap to scatter paper birds"
+        case .celestialScrollHall: return "Tap to release glowing characters from a scroll"
+        case .jeonjuNight: return "Tap to toggle a window light"
+        case .quietMeal: return "Tap to send a raindrop down the glass"
+        case .artDecoLA: return "Tap to sweep a searchlight across the sky"
+        case .floatingKingdom: return "Tap to send a pulse of magical energy rippling outward"
+        }
+    }
 
     var icon: String {
         switch self {
@@ -52,6 +150,8 @@ enum SceneKind: String, CaseIterable, Identifiable {
         case .celestialScrollHall: return "scroll"
         case .jeonjuNight: return "moon"
         case .quietMeal: return "cup.and.saucer"
+        case .artDecoLA: return "building.columns.fill"
+        case .floatingKingdom: return "cloud.sun"
         }
     }
 
@@ -80,6 +180,8 @@ enum SceneKind: String, CaseIterable, Identifiable {
         case .celestialScrollHall: return Color(red: 0.75, green: 0.55, blue: 0.3)
         case .jeonjuNight: return Color(red: 0.35, green: 0.25, blue: 0.5)
         case .quietMeal: return Color(red: 0.7, green: 0.6, blue: 0.45)
+        case .artDecoLA: return Color(red: 0.9, green: 0.7, blue: 0.35)
+        case .floatingKingdom: return Color(red: 0.4, green: 0.3, blue: 0.7)
         }
     }
 }

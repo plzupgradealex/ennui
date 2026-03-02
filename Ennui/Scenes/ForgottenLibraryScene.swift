@@ -60,6 +60,7 @@ struct ForgottenLibraryScene: View {
     @State private var glyphs: [FloatingGlyph] = []
     @State private var autoGlyphs: [FloatingGlyph] = []
     @State private var ready = false
+    @State private var viewSize: CGSize = CGSize(width: 1200, height: 800)
 
     private let glyphChars = ["α", "β", "γ", "δ", "ε", "ζ", "η", "θ",
                                "λ", "μ", "π", "σ", "φ", "ψ", "ω",
@@ -86,11 +87,18 @@ struct ForgottenLibraryScene: View {
         .drawingGroup(opaque: false, colorMode: .extendedLinear)
         .allowedDynamicRange(.high)
         .onAppear(perform: setup)
+        .background(
+            GeometryReader { geo in
+                Color.clear
+                    .onAppear { viewSize = geo.size }
+                    .onChange(of: geo.size) { _, newSize in viewSize = newSize }
+            }
+        )
         .onChange(of: interaction.tapCount) { _, _ in
             guard let loc = interaction.tapLocation else { return }
             let t = Date().timeIntervalSince(startDate)
-            let screenW = max(NSScreen.main?.frame.width ?? 1200, 1)
-            let screenH = max(NSScreen.main?.frame.height ?? 800, 1)
+            let screenW = max(viewSize.width, 1)
+            let screenH = max(viewSize.height, 1)
             spawnGlyphs(at: loc.x / screenW, y: loc.y / screenH, t: t)
         }
     }

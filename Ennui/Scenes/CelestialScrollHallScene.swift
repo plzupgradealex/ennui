@@ -82,6 +82,7 @@ struct CelestialScrollHallScene: View {
     @State private var tapChars: [FloatingChar] = []
     @State private var autoChars: [FloatingChar] = []
     @State private var ready = false
+    @State private var viewSize: CGSize = CGSize(width: 1200, height: 800)
 
     // Every character is purely positive, kind, courageous, innocent —
     // impossible to misconstrue for negativity.
@@ -132,11 +133,18 @@ struct CelestialScrollHallScene: View {
         .drawingGroup(opaque: false, colorMode: .extendedLinear)
         .allowedDynamicRange(.high)
         .onAppear(perform: setup)
+        .background(
+            GeometryReader { geo in
+                Color.clear
+                    .onAppear { viewSize = geo.size }
+                    .onChange(of: geo.size) { _, newSize in viewSize = newSize }
+            }
+        )
         .onChange(of: interaction.tapCount) { _, _ in
             guard let loc = interaction.tapLocation else { return }
             let t = Date().timeIntervalSince(startDate)
-            let screenW = max(NSScreen.main?.frame.width ?? 1200, 1)
-            let screenH = max(NSScreen.main?.frame.height ?? 800, 1)
+            let screenW = max(viewSize.width, 1)
+            let screenH = max(viewSize.height, 1)
             spawnChars(at: loc.x / screenW, y: loc.y / screenH, t: t)
         }
     }

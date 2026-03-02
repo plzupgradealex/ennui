@@ -1,7 +1,6 @@
 import SwiftUI
 import FoundationModels
 
-@available(macOS 26.0, *)
 actor HaikuGenerator {
     private var session: LanguageModelSession?
 
@@ -30,6 +29,8 @@ actor HaikuGenerator {
             .celestialScrollHall: "a moonlit Chinese study hall with calligraphy scrolls, ink stones, and positive characters glowing softly like lanterns in a quiet courtyard",
             .jeonjuNight: "a quiet Korean neighbourhood at night in the 1990s, hanok rooftops, a convenience store glowing, telephone wires against a lavender sky, a cat on a wall, moths around a street lamp",
             .quietMeal: "two friends sharing a quiet meal in a small restaurant, seen through the window from outside on a rainy evening, warmth inside, blue dusk outside, the simple joy of being together",
+            .artDecoLA: "a golden hour art deco Los Angeles boulevard with palm tree silhouettes, streamline moderne buildings, warm neon signs, a vintage red Pacific Electric streetcar, and searchlight beams sweeping a coral and violet sky",
+            .floatingKingdom: "a sky kingdom floating above luminous clouds, crystalline spires catching ancient light, waterfalls cascading off floating islands into golden mist, motes of warm magical energy drifting upward like prayers, the peaceful heart of an eternal dream",
         ]
         let theme = themes[scene] ?? "a peaceful calming moment"
 
@@ -172,6 +173,16 @@ struct HaikuOverlayView: View {
             "Steam rises between\nTwo people who chose each day\nTo simply show up",
             "Through the foggy pane\nA meal shared is all it takes\nThe world feels smaller",
         ],
+        .artDecoLA: [
+            "Golden light descends\nPalm trees frame the boulevard\nNeon hums goodnight",
+            "Deco spires catch\nThe last warm breath of the sun\nThe streetcar rolls on",
+            "Searchlights trace the sky\nWarm windows in streamline walls\nLos Angeles dreams",
+        ],
+        .floatingKingdom: [
+            "Crystal spires rise\nAbove the clouds a kingdom\nDreams in ancient light",
+            "Waterfalls descend\nFrom floating islands to mist\nMagic drifts like prayer",
+            "The palace glows warm\nAbove an endless cloud sea\nNothing here can fall",
+        ],
     ]
 
     var body: some View {
@@ -187,6 +198,8 @@ struct HaikuOverlayView: View {
                     .background(.ultraThinMaterial.opacity(0.2), in: RoundedRectangle(cornerRadius: 12))
                     .opacity(opacity)
                     .padding(.bottom, 60)
+                    .accessibilityLabel("Haiku: \\(currentHaiku.replacingOccurrences(of: \"\\n\", with: \". \"))")
+                    .accessibilityAddTraits(.updatesFrequently)
             }
         }
         .allowsHitTesting(false)
@@ -201,10 +214,10 @@ struct HaikuOverlayView: View {
 
         var newHaiku: String? = nil
 
-        if #available(macOS 26.0, *) {
-            let generator = HaikuGenerator()
-            newHaiku = await generator.generate(for: scene)
-        }
+        // Apple's on-device FoundationModels include built-in safety —
+        // we trust the model to produce innocent, kind haiku.
+        let generator = HaikuGenerator()
+        newHaiku = await generator.generate(for: scene)
 
         if newHaiku == nil {
             let pool = Self.fallbackHaiku[scene] ?? ["Stillness surrounds me\nA gentle world without rush\nJust this, nothing more"]
