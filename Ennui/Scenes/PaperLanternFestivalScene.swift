@@ -1,12 +1,11 @@
 import SwiftUI
 
-// Paper Lantern Festival — a warm, dream-like evening scene.
-// Hundreds of glowing paper lanterns rise gently into the twilight
-// from a dark lake. Each lantern has a warm inner flame that flickers.
-// The lake below reflects the scene — undulating golden lights on dark
-// water. Fireflies dance between lanterns. Distant mountains are
-// silhouetted against a deep indigo-to-amber gradient sky.
-// Tap to release a cluster of new lanterns from that position.
+// Paper Lantern Festival — Genesis-inspired gentle meditation.
+// A sparse, serene lake at dusk. The sky is banded in warm 16-bit
+// style gradients. The scene starts quiet — just water, mountains,
+// a few fireflies. Each click releases ONE paper lantern carrying
+// a kind message. Lanterns rise slowly, glowing, their words visible.
+// The lake reflects their light. Unhurried. Contemplative.
 // Pure Canvas, 60fps, no state mutation inside Canvas closure.
 
 struct PaperLanternFestivalScene: View {
@@ -15,42 +14,43 @@ struct PaperLanternFestivalScene: View {
 
     // MARK: - Data
 
-    struct LanternData {
-        let spawnX: Double      // normalised 0..1
-        let spawnY: Double      // normalised start y (0.6..0.9)
-        let riseSpeed: Double   // normalised per second
-        let driftFreq: Double   // horizontal sway frequency
-        let driftAmp: Double    // horizontal sway amplitude
-        let size: Double        // radius in pts
-        let warmth: Double      // 0=orange, 1=golden
-        let flickerRate: Double
-        let flickerPhase: Double
-        let phase: Double       // time offset so lanterns stagger
-        let cycleDuration: Double // total rise time before wrapping
-    }
-
     struct FireflyData {
-        let baseX, baseY: Double
-        let orbitR: Double
-        let speed: Double
-        let phase: Double
-        let brightness: Double
+        let baseX, baseY, orbitR, speed, phase, brightness: Double
     }
 
     struct MountainPt {
-        let x, y: Double // normalised
+        let x, y: Double
     }
 
-    struct TapLantern: Identifiable {
+    struct Lantern: Identifiable {
         let id = UUID()
-        let x, y, birth: Double
+        let x: Double           // normalised 0..1
+        let birth: Double       // time of creation
         let driftPhase: Double
+        let driftAmp: Double
+        let riseSpeed: Double
+        let warmth: Double      // 0..1 colour variation
+        let flickerRate: Double
+        let flickerPhase: Double
+        let message: String
     }
 
-    @State private var lanterns: [LanternData] = []
+    private static let messages: [String] = [
+        "be gentle", "you are enough", "breathe",
+        "rest now", "be kind", "all is well",
+        "you belong", "peace", "take your time",
+        "let go", "you matter", "be still",
+        "dream softly", "you're okay", "keep going",
+        "you're loved", "slow down", "be here now",
+        "hope", "you're safe", "one step",
+        "be warm", "smile", "grace",
+        "it's alright", "you're here", "softly now",
+        "patience", "wonder", "tenderness",
+    ]
+
+    @State private var lanterns: [Lantern] = []
     @State private var fireflies: [FireflyData] = []
     @State private var mountains: [MountainPt] = []
-    @State private var tapLanterns: [TapLantern] = []
     @State private var ready = false
     @State private var viewSize: CGSize = CGSize(width: 1200, height: 800)
 
@@ -60,13 +60,13 @@ struct PaperLanternFestivalScene: View {
             Canvas { ctx, size in
                 guard ready else { return }
                 drawSky(ctx: &ctx, size: size, t: t)
-                drawDistantMountains(ctx: &ctx, size: size)
-                drawLanterns(ctx: &ctx, size: size, t: t)
-                drawTapLanterns(ctx: &ctx, size: size, t: t)
-                drawFireflies(ctx: &ctx, size: size, t: t)
+                drawStars(ctx: &ctx, size: size, t: t)
+                drawMountains(ctx: &ctx, size: size)
                 drawWater(ctx: &ctx, size: size, t: t)
+                drawLanterns(ctx: &ctx, size: size, t: t)
                 drawReflections(ctx: &ctx, size: size, t: t)
-                drawForegroundSilhouette(ctx: &ctx, size: size)
+                drawFireflies(ctx: &ctx, size: size, t: t)
+                drawReeds(ctx: &ctx, size: size)
             }
         }
         .background(.black)
@@ -84,19 +84,22 @@ struct PaperLanternFestivalScene: View {
             guard let loc = interaction.tapLocation else { return }
             let t = Date().timeIntervalSince(startDate)
             let screenW = max(viewSize.width, 1)
-            let screenH = max(viewSize.height, 1)
             let nx = loc.x / screenW
-            let ny = loc.y / screenH
             var rng = SplitMix64(seed: UInt64(t * 10000))
-            for _ in 0..<5 {
-                tapLanterns.append(TapLantern(
-                    x: nx + (rng.nextDouble() - 0.5) * 0.06,
-                    y: ny + rng.nextDouble() * 0.03,
-                    birth: t,
-                    driftPhase: rng.nextDouble() * .pi * 2
-                ))
-            }
-            if tapLanterns.count > 40 { tapLanterns.removeFirst(5) }
+            let msgIndex = Int(nextUInt64(&rng) % UInt64(Self.messages.count))
+            lanterns.append(Lantern(
+                x: nx,
+                birth: t,
+                driftPhase: rng.nextDouble() * .pi * 2,
+                driftAmp: 0.006 + rng.nextDouble() * 0.012,
+                riseSpeed: 0.010 + rng.nextDouble() * 0.006,
+                warmth: rng.nextDouble(),
+                flickerRate: 1.5 + rng.nextDouble() * 2.0,
+                flickerPhase: rng.nextDouble() * .pi * 2,
+                message: Self.messages[msgIndex]
+            ))
+            // Keep it sparse
+            if lanterns.count > 20 { lanterns.removeFirst() }
         }
     }
 
@@ -106,42 +109,23 @@ struct PaperLanternFestivalScene: View {
         guard !ready else { return }
         var rng = SplitMix64(seed: 0xA4E840)
 
-        // Lanterns
-        for _ in 0..<120 {
-            let cycle = 20.0 + rng.nextDouble() * 25.0
-            lanterns.append(LanternData(
-                spawnX: rng.nextDouble(),
-                spawnY: 0.6 + rng.nextDouble() * 0.3,
-                riseSpeed: 0.01 + rng.nextDouble() * 0.015,
-                driftFreq: 0.2 + rng.nextDouble() * 0.6,
-                driftAmp: 0.01 + rng.nextDouble() * 0.03,
-                size: 4.0 + rng.nextDouble() * 8.0,
-                warmth: rng.nextDouble(),
-                flickerRate: 2.0 + rng.nextDouble() * 4.0,
-                flickerPhase: rng.nextDouble() * .pi * 2,
-                phase: rng.nextDouble() * 40.0,
-                cycleDuration: cycle
-            ))
-        }
-
-        // Fireflies
-        for _ in 0..<40 {
+        // Just a handful of fireflies — gentle presence
+        for _ in 0..<12 {
             fireflies.append(FireflyData(
                 baseX: rng.nextDouble(),
-                baseY: 0.35 + rng.nextDouble() * 0.3,
-                orbitR: 0.005 + rng.nextDouble() * 0.02,
-                speed: 0.5 + rng.nextDouble() * 1.5,
+                baseY: 0.30 + rng.nextDouble() * 0.28,
+                orbitR: 0.004 + rng.nextDouble() * 0.012,
+                speed: 0.25 + rng.nextDouble() * 0.6,
                 phase: rng.nextDouble() * .pi * 2,
-                brightness: 0.3 + rng.nextDouble() * 0.7
+                brightness: 0.15 + rng.nextDouble() * 0.4
             ))
         }
 
-        // Mountain silhouette
-        let segments = 30
+        // Mountain silhouette — gentle rolling profile
+        let segments = 24
         for i in 0...segments {
             let frac = Double(i) / Double(segments)
-            // Gentle rolling hills
-            let h = 0.08 + sin(frac * .pi * 3.0) * 0.03 + rng.nextDouble() * 0.02
+            let h = 0.06 + sin(frac * .pi * 2.5) * 0.022 + rng.nextDouble() * 0.012
             mountains.append(MountainPt(x: frac, y: h))
         }
 
@@ -154,30 +138,47 @@ struct PaperLanternFestivalScene: View {
         let w = size.width, h = size.height
         let waterLine = h * 0.65
 
-        // Gradient: deep indigo at top → warm amber near horizon
-        let steps = 30
-        for i in 0..<steps {
-            let frac = Double(i) / Double(steps)
-            let y0 = frac * waterLine
-            let y1 = (frac + 1.0 / Double(steps)) * waterLine + 1
-            // Deep indigo to warm sunset
-            let r = 0.03 + frac * 0.35
-            let g = 0.02 + frac * 0.12
-            let b = 0.12 + frac * 0.05 - frac * frac * 0.08
+        // Genesis-style banded gradient — distinct warm colour bands
+        let bands: [(r: Double, g: Double, b: Double)] = [
+            (0.02, 0.01, 0.09),   // deep indigo
+            (0.04, 0.02, 0.12),
+            (0.06, 0.03, 0.14),
+            (0.09, 0.04, 0.14),
+            (0.13, 0.05, 0.13),
+            (0.17, 0.06, 0.11),
+            (0.21, 0.07, 0.10),
+            (0.26, 0.09, 0.09),
+            (0.31, 0.12, 0.08),
+            (0.35, 0.15, 0.07),   // warm amber horizon
+        ]
+        let bandH = waterLine / Double(bands.count)
+        for (i, c) in bands.enumerated() {
+            let y0 = Double(i) * bandH
             ctx.fill(
-                Path(CGRect(x: 0, y: y0, width: w, height: y1 - y0)),
-                with: .color(Color(red: r, green: g, blue: b))
+                Path(CGRect(x: 0, y: y0, width: w, height: bandH + 1)),
+                with: .color(Color(red: c.r, green: c.g, blue: c.b))
             )
         }
 
-        // Subtle stars in the upper sky
+        // Thin warm glow at horizon
+        ctx.drawLayer { layer in
+            layer.addFilter(.blur(radius: 25))
+            let glowRect = CGRect(x: 0, y: waterLine - 30, width: w, height: 30)
+            layer.fill(Path(glowRect),
+                with: .color(Color(red: 0.4, green: 0.15, blue: 0.06).opacity(0.12)))
+        }
+    }
+
+    private func drawStars(ctx: inout GraphicsContext, size: CGSize, t: Double) {
+        let w = size.width, h = size.height
+        let waterLine = h * 0.65
         var rng = SplitMix64(seed: 0x5EA450)
-        for _ in 0..<80 {
+        for _ in 0..<50 {
             let sx = rng.nextDouble() * w
-            let sy = rng.nextDouble() * waterLine * 0.5
-            let br = rng.nextDouble() * 0.3
-            let twinkle = sin(t * (1.0 + rng.nextDouble() * 2.0) + rng.nextDouble() * 6.28) * 0.15 + 0.85
-            let r = 0.5 + rng.nextDouble()
+            let sy = rng.nextDouble() * waterLine * 0.55
+            let br = 0.08 + rng.nextDouble() * 0.22
+            let twinkle = sin(t * (0.4 + rng.nextDouble() * 1.2) + rng.nextDouble() * 6.28) * 0.2 + 0.8
+            let r = 0.4 + rng.nextDouble() * 0.5
             ctx.fill(
                 Circle().path(in: CGRect(x: sx - r, y: sy - r, width: r * 2, height: r * 2)),
                 with: .color(Color.white.opacity(br * twinkle))
@@ -185,7 +186,7 @@ struct PaperLanternFestivalScene: View {
         }
     }
 
-    private func drawDistantMountains(ctx: inout GraphicsContext, size: CGSize) {
+    private func drawMountains(ctx: inout GraphicsContext, size: CGSize) {
         let w = size.width, h = size.height
         let waterLine = h * 0.65
 
@@ -199,170 +200,100 @@ struct PaperLanternFestivalScene: View {
         path.addLine(to: CGPoint(x: w, y: waterLine))
         path.addLine(to: CGPoint(x: 0, y: waterLine))
         path.closeSubpath()
-        ctx.fill(path, with: .color(Color(red: 0.04, green: 0.03, blue: 0.06)))
-    }
-
-    private func lanternPosition(lantern: LanternData, t: Double, w: Double, h: Double) -> (x: Double, y: Double, alpha: Double) {
-        let age = fmod(t + lantern.phase, lantern.cycleDuration)
-        let progress = age / lantern.cycleDuration
-        let rise = progress * 0.7  // normalised rise distance
-        let x = lantern.spawnX + sin(age * lantern.driftFreq * .pi * 2) * lantern.driftAmp
-        let y = lantern.spawnY - rise
-
-        // Fade in at bottom, fade out at top
-        var alpha = 1.0
-        if progress < 0.05 { alpha = progress / 0.05 }
-        if progress > 0.85 { alpha = 1.0 - (progress - 0.85) / 0.15 }
-
-        return (x * w, y * h, alpha)
-    }
-
-    private func drawLanterns(ctx: inout GraphicsContext, size: CGSize, t: Double) {
-        let w = size.width, h = size.height
-
-        // Shared glow layer for all lanterns
-        ctx.drawLayer { glowLayer in
-            glowLayer.addFilter(.blur(radius: 18))
-            for lantern in lanterns {
-                let pos = lanternPosition(lantern: lantern, t: t, w: w, h: h)
-                guard pos.alpha > 0.01, pos.y > 0, pos.y < h * 0.75 else { continue }
-
-                let flicker = sin(t * lantern.flickerRate + lantern.flickerPhase) * 0.1 + 0.9
-                let r = lantern.size * 2.0
-                let warmR = 1.0 + lantern.warmth * 0.2
-                let warmG = 0.6 + lantern.warmth * 0.15
-                let warmB = 0.1 + lantern.warmth * 0.1
-
-                let rect = CGRect(x: pos.x - r, y: pos.y - r, width: r * 2, height: r * 2)
-                glowLayer.fill(
-                    Ellipse().path(in: rect),
-                    with: .color(Color(red: warmR, green: warmG, blue: warmB).opacity(pos.alpha * flicker * 0.25))
-                )
-            }
-        }
-
-        // Lantern bodies
-        for lantern in lanterns {
-            let pos = lanternPosition(lantern: lantern, t: t, w: w, h: h)
-            guard pos.alpha > 0.01, pos.y > 0, pos.y < h * 0.75 else { continue }
-
-            let flicker = sin(t * lantern.flickerRate + lantern.flickerPhase) * 0.1 + 0.9
-            let s = lantern.size
-            let warmR = 1.0 + lantern.warmth * 0.3
-            let warmG = 0.6 + lantern.warmth * 0.2
-            let warmB = 0.15
-
-            // Lantern shape: rounded rectangle body
-            let bodyRect = CGRect(x: pos.x - s * 0.6, y: pos.y - s, width: s * 1.2, height: s * 1.6)
-            ctx.fill(
-                RoundedRectangle(cornerRadius: s * 0.3).path(in: bodyRect),
-                with: .color(Color(red: warmR * flicker, green: warmG * flicker, blue: warmB).opacity(pos.alpha * 0.9))
-            )
-
-            // Inner flame dot
-            let flameSize = s * 0.25
-            let flameY = pos.y - s * 0.1 + sin(t * 5.0 + lantern.flickerPhase) * s * 0.08
-            ctx.fill(
-                Circle().path(in: CGRect(x: pos.x - flameSize, y: flameY - flameSize, width: flameSize * 2, height: flameSize * 2)),
-                with: .color(Color(red: 1.5, green: 1.2, blue: 0.5).opacity(pos.alpha * flicker * 0.8))
-            )
-
-            // String hanging below
-            let stringLen = s * 0.4
-            var stringPath = Path()
-            stringPath.move(to: CGPoint(x: pos.x, y: pos.y + s * 0.6))
-            stringPath.addLine(to: CGPoint(x: pos.x + sin(t * 0.5 + lantern.driftFreq) * 1.5, y: pos.y + s * 0.6 + stringLen))
-            ctx.stroke(stringPath, with: .color(Color.white.opacity(pos.alpha * 0.15)), lineWidth: 0.5)
-        }
-    }
-
-    private func drawTapLanterns(ctx: inout GraphicsContext, size: CGSize, t: Double) {
-        let w = size.width, h = size.height
-
-        for tl in tapLanterns {
-            let age = t - tl.birth
-            guard age > 0, age < 15.0 else { continue }
-            let rise = age * 0.025
-            let x = (tl.x + sin(age * 0.8 + tl.driftPhase) * 0.02) * w
-            let y = (tl.y - rise) * h
-            guard y > 0 else { continue }
-
-            var alpha = 1.0
-            if age < 0.5 { alpha = age / 0.5 }
-            if age > 12.0 { alpha = 1.0 - (age - 12.0) / 3.0 }
-            alpha = max(0, alpha)
-
-            let s = 6.0
-            let flicker = sin(t * 3.5 + tl.driftPhase) * 0.1 + 0.9
-
-            // Glow
-            ctx.drawLayer { layer in
-                layer.addFilter(.blur(radius: 12))
-                let gr = s * 2.5
-                layer.fill(
-                    Ellipse().path(in: CGRect(x: x - gr, y: y - gr, width: gr * 2, height: gr * 2)),
-                    with: .color(Color(red: 1.2, green: 0.7, blue: 0.15).opacity(alpha * flicker * 0.3))
-                )
-            }
-
-            // Body
-            let bodyRect = CGRect(x: x - s * 0.6, y: y - s, width: s * 1.2, height: s * 1.6)
-            ctx.fill(
-                RoundedRectangle(cornerRadius: s * 0.3).path(in: bodyRect),
-                with: .color(Color(red: 1.2 * flicker, green: 0.7 * flicker, blue: 0.15).opacity(alpha * 0.9))
-            )
-        }
-    }
-
-    private func drawFireflies(ctx: inout GraphicsContext, size: CGSize, t: Double) {
-        let w = size.width, h = size.height
-        ctx.drawLayer { layer in
-            layer.addFilter(.blur(radius: 4))
-            for ff in fireflies {
-                let angle = t * ff.speed + ff.phase
-                let x = (ff.baseX + cos(angle) * ff.orbitR) * w
-                let y = (ff.baseY + sin(angle * 0.7) * ff.orbitR * 0.6) * h
-                let pulse = sin(t * 2.0 + ff.phase) * 0.4 + 0.6
-                let alpha = ff.brightness * pulse * 0.5
-                let r = 2.0 + pulse
-                layer.fill(
-                    Circle().path(in: CGRect(x: x - r, y: y - r, width: r * 2, height: r * 2)),
-                    with: .color(Color(red: 1.0, green: 0.9, blue: 0.3).opacity(alpha))
-                )
-            }
-        }
+        ctx.fill(path, with: .color(Color(red: 0.03, green: 0.02, blue: 0.05)))
     }
 
     private func drawWater(ctx: inout GraphicsContext, size: CGSize, t: Double) {
         let w = size.width, h = size.height
         let waterLine = h * 0.65
 
-        // Dark water with subtle wave texture
-        let waterRect = CGRect(x: 0, y: waterLine, width: w, height: h - waterLine)
         ctx.fill(
-            Path(waterRect),
-            with: .linearGradient(
-                Gradient(colors: [
-                    Color(red: 0.02, green: 0.015, blue: 0.04),
-                    Color(red: 0.01, green: 0.01, blue: 0.02),
-                ]),
-                startPoint: CGPoint(x: 0, y: waterLine),
-                endPoint: CGPoint(x: 0, y: h)
-            )
+            Path(CGRect(x: 0, y: waterLine, width: w, height: h - waterLine)),
+            with: .color(Color(red: 0.015, green: 0.012, blue: 0.03))
         )
 
         // Gentle wave lines
-        for i in 0..<8 {
-            let wy = waterLine + Double(i) * (h - waterLine) / 8.0 + 5
+        for i in 0..<5 {
+            let wy = waterLine + Double(i + 1) * (h - waterLine) / 6.0
             var wave = Path()
-            for xi in 0...40 {
-                let frac = Double(xi) / 40.0
+            for xi in 0...30 {
+                let frac = Double(xi) / 30.0
                 let x = frac * w
-                let offset = sin(frac * .pi * 4 + t * 0.3 + Double(i) * 0.8) * 2.0
+                let offset = sin(frac * .pi * 3 + t * 0.18 + Double(i) * 0.9) * 1.2
                 let pt = CGPoint(x: x, y: wy + offset)
                 if xi == 0 { wave.move(to: pt) } else { wave.addLine(to: pt) }
             }
-            ctx.stroke(wave, with: .color(Color(red: 0.15, green: 0.1, blue: 0.2).opacity(0.08)), lineWidth: 0.5)
+            ctx.stroke(wave, with: .color(Color(red: 0.10, green: 0.07, blue: 0.15).opacity(0.05)), lineWidth: 0.5)
+        }
+    }
+
+    private func drawLanterns(ctx: inout GraphicsContext, size: CGSize, t: Double) {
+        let w = size.width, h = size.height
+        let waterLine = h * 0.65
+
+        for lantern in lanterns {
+            let age = t - lantern.birth
+            guard age > 0 else { continue }
+
+            // Slow gentle rise from lower sky
+            let rise = age * lantern.riseSpeed
+            let x = (lantern.x + sin(age * 0.35 + lantern.driftPhase) * lantern.driftAmp) * w
+            let y = (0.56 - rise) * h
+            guard y > -20, y < waterLine else { continue }
+
+            // Fade in gently over 2.5s, fade out near top
+            let normY = y / waterLine
+            var alpha = 1.0
+            if age < 2.5 { alpha = age / 2.5 }
+            if normY < 0.08 { alpha *= normY / 0.08 }
+            guard alpha > 0.01 else { continue }
+
+            let flicker = sin(t * lantern.flickerRate + lantern.flickerPhase) * 0.06 + 0.94
+            let s: Double = 12.0   // lantern body radius
+            let warmR = 1.0 + lantern.warmth * 0.2
+            let warmG = 0.55 + lantern.warmth * 0.15
+            let warmB = 0.10
+
+            // Soft outer glow
+            ctx.drawLayer { layer in
+                layer.addFilter(.blur(radius: 22))
+                let gr = s * 3.5
+                layer.fill(
+                    Ellipse().path(in: CGRect(x: x - gr, y: y - gr, width: gr * 2, height: gr * 2)),
+                    with: .color(Color(red: warmR, green: warmG, blue: warmB).opacity(alpha * flicker * 0.12))
+                )
+            }
+
+            // Lantern body — warm rounded shape
+            let bodyW = s * 1.5
+            let bodyH = s * 2.0
+            let bodyRect = CGRect(x: x - bodyW / 2, y: y - bodyH / 2, width: bodyW, height: bodyH)
+            ctx.fill(
+                RoundedRectangle(cornerRadius: s * 0.4).path(in: bodyRect),
+                with: .color(Color(red: warmR * flicker, green: warmG * flicker, blue: warmB).opacity(alpha * 0.80))
+            )
+
+            // Inner flame
+            let flameR = s * 0.18
+            let flameY = y + sin(t * 2.5 + lantern.flickerPhase) * s * 0.04
+            ctx.fill(
+                Circle().path(in: CGRect(x: x - flameR, y: flameY - flameR, width: flameR * 2, height: flameR * 2)),
+                with: .color(Color(red: 1.3, green: 1.0, blue: 0.4).opacity(alpha * flicker * 0.6))
+            )
+
+            // Message text on the lantern
+            let textAlpha = alpha * 0.85
+            let text = Text(lantern.message)
+                .font(.system(size: 8, weight: .light, design: .serif))
+                .foregroundColor(Color(red: 0.25, green: 0.12, blue: 0.04).opacity(textAlpha))
+            ctx.draw(text, at: CGPoint(x: x, y: y - s * 0.1))
+
+            // Thin string below
+            var stringPath = Path()
+            stringPath.move(to: CGPoint(x: x, y: y + bodyH / 2))
+            stringPath.addLine(to: CGPoint(x: x + sin(t * 0.25 + lantern.driftPhase) * 0.8,
+                                           y: y + bodyH / 2 + s * 0.35))
+            ctx.stroke(stringPath, with: .color(Color.white.opacity(alpha * 0.08)), lineWidth: 0.4)
         }
     }
 
@@ -370,40 +301,65 @@ struct PaperLanternFestivalScene: View {
         let w = size.width, h = size.height
         let waterLine = h * 0.65
 
-        // Reflected lantern light on water — smeared, wavering columns of light
         ctx.drawLayer { layer in
-            layer.addFilter(.blur(radius: 12))
+            layer.addFilter(.blur(radius: 16))
             for lantern in lanterns {
-                let pos = lanternPosition(lantern: lantern, t: t, w: w, h: h)
-                guard pos.alpha > 0.1, pos.y > 0, pos.y < waterLine else { continue }
+                let age = t - lantern.birth
+                guard age > 0 else { continue }
+                let rise = age * lantern.riseSpeed
+                let x = (lantern.x + sin(age * 0.35 + lantern.driftPhase) * lantern.driftAmp) * w
+                let y = (0.56 - rise) * h
+                guard y > 0, y < waterLine else { continue }
 
-                let reflX = pos.x + sin(t * 0.5 + lantern.driftAmp * 10) * 3.0
-                let reflY = waterLine + (waterLine - pos.y) * 0.4
-                let reflH = (h - waterLine) * 0.3
-                let reflW = lantern.size * 0.8
+                var alpha = 1.0
+                if age < 2.5 { alpha = age / 2.5 }
+                let normY = y / waterLine
+                if normY < 0.08 { alpha *= normY / 0.08 }
+                guard alpha > 0.02 else { continue }
 
-                let colRect = CGRect(x: reflX - reflW, y: reflY, width: reflW * 2, height: reflH)
-                let warmth = lantern.warmth
+                let reflX = x + sin(t * 0.25 + lantern.driftPhase) * 2.0
+                let reflY = waterLine + (waterLine - y) * 0.3
+                let reflH = (h - waterLine) * 0.18
+                let reflW = 3.5
+
                 layer.fill(
-                    Ellipse().path(in: colRect),
-                    with: .color(Color(red: 0.9 + warmth * 0.2, green: 0.5 + warmth * 0.1, blue: 0.1).opacity(pos.alpha * 0.06))
+                    Ellipse().path(in: CGRect(x: reflX - reflW, y: reflY, width: reflW * 2, height: reflH)),
+                    with: .color(Color(red: 0.8 + lantern.warmth * 0.2, green: 0.4 + lantern.warmth * 0.1, blue: 0.08).opacity(alpha * 0.04))
                 )
             }
         }
     }
 
-    private func drawForegroundSilhouette(ctx: inout GraphicsContext, size: CGSize) {
+    private func drawFireflies(ctx: inout GraphicsContext, size: CGSize, t: Double) {
+        let w = size.width, h = size.height
+        ctx.drawLayer { layer in
+            layer.addFilter(.blur(radius: 3))
+            for ff in fireflies {
+                let angle = t * ff.speed + ff.phase
+                let x = (ff.baseX + cos(angle) * ff.orbitR) * w
+                let y = (ff.baseY + sin(angle * 0.6) * ff.orbitR * 0.5) * h
+                let pulse = sin(t * 1.2 + ff.phase) * 0.4 + 0.6
+                let alpha = ff.brightness * pulse * 0.3
+                let r = 1.2 + pulse * 0.4
+                layer.fill(
+                    Circle().path(in: CGRect(x: x - r, y: y - r, width: r * 2, height: r * 2)),
+                    with: .color(Color(red: 1.0, green: 0.85, blue: 0.3).opacity(alpha))
+                )
+            }
+        }
+    }
+
+    private func drawReeds(ctx: inout GraphicsContext, size: CGSize) {
         let w = size.width, h = size.height
         let waterLine = h * 0.65
 
-        // Silhouetted reeds/grass at bottom edges
         var rng = SplitMix64(seed: 0xBEED5)
-        for _ in 0..<40 {
+        for _ in 0..<20 {
             let side = rng.nextDouble() > 0.5
-            let baseX = side ? w - rng.nextDouble() * w * 0.15 : rng.nextDouble() * w * 0.15
-            let baseY = waterLine - rng.nextDouble() * 5.0
-            let reedH = 15.0 + rng.nextDouble() * 35.0
-            let lean = (rng.nextDouble() - 0.5) * 8.0
+            let baseX = side ? w - rng.nextDouble() * w * 0.10 : rng.nextDouble() * w * 0.10
+            let baseY = waterLine - rng.nextDouble() * 3.0
+            let reedH = 10.0 + rng.nextDouble() * 22.0
+            let lean = (rng.nextDouble() - 0.5) * 5.0
 
             var reed = Path()
             reed.move(to: CGPoint(x: baseX, y: baseY))
@@ -411,7 +367,8 @@ struct PaperLanternFestivalScene: View {
                 to: CGPoint(x: baseX + lean, y: baseY - reedH),
                 control: CGPoint(x: baseX + lean * 0.5, y: baseY - reedH * 0.5)
             )
-            ctx.stroke(reed, with: .color(Color(red: 0.02, green: 0.02, blue: 0.03)), lineWidth: 1.0 + rng.nextDouble())
+            ctx.stroke(reed, with: .color(Color(red: 0.02, green: 0.02, blue: 0.03)),
+                        lineWidth: 0.7 + rng.nextDouble() * 0.4)
         }
     }
 }

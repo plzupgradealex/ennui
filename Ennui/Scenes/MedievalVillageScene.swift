@@ -45,6 +45,12 @@ struct MedievalVillageScene: View {
     @State private var snuffAnimations: [(x: Double, y: Double, birth: Double)] = []
     @State private var ready = false
 
+    // Random extinguish order + idle relight
+    @State private var shuffledLightIds: [Int] = []
+    @State private var extinguishOrder: [Int] = []
+    @State private var lastTapTime: Double = 0
+    @State private var relightCount: Int = 0
+
     // Derived
     private var totalLights: Int { lights.count }
     private func lightsOut(_ t: Double) -> Int { extinguished.count }
@@ -76,6 +82,22 @@ struct MedievalVillageScene: View {
         .onAppear(perform: setup)
         .onChange(of: interaction.tapCount) { _, _ in
             extinguishNext()
+        }
+        .task {
+            // Idle relight: if no tap for 45s, one light comes back on.
+            // Repeats every 45s of continued idleness until all relighted.
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(1))
+                guard ready, !extinguishOrder.isEmpty else { continue }
+                let now = Date().timeIntervalSince(startDate)
+                let idle = now - lastTapTime
+                let expected = max(0, Int(idle / 45.0))
+                while relightCount < expected, let lightId = extinguishOrder.last {
+                    extinguishOrder.removeLast()
+                    extinguished.remove(lightId)
+                    relightCount += 1
+                }
+            }
         }
     }
 
@@ -142,22 +164,33 @@ struct MedievalVillageScene: View {
                      sway: nextDouble(&rng) * .pi * 2)
         }
 
+        // Shuffle light IDs so taps extinguish in random order across the village
+        var lightIds = lights.map { $0.id }
+        for i in stride(from: lightIds.count - 1, through: 1, by: -1) {
+            let j = Int(nextDouble(&rng) * Double(i + 1)) % (i + 1)
+            lightIds.swapAt(i, j)
+        }
+        shuffledLightIds = lightIds
+
         ready = true
     }
 
     private func extinguishNext() {
-        // Find next lit light source and extinguish it
-        let lit = lights.filter { !extinguished.contains($0.id) }
-        guard let next = lit.first else { return }
-        extinguished.insert(next.id)
+        // Pick next light from shuffled (random) order — not left-to-right
+        guard let nextId = shuffledLightIds.first(where: { !extinguished.contains($0) }) else { return }
+        extinguished.insert(nextId)
+        extinguishOrder.append(nextId)
+        lastTapTime = Date().timeIntervalSince(startDate)
+        relightCount = 0
 
         // Spawn snuff animation
-        let bi = next.buildingIndex
+        guard let light = lights.first(where: { $0.id == nextId }) else { return }
+        let bi = light.buildingIndex
         guard bi < buildings.count else { return }
         let b = buildings[bi]
         let bx = b.x
         let by = 0.72 - b.height / 800.0
-        snuffAnimations.append((x: bx + next.nx * b.width / 800.0, y: by + next.ny * b.height / 800.0,
+        snuffAnimations.append((x: bx + light.nx * b.width / 800.0, y: by + light.ny * b.height / 800.0,
                                 birth: Date().timeIntervalSince(startDate)))
         if snuffAnimations.count > 12 { snuffAnimations.removeFirst() }
     }

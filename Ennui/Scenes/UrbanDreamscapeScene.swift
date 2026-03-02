@@ -46,7 +46,7 @@ struct UrbanDreamscapeScene: View {
         .onChange(of: interaction.tapCount) { _, _ in
             guard let loc = interaction.tapLocation else { return }
             neonFlashes.append((x: loc.x, birth: Date().timeIntervalSince(startDate)))
-            if neonFlashes.count > 6 { neonFlashes.removeFirst() }
+            if neonFlashes.count > 8 { neonFlashes.removeFirst() }
         }
     }
 
@@ -290,10 +290,10 @@ struct UrbanDreamscapeScene: View {
             var flashBoost = 0.0
             for flash in neonFlashes {
                 let age = Date().timeIntervalSince(startDate) - flash.birth
-                if age < 1.5 {
+                if age < 2.5 {
                     let dist = abs(flash.x - sign.x * size.width) / size.width
-                    if dist < 0.15 {
-                        flashBoost = max(flashBoost, (1.0 - age / 1.5) * (1.0 - dist / 0.15))
+                    if dist < 0.2 {
+                        flashBoost = max(flashBoost, (1.0 - age / 2.5) * (1.0 - dist / 0.2))
                     }
                 }
             }
@@ -439,23 +439,61 @@ struct UrbanDreamscapeScene: View {
         let currentT = Date().timeIntervalSince(startDate)
         for flash in neonFlashes {
             let age = currentT - flash.birth
-            guard age < 2.0 else { continue }
-            let p = age / 2.0
-            let fade = (1 - p) * (1 - p)
+            guard age < 5.0 else { continue }
+            let p = age / 5.0
             let streetY = size.height * 0.72
 
-            // Ripple rings on puddle area
-            for ring in 0..<3 {
-                let ringAge = p - Double(ring) * 0.15
+            // Neon light bloom on wet street
+            let glowFade = age < 0.3 ? age / 0.3 : max(0, 1.0 - (age - 0.3) / 2.5)
+            if glowFade > 0 {
+                ctx.drawLayer { l in
+                    l.addFilter(.blur(radius: 30))
+                    let r = 40 + p * 30
+                    l.fill(Ellipse().path(in: CGRect(x: flash.x - r, y: streetY - r * 0.3,
+                                                     width: r * 2, height: r * 0.6)),
+                        with: .color(Color(red: 0.5, green: 0.4, blue: 1.2).opacity(0.12 * glowFade)))
+                }
+            }
+
+            // Expanding ripple rings on puddle
+            for ring in 0..<5 {
+                let delay = Double(ring) * 0.3
+                let ringAge = age - delay
                 guard ringAge > 0 else { continue }
-                let radius = ringAge * 40
-                let ringFade = fade * max(0, 1 - Double(ring) * 0.3)
-                let rx = flash.x
-                let ry = streetY + 12
+                let rp = min(ringAge / 3.5, 1.0)
+                let ringFade = max(0, 1.0 - rp) * (1.0 - Double(ring) * 0.15)
+                let radius = rp * (30 + Double(ring) * 15)
 
                 var ripple = Path()
-                ripple.addEllipse(in: CGRect(x: rx - radius, y: ry - radius * 0.3, width: radius * 2, height: radius * 0.6))
-                ctx.stroke(ripple, with: .color(Color(red: 0.5, green: 0.5, blue: 1.0).opacity(ringFade * 0.2)), lineWidth: 1)
+                ripple.addEllipse(in: CGRect(x: flash.x - radius, y: streetY + 12 - radius * 0.3,
+                                             width: radius * 2, height: radius * 0.6))
+                ctx.stroke(ripple, with: .color(Color(red: 0.5, green: 0.5, blue: 1.2).opacity(ringFade * 0.18)),
+                    lineWidth: 1.2 - rp * 0.6)
+            }
+
+            // Light scatter particles
+            let seed = UInt64(flash.birth * 1000) & 0xFFFFFF
+            var rng = SplitMix64(seed: seed)
+            ctx.drawLayer { l in
+                l.addFilter(.blur(radius: 3))
+                for _ in 0..<8 {
+                    let angle = nextDouble(&rng) * .pi * 2
+                    let drift = nextDouble(&rng) * 0.4 + 0.2
+                    let lifespan = nextDouble(&rng) * 2.0 + 2.0
+                    guard age < lifespan else { continue }
+                    let mp = age / lifespan
+                    let mFade = mp < 0.1 ? mp / 0.1 : max(0, 1.0 - (mp - 0.1) / 0.9)
+                    let dist = mp * drift * 60
+                    let mx = flash.x + cos(angle) * dist
+                    let my = streetY + sin(angle) * dist * 0.3
+                    let sz = 2.0 * mFade
+                    let warmth = nextDouble(&rng)
+                    let col = warmth > 0.5
+                        ? Color(red: 1.0, green: 0.5, blue: 1.2)
+                        : Color(red: 0.4, green: 0.6, blue: 1.4)
+                    l.fill(Ellipse().path(in: CGRect(x: mx - sz, y: my - sz, width: sz * 2, height: sz * 2)),
+                        with: .color(col.opacity(mFade * 0.35)))
+                }
             }
         }
     }

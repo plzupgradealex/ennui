@@ -42,7 +42,9 @@
 		EE0000000000000000000006 /* OntarioCountrysideScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE0000000000000000000005 /* OntarioCountrysideScene.swift */; };
 		EE0000000000000000000008 /* MinnesotaSmallTownScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE0000000000000000000007 /* MinnesotaSmallTownScene.swift */; };
 		EE000000000000000000000A /* ShimizuEveningScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE0000000000000000000009 /* ShimizuEveningScene.swift */; };
+		EE000000000000000000000E /* MystifyScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE000000000000000000000D /* MystifyScene.swift */; };
 		DD0000000000000000000004 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = DD0000000000000000000003 /* PrivacyInfo.xcprivacy */; };
+		EE000000000000000000000C /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = EE000000000000000000000B /* Assets.xcassets */; };
 		BB0000000000000000000001 /* EnnuiUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0000000000000000000010 /* EnnuiUITests.swift */; };
 /* End PBXBuildFile section */
 
@@ -81,10 +83,12 @@
 		EE0000000000000000000005 /* OntarioCountrysideScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OntarioCountrysideScene.swift; sourceTree = "<group>"; };
 		EE0000000000000000000007 /* MinnesotaSmallTownScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MinnesotaSmallTownScene.swift; sourceTree = "<group>"; };
 		EE0000000000000000000009 /* ShimizuEveningScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShimizuEveningScene.swift; sourceTree = "<group>"; };
+		EE000000000000000000000D /* MystifyScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MystifyScene.swift; sourceTree = "<group>"; };
 		AA0000000000000000000018 /* MultipeerManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MultipeerManager.swift; sourceTree = "<group>"; };
 		AA000000000000000000001B /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		AA000000000000000000001A /* Ennui.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Ennui.entitlements; sourceTree = "<group>"; };
 		DD0000000000000000000003 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		EE000000000000000000000B /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		AA0000000000000000000020 /* Ennui.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Ennui.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		BB0000000000000000000010 /* EnnuiUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EnnuiUITests.swift; sourceTree = "<group>"; };
 		BB0000000000000000000020 /* EnnuiUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = EnnuiUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -149,6 +153,7 @@
 				AA000000000000000000001B /* Info.plist */,
 				AA000000000000000000001A /* Ennui.entitlements */,
 				DD0000000000000000000003 /* PrivacyInfo.xcprivacy */,
+				EE000000000000000000000B /* Assets.xcassets */,
 			);
 			path = Ennui;
 			sourceTree = "<group>";
@@ -184,6 +189,7 @@
 				EE0000000000000000000005 /* OntarioCountrysideScene.swift */,
 				EE0000000000000000000007 /* MinnesotaSmallTownScene.swift */,
 				EE0000000000000000000009 /* ShimizuEveningScene.swift */,
+				EE000000000000000000000D /* MystifyScene.swift */,
 			);
 			path = Scenes;
 			sourceTree = "<group>";
@@ -286,6 +292,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				DD0000000000000000000004 /* PrivacyInfo.xcprivacy in Resources */,
+				EE000000000000000000000C /* Assets.xcassets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -338,6 +345,7 @@
 				EE0000000000000000000006 /* OntarioCountrysideScene.swift in Sources */,
 				EE0000000000000000000008 /* MinnesotaSmallTownScene.swift in Sources */,
 				EE000000000000000000000A /* ShimizuEveningScene.swift in Sources */,
+				EE000000000000000000000E /* MystifyScene.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -407,6 +415,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ARCHS = arm64;
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = Ennui/Ennui.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
@@ -433,6 +442,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ARCHS = arm64;
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = Ennui/Ennui.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;

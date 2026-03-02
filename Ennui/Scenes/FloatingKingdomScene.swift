@@ -108,7 +108,7 @@ struct FloatingKingdomScene: View {
             let nx = loc.x / max(1, loc.x + 200) // approximate normalize
             let ny = loc.y / max(1, loc.y + 200)
             pulses.append(EnergyPulse(cx: nx, cy: ny, birth: t))
-            if pulses.count > 5 { pulses.removeFirst() }
+            if pulses.count > 8 { pulses.removeFirst() }
         }
     }
 
@@ -686,46 +686,82 @@ struct FloatingKingdomScene: View {
 
         for pulse in pulses {
             let age = t - pulse.birth
-            guard age >= 0 && age < 3.0 else { continue }
+            guard age >= 0 && age < 6.0 else { continue }
+            let progress = age / 6.0
 
-            let progress = age / 3.0
-            let radius = progress * min(w, h) * 0.4
-            let alpha = (1.0 - progress) * 0.3
+            // Central flash — golden burst
+            let flashFade = age < 0.4 ? age / 0.4 : max(0, 1.0 - (age - 0.4) / 2.0)
+            if flashFade > 0 {
+                ctx.drawLayer { l in
+                    l.addFilter(.blur(radius: 25 + progress * 30))
+                    let r = 20 + progress * 60
+                    let cx = pulse.cx * w
+                    let cy = pulse.cy * h
+                    l.fill(Ellipse().path(in: CGRect(x: cx - r, y: cy - r,
+                                                     width: r * 2, height: r * 2)),
+                        with: .radialGradient(
+                            Gradient(colors: [
+                                Color(red: 1.4, green: 1.1, blue: 0.5).opacity(0.30 * flashFade),
+                                Color(red: 0.9, green: 0.6, blue: 1.2).opacity(0.10 * flashFade),
+                                .clear
+                            ]),
+                            center: CGPoint(x: cx, y: cy),
+                            startRadius: 0, endRadius: r))
+                }
+            }
 
-            // Concentric rings of energy
-            for ring in 0..<3 {
+            // Concentric energy rings — gold to purple
+            let radius = progress * min(w, h) * 0.45
+            for ring in 0..<4 {
                 let rf = Double(ring)
-                let ringR = radius * (0.6 + rf * 0.25)
-                let ringAlpha = alpha * (1.0 - rf * 0.3)
+                let delay = rf * 0.25
+                let ringAge = age - delay
+                guard ringAge > 0 else { continue }
+                let rp = min(ringAge / 4.5, 1.0)
+                let ringR = rp * min(w, h) * (0.15 + rf * 0.1)
+                let ringAlpha = max(0, 1.0 - rp) * (1.0 - rf * 0.2) * 0.3
 
                 let ringRect = CGRect(x: pulse.cx * w - ringR,
                                      y: pulse.cy * h - ringR,
                                      width: ringR * 2,
                                      height: ringR * 2)
 
-                // Gold inner, purple outer
-                let r = 0.9 - rf * 0.2
-                let g = 0.7 - rf * 0.15
-                let b = 0.3 + rf * 0.2
+                let r = 0.9 - rf * 0.15
+                let g = 0.7 - rf * 0.1
+                let b = 0.3 + rf * 0.25
 
-                ctx.stroke(
-                    Circle().path(in: ringRect),
+                ctx.stroke(Circle().path(in: ringRect),
                     with: .color(Color(red: r, green: g, blue: b).opacity(ringAlpha)),
-                    lineWidth: 2 - rf * 0.5
-                )
+                    lineWidth: 2 - rf * 0.3)
             }
 
-            // Central flash
-            if age < 0.3 {
-                let flashAlpha = (1.0 - age / 0.3) * 0.4
-                let flashR = 15 + age * 30
-                ctx.fill(
-                    Circle().path(in: CGRect(x: pulse.cx * w - flashR,
-                                           y: pulse.cy * h - flashR,
-                                           width: flashR * 2,
-                                           height: flashR * 2)),
-                    with: .color(Color(red: 1.0, green: 0.9, blue: 0.5).opacity(flashAlpha))
-                )
+            // Magical mote particles drifting outward
+            let seed = UInt64(pulse.birth * 1000) & 0xFFFFFF
+            var rng = SplitMix64(seed: seed)
+            ctx.drawLayer { l in
+                l.addFilter(.blur(radius: 4))
+                for _ in 0..<14 {
+                    let angle = nextDouble(&rng) * .pi * 2
+                    let drift = nextDouble(&rng) * 0.5 + 0.3
+                    let riseRate = nextDouble(&rng) * 12 + 6
+                    let wobblePhase = nextDouble(&rng) * .pi * 2
+                    let sz = nextDouble(&rng) * 2.5 + 1.5
+                    let lifespan = nextDouble(&rng) * 2.5 + 3.0
+                    guard age < lifespan else { continue }
+                    let mp = age / lifespan
+                    let moteFade = mp < 0.1 ? mp / 0.1 : max(0, 1.0 - (mp - 0.1) / 0.9)
+                    let dist = mp * drift * 100
+                    let mx = pulse.cx * w + cos(angle) * dist + sin(age * 0.8 + wobblePhase) * 12
+                    let my = pulse.cy * h + sin(angle) * dist * 0.7 - age * riseRate
+                    let pulse2 = sin(age * 2.5 + wobblePhase) * 0.3 + 0.7
+                    let s = sz * moteFade * pulse2
+                    let warmth = nextDouble(&rng)
+                    let color = warmth > 0.5
+                        ? Color(red: 1.3, green: 1.0, blue: 0.4)
+                        : Color(red: 0.7, green: 0.5, blue: 1.2)
+                    l.fill(Ellipse().path(in: CGRect(x: mx - s, y: my - s, width: s * 2, height: s * 2)),
+                        with: .color(color.opacity(moteFade * 0.5 * pulse2)))
+                }
             }
         }
     }

@@ -28,6 +28,7 @@ struct RetroGardenScene: View {
     struct Bloom: Identifiable {
         let id = UUID()
         let x, y, birth: Double
+        let seed: UInt64
     }
 
     @State private var flowers: [FlowerData] = []
@@ -61,8 +62,9 @@ struct RetroGardenScene: View {
         .onAppear(perform: setup)
         .onChange(of: interaction.tapCount) { _, _ in
             guard let loc = interaction.tapLocation else { return }
-            blooms.append(Bloom(x: loc.x, y: loc.y, birth: Date().timeIntervalSince(startDate)))
-            if blooms.count > 6 { blooms.removeFirst() }
+            let t = Date().timeIntervalSince(startDate)
+            blooms.append(Bloom(x: loc.x, y: loc.y, birth: t, seed: UInt64(t * 1000) & 0xFFFFFF))
+            if blooms.count > 8 { blooms.removeFirst() }
         }
     }
 
@@ -362,25 +364,58 @@ struct RetroGardenScene: View {
     private func drawBlooms(ctx: inout GraphicsContext, size: CGSize, t: Double) {
         for b in blooms {
             let age = t - b.birth
-            guard age < 3.5 else { continue }
-            let progress = age / 3.5
-            let fade = max(0, 1.0 - progress)
-            let petals = 10
-            for i in 0..<petals {
-                let angle = Double(i) / Double(petals) * .pi * 2 + age * 0.4
-                let dist = progress * 65
-                let px = b.x + cos(angle) * dist
-                let py = b.y + sin(angle) * dist - progress * 20
-                let s = 4.0 * fade
-                let _ = Double(i) / Double(petals)
-                let colors: [(Double, Double, Double)] = [
-                    (1.15, 0.65, 0.70), (0.70, 0.90, 1.15), (1.2, 1.0, 0.5),
-                    (1.0, 0.65, 1.1), (0.70, 1.1, 0.8),
-                ]
+            guard age < 6.0 else { continue }
+            let p = age / 6.0
+            var rng = SplitMix64(seed: b.seed)
+
+            // Soft warm glow at center
+            let glowFade = age < 0.3 ? age / 0.3 : max(0, 1.0 - (age - 0.3) / 2.5)
+            if glowFade > 0 {
+                let r = 20 + p * 40
+                ctx.fill(Ellipse().path(in: CGRect(x: b.x - r, y: b.y - r,
+                                                    width: r * 2, height: r * 2)),
+                    with: .radialGradient(
+                        Gradient(colors: [
+                            Color(red: 1.15, green: 1.0, blue: 0.7).opacity(0.18 * glowFade),
+                            .clear
+                        ]),
+                        center: CGPoint(x: b.x, y: b.y),
+                        startRadius: 0, endRadius: r))
+            }
+
+            // Expanding then falling petals (sakura drift)
+            let petalCount = 18
+            let colors: [(Double, Double, Double)] = [
+                (1.15, 0.65, 0.70), (0.70, 0.90, 1.15), (1.2, 1.0, 0.5),
+                (1.0, 0.65, 1.1), (0.70, 1.1, 0.8), (1.1, 0.85, 0.65),
+            ]
+            for i in 0..<petalCount {
+                let angle = Double(i) / Double(petalCount) * .pi * 2 + nextDouble(&rng) * 0.5
+                let burstDist = nextDouble(&rng) * 30 + 40
+                let fallSpeed = nextDouble(&rng) * 15 + 8
+                let wobblePhase = nextDouble(&rng) * .pi * 2
+                let wobbleAmp = nextDouble(&rng) * 20 + 10
+                let spinRate = nextDouble(&rng) * 3 + 1.5
+                let sz = (nextDouble(&rng) * 3 + 4) * px
+                let lifespan = nextDouble(&rng) * 2.5 + 3.0
+                guard age < lifespan else { continue }
+                let mp = age / lifespan
+                let petalFade = mp < 0.1 ? mp / 0.1 : max(0, 1.0 - (mp - 0.3) / 0.7)
+
+                // Burst outward first, then fall gently
+                let burstP = min(age / 0.8, 1.0)
+                let dist = burstP * burstDist
+                let px = b.x + cos(angle) * dist + sin(age * 0.6 + wobblePhase) * wobbleAmp * mp
+                let py = b.y + sin(angle) * dist * 0.5 - burstP * 15 + (age > 1.0 ? (age - 1.0) * fallSpeed : 0)
+
                 let c = colors[i % colors.count]
-                let r = CGRect(x: px - s, y: py - s, width: s * 2, height: s * 2)
+                let spin = age * spinRate + wobblePhase
+                let petalW = sz * (0.6 + sin(spin) * 0.4)
+                let petalH = sz * (0.6 + cos(spin) * 0.4)
+                let r = CGRect(x: snap(px) - petalW / 2, y: snap(py) - petalH / 2,
+                               width: petalW, height: petalH)
                 ctx.fill(Path(ellipseIn: r), with: .color(
-                    Color(red: c.0, green: c.1, blue: c.2).opacity(fade * 0.7)))
+                    Color(red: c.0, green: c.1, blue: c.2).opacity(max(0, petalFade) * 0.65)))
             }
         }
     }

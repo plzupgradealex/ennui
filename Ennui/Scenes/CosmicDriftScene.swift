@@ -22,9 +22,14 @@ struct CosmicDriftScene: View {
         let x, y, birthTime: Double
     }
 
+    struct DustMote {
+        let x, y, size, brightness, driftSpeed, phase: Double
+    }
+
     @State private var stars: [StarData] = []
     @State private var nebulae: [NebulaData] = []
     @State private var ripples: [RippleData] = []
+    @State private var dust: [DustMote] = []
     @State private var ready = false
 
     var body: some View {
@@ -33,7 +38,9 @@ struct CosmicDriftScene: View {
             Canvas { ctx, size in
                 guard ready else { return }
                 drawBackground(ctx: &ctx, size: size, t: t)
+                drawDustLane(ctx: &ctx, size: size, t: t)
                 drawNebulae(ctx: &ctx, size: size, t: t)
+                drawDust(ctx: &ctx, size: size, t: t)
                 drawStars(ctx: &ctx, size: size, t: t)
                 drawShootingStars(ctx: &ctx, size: size, t: t)
                 drawRipples(ctx: &ctx, size: size, t: t)
@@ -47,42 +54,55 @@ struct CosmicDriftScene: View {
             guard let loc = loc else { return }
             let r = RippleData(x: loc.x, y: loc.y, birthTime: Date().timeIntervalSince(startDate))
             ripples.append(r)
-            // Keep last 6 ripples
-            if ripples.count > 6 { ripples.removeFirst() }
+            if ripples.count > 8 { ripples.removeFirst() }
         }
     }
 
     private func setup() {
+        var rng = SplitMix64(seed: 0xC05A1C)
+
         stars = (0..<300).map { i in
             let layer = i < 100 ? 0 : (i < 220 ? 1 : 2)
             let sizeRange: ClosedRange<Double> = layer == 0 ? 0.3...1.0 : (layer == 1 ? 0.8...2.0 : 1.5...3.5)
             return StarData(
                 id: i,
-                x: .random(in: 0...1),
-                y: .random(in: 0...1),
-                brightness: .random(in: 0.15...1.0),
-                size: .random(in: sizeRange),
-                speed: [0.0005, 0.0015, 0.004][layer] * .random(in: 0.7...1.3),
-                twinkleRate: .random(in: 0.2...1.2),
-                twinkleOffset: .random(in: 0...(.pi * 2)),
+                x: Double.random(in: 0...1, using: &rng),
+                y: Double.random(in: 0...1, using: &rng),
+                brightness: Double.random(in: 0.15...1.0, using: &rng),
+                size: Double.random(in: sizeRange, using: &rng),
+                speed: [0.0005, 0.0015, 0.004][layer] * Double.random(in: 0.7...1.3, using: &rng),
+                twinkleRate: Double.random(in: 0.2...1.2, using: &rng),
+                twinkleOffset: Double.random(in: 0...(.pi * 2), using: &rng),
                 layer: layer,
-                warmth: .random(in: 0...1)
+                warmth: Double.random(in: 0...1, using: &rng)
             )
         }
-        // More nebulae, warmer palette
+
         nebulae = (0..<14).map { _ in
             NebulaData(
-                cx: .random(in: -0.2...1.2),
-                cy: .random(in: -0.2...1.2),
-                radius: .random(in: 0.12...0.45),
-                r: .random(in: 0.15...0.85),
-                g: .random(in: 0.08...0.45),
-                b: .random(in: 0.15...0.65),
-                driftX: .random(in: -0.002...0.002),
-                driftY: .random(in: -0.0015...0.0015),
-                phase: .random(in: 0...(.pi * 2))
+                cx: Double.random(in: -0.2...1.2, using: &rng),
+                cy: Double.random(in: -0.2...1.2, using: &rng),
+                radius: Double.random(in: 0.12...0.45, using: &rng),
+                r: Double.random(in: 0.15...0.85, using: &rng),
+                g: Double.random(in: 0.08...0.45, using: &rng),
+                b: Double.random(in: 0.15...0.65, using: &rng),
+                driftX: Double.random(in: -0.002...0.002, using: &rng),
+                driftY: Double.random(in: -0.0015...0.0015, using: &rng),
+                phase: Double.random(in: 0...(.pi * 2), using: &rng)
             )
         }
+
+        dust = (0..<40).map { _ in
+            DustMote(
+                x: Double.random(in: 0...1, using: &rng),
+                y: Double.random(in: 0...1, using: &rng),
+                size: Double.random(in: 0.5...2.0, using: &rng),
+                brightness: Double.random(in: 0.08...0.25, using: &rng),
+                driftSpeed: Double.random(in: 0.0003...0.0012, using: &rng),
+                phase: Double.random(in: 0...(.pi * 2), using: &rng)
+            )
+        }
+
         ready = true
     }
 
@@ -104,6 +124,44 @@ struct CosmicDriftScene: View {
                 endPoint: CGPoint(x: size.width * 0.5 + cos(t * 0.02) * size.width * 0.3, y: size.height)
             )
         )
+    }
+
+    // MARK: - Subtle Milky Way dust lane
+
+    private func drawDustLane(ctx: inout GraphicsContext, size: CGSize, t: Double) {
+        ctx.drawLayer { l in
+            l.addFilter(.blur(radius: max(size.width, size.height) * 0.15))
+            let breathe = sin(t * 0.025) * 0.008 + 0.035
+            // Diagonal translucent band of warm cosmic gas
+            let bandW = max(size.width, size.height) * 0.25
+            for i in 0..<6 {
+                let frac = Double(i) / 5.0
+                let x = frac * size.width * 1.4 - size.width * 0.2
+                let y = (1.0 - frac) * size.height * 1.2 - size.height * 0.1
+                let drift = sin(t * 0.01 + frac * 2) * 20
+                let r = bandW * (0.6 + sin(frac * .pi) * 0.4)
+                let warmth = 0.5 + sin(frac * .pi * 2) * 0.3
+                l.fill(Ellipse().path(in: CGRect(x: x + drift - r, y: y - r * 0.4,
+                                                  width: r * 2, height: r * 0.8)),
+                    with: .color(Color(red: 0.3 + warmth * 0.15, green: 0.15 + warmth * 0.08,
+                                       blue: 0.25).opacity(breathe)))
+            }
+        }
+    }
+
+    // MARK: - Drifting cosmic dust particles
+
+    private func drawDust(ctx: inout GraphicsContext, size: CGSize, t: Double) {
+        for mote in dust {
+            let x = fmod(mote.x + t * mote.driftSpeed + 10, 1.0) * size.width
+            let y = fmod(mote.y + t * mote.driftSpeed * 0.3 + 10, 1.0) * size.height
+            let twinkle = sin(t * 0.5 + mote.phase) * 0.3 + 0.7
+            let alpha = mote.brightness * twinkle
+            let s = mote.size
+            let rect = CGRect(x: x - s / 2, y: y - s / 2, width: s, height: s)
+            ctx.fill(Ellipse().path(in: rect),
+                with: .color(Color(red: 0.9, green: 0.75, blue: 0.6).opacity(alpha)))
+        }
     }
 
     private func drawNebulae(ctx: inout GraphicsContext, size: CGSize, t: Double) {
@@ -210,28 +268,82 @@ struct CosmicDriftScene: View {
     }
 
     private func drawRipples(ctx: inout GraphicsContext, size: CGSize, t: Double) {
-        let active = ripples.filter { t - $0.birthTime < 4.0 }
+        let active = ripples.filter { t - $0.birthTime < 7.0 }
         guard !active.isEmpty else { return }
 
-        // Single shared layer for all ripples (was up to 6 separate layers)
-        ctx.drawLayer { layerCtx in
-            layerCtx.addFilter(.blur(radius: 15))
-            let warmColor = Color(red: 1.1, green: 0.6, blue: 1.3)
+        for ripple in active {
+            let age = t - ripple.birthTime
+            let p = age / 7.0
 
-            for ripple in active {
-                let age = t - ripple.birthTime
-                let progress = age / 4.0
-                let radius = progress * 120.0
-                let alpha = (1.0 - progress) * 0.25
+            // Core flash — bright then fading
+            let coreFade = age < 0.3 ? age / 0.3 : max(0, 1.0 - (age - 0.3) / 2.0)
+            if coreFade > 0 {
+                ctx.drawLayer { l in
+                    l.addFilter(.blur(radius: 20 + p * 30))
+                    let r = 15 + p * 40
+                    l.fill(Ellipse().path(in: CGRect(x: ripple.x - r, y: ripple.y - r,
+                                                     width: r * 2, height: r * 2)),
+                        with: .radialGradient(
+                            Gradient(colors: [
+                                Color(red: 1.5, green: 1.2, blue: 1.6).opacity(0.30 * coreFade),
+                                Color(red: 1.1, green: 0.6, blue: 1.3).opacity(0.10 * coreFade),
+                                .clear
+                            ]),
+                            center: CGPoint(x: ripple.x, y: ripple.y),
+                            startRadius: 0, endRadius: r))
+                }
+            }
 
-                let rect = CGRect(x: ripple.x - radius, y: ripple.y - radius,
-                                 width: radius * 2, height: radius * 2)
+            // 3 expanding rings — warm center to cool edge
+            let ringColors: [(Double, Double, Double)] = [
+                (1.3, 0.8, 0.5),   // amber
+                (1.1, 0.6, 1.3),   // magenta
+                (0.5, 0.8, 1.4),   // cyan
+            ]
+            ctx.drawLayer { l in
+                l.addFilter(.blur(radius: 10))
+                for (ri, rc) in ringColors.enumerated() {
+                    let delay = Double(ri) * 0.4
+                    let ringAge = age - delay
+                    guard ringAge > 0 else { continue }
+                    let rp = min(ringAge / 5.5, 1.0)
+                    let ringFade = max(0, 1.0 - rp) * (1.0 - Double(ri) * 0.15)
+                    let radius = rp * (100 + Double(ri) * 40)
+                    let rect = CGRect(x: ripple.x - radius, y: ripple.y - radius,
+                                     width: radius * 2, height: radius * 2)
+                    l.stroke(Ellipse().path(in: rect),
+                        with: .color(Color(red: rc.0, green: rc.1, blue: rc.2).opacity(ringFade * 0.22)),
+                        lineWidth: 2.0 - rp * 1.2)
+                }
+            }
 
-                layerCtx.stroke(
-                    Ellipse().path(in: rect),
-                    with: .color(warmColor.opacity(alpha)),
-                    lineWidth: 2.0 - progress * 1.5
-                )
+            // Spiral stardust particles
+            let seed = UInt64(ripple.birthTime * 1000) & 0xFFFFFF
+            var rng = SplitMix64(seed: seed)
+            ctx.drawLayer { l in
+                l.addFilter(.blur(radius: 3))
+                for i in 0..<16 {
+                    let baseAngle = Double(i) / 16.0 * .pi * 2
+                    let spiralTwist = nextDouble(&rng) * 2.0 + 1.0
+                    let driftSpeed = nextDouble(&rng) * 0.5 + 0.5
+                    let sz = nextDouble(&rng) * 2.0 + 1.5
+                    let lifespan = nextDouble(&rng) * 3.0 + 3.5
+                    guard age < lifespan else { continue }
+                    let mp = age / lifespan
+                    let moteFade = mp < 0.1 ? mp / 0.1 : max(0, 1.0 - (mp - 0.1) / 0.9)
+                    let dist = mp * driftSpeed * 130
+                    let angle = baseAngle + age * spiralTwist * 0.3
+                    let mx = ripple.x + cos(angle) * dist
+                    let my = ripple.y + sin(angle) * dist
+                    let pulse = sin(age * 2.5 + Double(i)) * 0.25 + 0.75
+                    let s = sz * moteFade * pulse
+                    let warmth = nextDouble(&rng)
+                    let color = warmth > 0.5
+                        ? Color(red: 1.3, green: 0.9, blue: 1.5)
+                        : Color(red: 0.8, green: 1.1, blue: 1.4)
+                    l.fill(Ellipse().path(in: CGRect(x: mx - s, y: my - s, width: s * 2, height: s * 2)),
+                        with: .color(color.opacity(moteFade * 0.5 * pulse)))
+                }
             }
         }
     }

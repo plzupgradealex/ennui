@@ -84,7 +84,7 @@ struct AuroraBorealisScene: View {
             let t = Date().timeIntervalSince(startDate)
             let nx = loc.x / max(viewSize.width, 1)
             flares.append(SolarFlare(x: nx, birth: t))
-            if flares.count > 5 { flares.removeFirst() }
+            if flares.count > 8 { flares.removeFirst() }
         }
     }
 
@@ -222,22 +222,77 @@ struct AuroraBorealisScene: View {
         let w = size.width, h = size.height
         for flare in flares {
             let age = t - flare.birth
-            guard age < 4.0 else { continue }
-            let progress = age / 4.0
-            let alpha = (1.0 - progress) * 0.6
-            let spread = progress * 0.3
+            guard age < 7.0 else { continue }
+            let progress = age / 7.0
+
+            // Main aurora pulse — bright expanding band
+            let alpha = age < 0.4 ? age / 0.4 : max(0, 1.0 - (age - 0.4) / 4.0)
+            let spread = progress * 0.4
 
             ctx.drawLayer { layer in
-                layer.addFilter(.blur(radius: 40 + progress * 60))
+                layer.addFilter(.blur(radius: 40 + progress * 70))
                 let cx = flare.x * w
                 let cy = h * 0.2
-                let rx = w * (0.05 + spread)
-                let ry = h * 0.15
+                let rx = w * (0.06 + spread)
+                let ry = h * 0.18
                 let rect = CGRect(x: cx - rx, y: cy - ry, width: rx * 2, height: ry * 2)
-                layer.fill(
-                    Ellipse().path(in: rect),
-                    with: .color(Color(red: 0.3, green: 1.2, blue: 0.5).opacity(alpha))
-                )
+                layer.fill(Ellipse().path(in: rect),
+                    with: .color(Color(red: 0.3, green: 1.3, blue: 0.5).opacity(alpha * 0.6)))
+            }
+
+            // Secondary color bands expanding outward
+            let bands: [(r: Double, g: Double, b: Double, delay: Double, yOff: Double)] = [
+                (0.2, 1.0, 0.6, 0.3, -0.02),
+                (0.5, 0.3, 1.0, 0.6, 0.02),
+                (0.9, 0.5, 0.7, 0.9, -0.01),
+            ]
+            for band in bands {
+                let bandAge = age - band.delay
+                guard bandAge > 0 else { continue }
+                let bp = min(bandAge / 5.0, 1.0)
+                let bandFade = max(0, 1.0 - bp)
+                let bandSpread = bp * 0.35
+
+                ctx.drawLayer { layer in
+                    layer.addFilter(.blur(radius: 50 + bp * 40))
+                    let cx = flare.x * w
+                    let cy = h * (0.2 + band.yOff)
+                    let rx = w * (0.04 + bandSpread)
+                    let ry = h * 0.12
+                    let rect = CGRect(x: cx - rx, y: cy - ry, width: rx * 2, height: ry * 2)
+                    layer.fill(Ellipse().path(in: rect),
+                        with: .color(Color(red: band.r, green: band.g, blue: band.b)
+                            .opacity(bandFade * 0.35)))
+                }
+            }
+
+            // Cascading light particles falling from aurora
+            let seed = UInt64(flare.birth * 1000) & 0xFFFFFF
+            var rng = SplitMix64(seed: seed)
+            ctx.drawLayer { l in
+                l.addFilter(.blur(radius: 5))
+                for _ in 0..<12 {
+                    let px = flare.x + (nextDouble(&rng) - 0.5) * 0.3
+                    let delay = nextDouble(&rng) * 1.5
+                    let pAge = age - delay
+                    guard pAge > 0 else { continue }
+                    let fallSpeed = nextDouble(&rng) * 0.06 + 0.03
+                    let drift = (nextDouble(&rng) - 0.5) * 0.08
+                    let lifespan = nextDouble(&rng) * 2.5 + 3.0
+                    guard pAge < lifespan else { continue }
+                    let pp = pAge / lifespan
+                    let pFade = pp < 0.1 ? pp / 0.1 : max(0, 1.0 - (pp - 0.1) / 0.9)
+                    let mx = (px + pAge * drift) * w
+                    let my = h * 0.25 + pAge * fallSpeed * h
+                    let sz = 3.0 * pFade
+                    let warmth = nextDouble(&rng)
+                    let col = warmth > 0.5
+                        ? Color(red: 0.3, green: 1.2, blue: 0.6)
+                        : Color(red: 0.5, green: 0.4, blue: 1.1)
+                    l.fill(Ellipse().path(in: CGRect(x: mx - sz, y: my - sz,
+                                                     width: sz * 2, height: sz * 2)),
+                        with: .color(col.opacity(pFade * 0.45)))
+                }
             }
         }
     }

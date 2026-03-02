@@ -19,7 +19,7 @@ actor HaikuGenerator {
             .voyagerNebula: "drifting through a magnificent nebula in deep space, swirling colours of teal and magenta, stellar nurseries glowing warmly",
             .retroPS1: "a nostalgic PS1/N64 nighttime scene with low-poly mountains, a glowing cabin, fireflies, and chunky pixel stars",
             .auroraBorealis: "the northern lights dancing in green and violet curtains over a frozen lake with silhouetted pine trees and a distant warm cabin",
-            .paperLanternFestival: "hundreds of warm glowing paper lanterns rising gently into the twilight sky over a dark reflective lake, fireflies dancing between them",
+            .paperLanternFestival: "a serene lake at dusk, each click releasing a single warm lantern carrying a kind message into the quiet night sky, fireflies drifting gently",
             .forgottenLibrary: "an infinite twilight library with towering bookshelves, candlelight, floating golden letters drifting upward like embers, and moonlight through arched windows",
             .lateNightRerun: "falling asleep to late-night TV reruns in a cozy 90s bedroom, CRT glow, lava lamp, glow-in-the-dark stars on the ceiling, rain on the window",
             .medievalVillage: "a peaceful medieval village settling down for the night, fires extinguished one by one, chimney smoke, moonlight on thatched roofs, aurora appearing as the village sleeps",
@@ -34,6 +34,7 @@ actor HaikuGenerator {
             .ontarioCountryside: "a warm summer evening in the rural countryside of southern Ontario in the early 1990s, golden wheat fields rolling toward a distant treeline, an old red barn and silo, a gravel road vanishing to the horizon, fireflies blinking in the blue hour, power lines tracing the road, the last amber light on everything",
             .minnesotaSmallTown: "a calm summer evening in a tiny Minnesota prairie town, an enormous pink and gold sky over Main Street, a white church steeple, a water tower, a grain elevator, a diner with a flickering neon sign, street lamps coming on, fireflies over the flat quiet land, nothing happens and that is the whole point",
             .shimizuEvening: "a quiet rainy evening in a small Japanese residential neighbourhood in Shizuoka, warm yellow windows glowing behind a concrete block wall, rain falling on a street with puddles, a corner shop with a striped awning, utility poles and wires, rounded bushes, the gentle sound of rain on everything, a feeling of being safely home while the world is soft and wet outside",
+            .mystify: "glowing coloured lines bouncing gently across a dark CRT screen, leaving fading phosphor trails, the hypnotic comfort of a Windows 95 screensaver running late at night in a quiet house, warmth in geometry, nostalgia in every pixel",
         ]
         let theme = themes[scene] ?? "a peaceful calming moment"
 
@@ -127,9 +128,9 @@ struct HaikuOverlayView: View {
             "Cold air carries light\nThe aurora hums in silence\nSnow remembers warmth",
         ],
         .paperLanternFestival: [
-            "A hundred small suns\nRise slowly from the water\nWishes float like light",
-            "Warm paper and flame\nDrifting through the evening sky\nThe lake holds their glow",
-            "Lanterns climb the dark\nEach one a quiet prayer\nThe night leans in close",
+            "One gentle click\nA kind word lifts into dusk\nThe lake holds its glow",
+            "Be still says the flame\nRising slow through violet air\nThe water remembers",
+            "Each lantern a wish\nDrifting upward without haste\nThe night leans in close",
         ],
         .forgottenLibrary: [
             "Dust motes catch the flame\nOld pages breathe forgotten\nWords still drift upward",
@@ -200,6 +201,11 @@ struct HaikuOverlayView: View {
             "Rain taps the grey wall\nWarm light through the window glass\nSupper must be soon",
             "Puddles on the street\nThe shop awning drips a tune\nEvening settles in",
             "Wires hum with rain\nA window glows behind the fence\nSomeone is still home",
+        ],
+        .mystify: [
+            "Lines trace the dark glass\nPhosphor trails fade to nothing\nThe screen dreams for us",
+            "Cyan meets amber\nBouncing through the quiet night\nNinety-five glows on",
+            "Colours never rest\nThey wander the CRT\nWarm geometry",
         ],
     ]
 

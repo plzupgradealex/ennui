@@ -511,21 +511,55 @@ struct NightTrainScene: View {
     // MARK: - Tap condensation bloom
 
     private func drawCondensation(ctx: inout GraphicsContext, size: CGSize, t: Double, phase: WeatherPhase) {
-        let active = condensation.filter { t - $0.birthTime < 6.0 }
+        let active = condensation.filter { t - $0.birthTime < 8.0 }
         guard !active.isEmpty else { return }
 
-        // Single shared blur layer for all condensation blooms (was up to 8 separate layers)
-        ctx.drawLayer { l in
-            l.addFilter(.blur(radius: 25))
-            for bloom in active {
-                let age = t - bloom.birthTime
-                let progress = age / 6.0
-                let radius = 20 + progress * 80
-                let alpha = (1.0 - progress) * 0.25
-                let rect = CGRect(x: bloom.x - radius, y: bloom.y - radius,
-                                 width: radius * 2, height: radius * 2)
-                l.fill(Ellipse().path(in: rect),
-                       with: .color(Color.white.opacity(alpha)))
+        for bloom in active {
+            let age = t - bloom.birthTime
+            let p = age / 8.0
+
+            // Soft warm bloom where you breathed on the glass
+            let glowFade = age < 0.4 ? age / 0.4 : max(0, 1.0 - (age - 0.4) / 4.0)
+            if glowFade > 0 {
+                ctx.drawLayer { l in
+                    l.addFilter(.blur(radius: 30 + p * 40))
+                    let r = 25 + p * 60
+                    l.fill(Ellipse().path(in: CGRect(x: bloom.x - r, y: bloom.y - r,
+                                                     width: r * 2, height: r * 2)),
+                        with: .radialGradient(
+                            Gradient(colors: [
+                                Color.white.opacity(0.20 * glowFade),
+                                Color.white.opacity(0.06 * glowFade),
+                                .clear
+                            ]),
+                            center: CGPoint(x: bloom.x, y: bloom.y),
+                            startRadius: 0, endRadius: r))
+                }
+            }
+
+            // Condensation droplets forming and running down
+            let seed = UInt64(bloom.birthTime * 1000) & 0xFFFFFF
+            var rng = SplitMix64(seed: seed)
+            for _ in 0..<12 {
+                let dx = bloom.x + (nextDouble(&rng) - 0.5) * 60
+                let delay = nextDouble(&rng) * 2.0
+                let dropAge = age - delay
+                guard dropAge > 0 else { continue }
+                let speed = nextDouble(&rng) * 20 + 10
+                let lifespan = nextDouble(&rng) * 2.5 + 3.0
+                guard dropAge < lifespan else { continue }
+                let dp = dropAge / lifespan
+                let dropFade = dp < 0.1 ? dp / 0.1 : max(0, 1.0 - (dp - 0.5) / 0.5)
+                let dy = bloom.y + dropAge * speed
+                // Teardrop
+                ctx.fill(Ellipse().path(in: CGRect(x: dx - 1.5, y: dy - 2.5, width: 3, height: 5)),
+                    with: .color(Color(red: 0.7, green: 0.8, blue: 0.9).opacity(0.20 * dropFade)))
+                // Trail
+                if dropAge > 0.5 {
+                    let trailLen = min(dropAge * 4, 15.0)
+                    ctx.fill(Ellipse().path(in: CGRect(x: dx - 0.5, y: dy - trailLen - 2.5, width: 1, height: trailLen)),
+                        with: .color(Color(red: 0.6, green: 0.7, blue: 0.8).opacity(0.08 * dropFade)))
+                }
             }
         }
     }

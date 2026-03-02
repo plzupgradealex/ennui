@@ -2,11 +2,10 @@ import SwiftUI
 
 // Minnesota Small Town — A calm summer evening in a tiny fictional
 // town somewhere on the Minnesota prairie. Main Street stretches out
-// under an enormous sky going pink and gold. There's a church steeple,
+// under an enormous sky going pink and gold. There's a steeple,
 // a water tower, a grain elevator, a little diner with a neon sign,
-// a general store. The Lutheran church bell doesn't ring but you know
-// it's there. A dog is probably asleep on someone's porch. The wind
-// barely moves. Nothing happens and that's the whole point.
+// a general store. A dog is probably asleep on someone's porch. The
+// wind barely moves. Nothing happens and that's the whole point.
 //
 // Tap to send a slow firefly drifting across the scene.
 //
@@ -329,17 +328,6 @@ struct MinnesotaSmallTownScene: View {
         spire.addLine(to: CGPoint(x: cx + steepleW / 2, y: spireBase))
         spire.closeSubpath()
         ctx.fill(spire, with: .color(Color(red: 0.70, green: 0.68, blue: 0.65).opacity(0.45)))
-
-        // Cross
-        let crossY = spireBase - 16 - 8
-        ctx.fill(
-            Rectangle().path(in: CGRect(x: cx - 1, y: crossY, width: 2, height: 8)),
-            with: .color(Color(red: 0.90, green: 0.85, blue: 0.70).opacity(0.5))
-        )
-        ctx.fill(
-            Rectangle().path(in: CGRect(x: cx - 3, y: crossY + 2, width: 6, height: 2)),
-            with: .color(Color(red: 0.90, green: 0.85, blue: 0.70).opacity(0.5))
-        )
 
         // Warm window glow
         let glowAlpha = sin(t * 0.15) * 0.1 + 0.25

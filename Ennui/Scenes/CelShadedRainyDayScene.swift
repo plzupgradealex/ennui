@@ -444,23 +444,68 @@ struct CelShadedRainyDayScene: View {
     private func drawBlooms(ctx: inout GraphicsContext, size: CGSize, t: Double) {
         for bloom in blooms {
             let age = t - bloom.birth
-            guard age < 3.0 else { continue }
-            let progress = age / 3.0
-            let r = progress * 50.0
-            let alpha = (1.0 - progress) * 0.6
+            guard age < 5.0 else { continue }
+            let p = age / 5.0
 
-            // Expanding ring — cel style (hard edge)
-            let rect = CGRect(x: bloom.x - r, y: bloom.y - r, width: r * 2, height: r * 2)
-            ctx.stroke(Ellipse().path(in: rect),
-                       with: .color(Color(red: 1.1, green: 0.9, blue: 0.3).opacity(alpha)),
-                       lineWidth: 2.5)
+            // Central warm glow — cel-style (no blur for pixel aesthetic feel)
+            let glowFade = age < 0.3 ? age / 0.3 : max(0, 1.0 - (age - 0.3) / 2.0)
+            if glowFade > 0 {
+                let r = 15 + p * 30
+                ctx.fill(Ellipse().path(in: CGRect(x: bloom.x - r, y: bloom.y - r,
+                                                    width: r * 2, height: r * 2)),
+                    with: .radialGradient(
+                        Gradient(colors: [
+                            Color(red: 1.2, green: 1.0, blue: 0.4).opacity(0.18 * glowFade),
+                            .clear
+                        ]),
+                        center: CGPoint(x: bloom.x, y: bloom.y),
+                        startRadius: 0, endRadius: r))
+            }
 
-            // Inner ring
-            let r2 = r * 0.6
-            let rect2 = CGRect(x: bloom.x - r2, y: bloom.y - r2, width: r2 * 2, height: r2 * 2)
-            ctx.stroke(Ellipse().path(in: rect2),
-                       with: .color(Color(red: 1.0, green: 0.6, blue: 0.9).opacity(alpha * 0.5)),
-                       lineWidth: 1.5)
+            // Multiple expanding rings — cel-shaded hard edges, staggered
+            let ringColors: [(r: Double, g: Double, b: Double, delay: Double)] = [
+                (1.1, 0.9, 0.3, 0.0),   // gold
+                (1.0, 0.6, 0.9, 0.3),   // pink
+                (0.5, 0.9, 1.1, 0.6),   // aqua
+                (0.8, 1.0, 0.5, 0.9),   // lime
+            ]
+            for rc in ringColors {
+                let ringAge = age - rc.delay
+                guard ringAge > 0 else { continue }
+                let rp = min(ringAge / 3.5, 1.0)
+                let ringFade = max(0, 1.0 - rp)
+                let radius = rp * 65
+                let rect = CGRect(x: bloom.x - radius, y: bloom.y - radius,
+                                  width: radius * 2, height: radius * 2)
+                ctx.stroke(Ellipse().path(in: rect),
+                    with: .color(Color(red: rc.r, green: rc.g, blue: rc.b).opacity(ringFade * 0.45)),
+                    lineWidth: 2.5 - rp * 1.5)
+            }
+
+            // Petal scatter — colorful circles drifting outward and falling
+            let seed = UInt64(bloom.birth * 1000) & 0xFFFFFF
+            var rng = SplitMix64(seed: seed)
+            for _ in 0..<12 {
+                let angle = nextDouble(&rng) * .pi * 2
+                let drift = nextDouble(&rng) * 0.5 + 0.3
+                let fallSpeed = nextDouble(&rng) * 12 + 6
+                let sz = nextDouble(&rng) * 4 + 3
+                let lifespan = nextDouble(&rng) * 2.0 + 2.5
+                guard age < lifespan else { continue }
+                let mp = age / lifespan
+                let mFade = mp < 0.1 ? mp / 0.1 : max(0, 1.0 - (mp - 0.3) / 0.7)
+                let dist = mp * drift * 80
+                let px = bloom.x + cos(angle) * dist
+                let py = bloom.y + sin(angle) * dist * 0.5 + (age > 0.8 ? (age - 0.8) * fallSpeed : 0)
+                let colors: [(Double, Double, Double)] = [
+                    (1.1, 0.5, 0.6), (0.5, 0.8, 1.1), (1.0, 0.9, 0.4), (0.8, 0.5, 1.0), (0.5, 1.0, 0.6)
+                ]
+                let ci = Int(nextDouble(&rng) * 5) % colors.count
+                let c = colors[ci]
+                let s = sz * max(0, mFade)
+                ctx.fill(Ellipse().path(in: CGRect(x: px - s / 2, y: py - s / 2, width: s, height: s)),
+                    with: .color(Color(red: c.0, green: c.1, blue: c.2).opacity(max(0, mFade) * 0.55)))
+            }
         }
     }
 

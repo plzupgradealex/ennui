@@ -10,6 +10,7 @@ struct DesertStarscapeScene: View {
     struct SandRipple: Identifiable {
         let id = UUID()
         let x, y, birth: Double
+        let seed: UInt64
     }
 
     @State private var stars: [Star] = []
@@ -37,8 +38,9 @@ struct DesertStarscapeScene: View {
         .allowedDynamicRange(.high)
         .onChange(of: interaction.tapCount) { _, _ in
             guard let loc = interaction.tapLocation else { return }
-            ripples.append(SandRipple(x: loc.x, y: loc.y, birth: Date().timeIntervalSince(startDate)))
-            if ripples.count > 5 { ripples.removeFirst() }
+            let t = Date().timeIntervalSince(startDate)
+            ripples.append(SandRipple(x: loc.x, y: loc.y, birth: t, seed: UInt64(t * 1000) & 0xFFFFFF))
+            if ripples.count > 8 { ripples.removeFirst() }
         }
     }
 
@@ -241,16 +243,69 @@ struct DesertStarscapeScene: View {
     private func drawRipples(ctx: inout GraphicsContext, size: CGSize, t: Double) {
         for rp in ripples {
             let age = t - rp.birth
-            guard age < 3 else { continue }
-            let p = age / 3.0
-            let fade = 1 - p
-            for ring in 0..<3 {
-                let r = p * 60 * (0.5 + Double(ring) * 0.3)
-                let f = fade * (1 - Double(ring) * 0.3)
+            guard age < 7.0 else { continue }
+            let p = age / 7.0
+
+            // Warm aureole bloom at center
+            let bloomFade = age < 0.5 ? age / 0.5 : max(0, 1.0 - (age - 0.5) / 3.0)
+            if bloomFade > 0 {
+                ctx.drawLayer { l in
+                    l.addFilter(.blur(radius: 30 + p * 40))
+                    let r = 20 + p * 80
+                    l.fill(Ellipse().path(in: CGRect(x: rp.x - r, y: rp.y - r * 0.4,
+                                                     width: r * 2, height: r * 0.8)),
+                        with: .radialGradient(
+                            Gradient(colors: [
+                                Color(red: 1.4, green: 1.0, blue: 0.4).opacity(0.18 * bloomFade),
+                                Color(red: 1.1, green: 0.7, blue: 0.3).opacity(0.06 * bloomFade),
+                                .clear
+                            ]),
+                            center: CGPoint(x: rp.x, y: rp.y),
+                            startRadius: 0, endRadius: r))
+                }
+            }
+
+            // Expanding aureole rings
+            for ring in 0..<4 {
+                let delay = Double(ring) * 0.3
+                let ringAge = age - delay
+                guard ringAge > 0 else { continue }
+                let rp2 = min(ringAge / 5.0, 1.0)
+                let ringFade = max(0, 1.0 - rp2) * max(0, 1.0 - Double(ring) * 0.2)
+                let r = rp2 * (80 + Double(ring) * 30)
                 ctx.stroke(
-                    Ellipse().path(in: CGRect(x: rp.x - r, y: rp.y - r * 0.3, width: r * 2, height: r * 0.6)),
-                    with: .color(Color(red: 0.6, green: 0.45, blue: 0.3).opacity(f * 0.25)),
-                    lineWidth: 1)
+                    Ellipse().path(in: CGRect(x: rp.x - r, y: rp.y - r * 0.3,
+                                              width: r * 2, height: r * 0.6)),
+                    with: .color(Color(red: 1.2, green: 0.85, blue: 0.4).opacity(ringFade * 0.20)),
+                    lineWidth: 1.5 - rp2 * 0.8)
+            }
+
+            // Rising stardust motes
+            var rng = SplitMix64(seed: rp.seed)
+            ctx.drawLayer { l in
+                l.addFilter(.blur(radius: 4))
+                for _ in 0..<18 {
+                    let angle = nextDouble(&rng) * .pi * 2
+                    let drift = nextDouble(&rng) * 0.6 + 0.4
+                    let riseSpeed = nextDouble(&rng) * 30 + 15
+                    let wobblePhase = nextDouble(&rng) * .pi * 2
+                    let sz = nextDouble(&rng) * 2.5 + 1.5
+                    let lifespan = nextDouble(&rng) * 3.0 + 3.5
+                    guard age < lifespan else { continue }
+                    let moteP = age / lifespan
+                    let moteFade = moteP < 0.15 ? moteP / 0.15 : max(0, 1.0 - (moteP - 0.15) / 0.85)
+                    let dist = moteP * drift * 100
+                    let mx = rp.x + cos(angle) * dist + sin(age * 1.2 + wobblePhase) * 12
+                    let my = rp.y + sin(angle) * dist * 0.4 - age * riseSpeed
+                    let pulse = sin(age * 3.0 + wobblePhase) * 0.3 + 0.7
+                    let s = sz * moteFade * pulse
+                    let warmth = nextDouble(&rng)
+                    let color = warmth > 0.5
+                        ? Color(red: 1.4, green: 1.1, blue: 0.5)
+                        : Color(red: 1.2, green: 0.9, blue: 0.55)
+                    l.fill(Ellipse().path(in: CGRect(x: mx - s, y: my - s, width: s * 2, height: s * 2)),
+                        with: .color(color.opacity(moteFade * 0.55 * pulse)))
+                }
             }
         }
     }

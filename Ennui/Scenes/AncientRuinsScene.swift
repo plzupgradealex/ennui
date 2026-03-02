@@ -38,7 +38,7 @@ struct AncientRuinsScene: View {
         .onChange(of: interaction.tapCount) { _, _ in
             guard let loc = interaction.tapLocation else { return }
             bursts.append(FlyBurst(x: loc.x, y: loc.y, birth: Date().timeIntervalSince(startDate)))
-            if bursts.count > 5 { bursts.removeFirst() }
+            if bursts.count > 8 { bursts.removeFirst() }
         }
     }
 
@@ -231,24 +231,71 @@ struct AncientRuinsScene: View {
     }
 
     private func drawBursts(ctx: inout GraphicsContext, size: CGSize, t: Double) {
-        let activeBursts = bursts.filter { t - $0.birth < 3 }
+        let activeBursts = bursts.filter { t - $0.birth < 7.0 }
         guard !activeBursts.isEmpty else { return }
 
-        // Single shared blur layer for all burst particles (was 16×bursts = up to 80 layers!)
-        ctx.drawLayer { l in
-            l.addFilter(.blur(radius: 5))
-            for b in activeBursts {
-                let age = t - b.birth
-                let p = age / 3.0
-                let fade = (1 - p) * (1 - p)
-                for i in 0..<16 {
-                    let angle = Double(i) / 16 * .pi * 2 + age * 1.2
-                    let dist = p * 70 + sin(age * 3 + Double(i)) * 10
-                    let px = b.x + cos(angle) * dist
-                    let py = b.y + sin(angle) * dist - p * 20
-                    let s = 3.0 * fade
-                    l.fill(Ellipse().path(in: CGRect(x: px - s, y: py - s, width: s * 2, height: s * 2)),
-                        with: .color(Color(red: 1.4, green: 1.3, blue: 0.5).opacity(fade * 0.55)))
+        for b in activeBursts {
+            let age = t - b.birth
+            let p = age / 7.0
+
+            // Warm aurora wash bloom — golden light that illuminates nearby area
+            let washFade = age < 0.4 ? age / 0.4 : max(0, 1.0 - (age - 0.4) / 3.0)
+            if washFade > 0 {
+                ctx.drawLayer { l in
+                    l.addFilter(.blur(radius: 40 + p * 50))
+                    let r = 40 + p * 120
+                    l.fill(Ellipse().path(in: CGRect(x: b.x - r, y: b.y - r * 0.7,
+                                                     width: r * 2, height: r * 1.4)),
+                        with: .radialGradient(
+                            Gradient(colors: [
+                                Color(red: 1.5, green: 1.2, blue: 0.5).opacity(0.20 * washFade),
+                                Color(red: 1.2, green: 0.9, blue: 0.3).opacity(0.08 * washFade),
+                                .clear
+                            ]),
+                            center: CGPoint(x: b.x, y: b.y),
+                            startRadius: 0, endRadius: r))
+                }
+            }
+
+            // Drifting firefly motes — slow, twinkling, long-lived
+            let seed = UInt64(b.birth * 1000) & 0xFFFFFF
+            var rng = SplitMix64(seed: seed)
+
+            ctx.drawLayer { l in
+                l.addFilter(.blur(radius: 5))
+                for _ in 0..<22 {
+                    let angle = nextDouble(&rng) * .pi * 2
+                    let drift = nextDouble(&rng) * 0.6 + 0.3
+                    let riseRate = nextDouble(&rng) * 15 + 8
+                    let wobblePhase = nextDouble(&rng) * .pi * 2
+                    let wobbleAmp = nextDouble(&rng) * 15 + 8
+                    let sz = nextDouble(&rng) * 2.5 + 2.0
+                    let lifespan = nextDouble(&rng) * 3.0 + 3.5
+                    guard age < lifespan else { continue }
+                    let mp = age / lifespan
+                    let moteFade = mp < 0.15 ? mp / 0.15 : max(0, 1.0 - (mp - 0.15) / 0.85)
+                    let dist = mp * drift * 100
+                    let mx = b.x + cos(angle) * dist + sin(age * 0.8 + wobblePhase) * wobbleAmp
+                    let my = b.y + sin(angle) * dist * 0.5 - age * riseRate
+                    // Firefly twinkle
+                    let twinkle = sin(age * (3.0 + nextDouble(&rng) * 2.0) + wobblePhase)
+                    let brightness = twinkle > 0.2 ? twinkle : 0.0
+                    let s = sz * moteFade * max(0.3, brightness)
+                    l.fill(Ellipse().path(in: CGRect(x: mx - s, y: my - s, width: s * 2, height: s * 2)),
+                        with: .color(Color(red: 1.4, green: 1.3, blue: 0.5).opacity(moteFade * 0.55 * brightness)))
+                }
+            }
+
+            // Gentle expanding aureole ring
+            let ringFade = max(0, 1.0 - p)
+            if ringFade > 0 {
+                let r = p * 90
+                ctx.drawLayer { l in
+                    l.addFilter(.blur(radius: 8))
+                    l.stroke(Ellipse().path(in: CGRect(x: b.x - r, y: b.y - r * 0.6,
+                                                       width: r * 2, height: r * 1.2)),
+                        with: .color(Color(red: 1.3, green: 1.1, blue: 0.5).opacity(ringFade * 0.15)),
+                        lineWidth: 1.5)
                 }
             }
         }

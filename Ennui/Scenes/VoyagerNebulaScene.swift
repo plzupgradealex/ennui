@@ -1,10 +1,9 @@
 import SwiftUI
 
-// Voyager Nebula — the beautiful, vivid nebulae from Star Trek: Voyager.
-// Enormous gas clouds in teals, magentas, ambers, and violets swirl slowly.
-// Bright stellar nursery cores pulse with HDR bloom. Dust lanes snake through.
-// Distant stars peek between gas curtains. Tap sends a shockwave that
-// momentarily illuminates hidden structure. Pure Canvas, 60fps, no blur abuse.
+// Voyager Nebula — drifting through a stellar nursery.
+// Enormous soft gas curtains in muted teals, mauves, and ambers drift slowly.
+// Dim stars peek through veils. A few brighter cores pulse with gentle HDR glow.
+// Mostly negative space and atmosphere. Tap sends a faint illumination ripple.
 
 struct VoyagerNebulaScene: View {
     @ObservedObject var interaction: InteractionState
@@ -13,33 +12,16 @@ struct VoyagerNebulaScene: View {
     // MARK: - Data types
 
     struct GasCloudData {
-        let cx, cy: Double           // normalised centre
-        let radius: Double           // normalised
-        let r, g, b: Double          // base colour
-        let driftX, driftY: Double   // drift speed
-        let phase: Double            // animation offset
-        let density: Double          // 0.2..0.8
-        let layerDepth: Int          // 0=far, 1=mid, 2=near
-    }
-
-    struct DustLaneData {
-        let startX, startY: Double
-        let endX, endY: Double
-        let thickness: Double
-        let opacity: Double
-        let curl: Double
-    }
-
-    struct StellarCoreData {
         let cx, cy: Double
-        let brightness: Double       // HDR multiplier
+        let radiusX, radiusY: Double   // separate axes for oblong shapes
         let r, g, b: Double
-        let pulseRate: Double
-        let pulsePhase: Double
-        let coreSize: Double
+        let driftX, driftY: Double
+        let phase: Double
+        let opacity: Double
+        let depth: Int                 // 0=far, 1=mid, 2=near
     }
 
-    struct BackgroundStarData {
+    struct StarData {
         let x, y: Double
         let brightness: Double
         let size: Double
@@ -47,16 +29,22 @@ struct VoyagerNebulaScene: View {
         let warmth: Double
     }
 
-    struct ShockwaveData: Identifiable {
+    struct CoreData {
+        let cx, cy: Double
+        let r, g, b: Double
+        let pulseRate, pulsePhase: Double
+        let size: Double               // normalised
+    }
+
+    struct RippleData: Identifiable {
         let id = UUID()
         let x, y, birth: Double
     }
 
     @State private var gasClouds: [GasCloudData] = []
-    @State private var dustLanes: [DustLaneData] = []
-    @State private var stellarCores: [StellarCoreData] = []
-    @State private var stars: [BackgroundStarData] = []
-    @State private var shockwaves: [ShockwaveData] = []
+    @State private var stars: [StarData] = []
+    @State private var cores: [CoreData] = []
+    @State private var ripples: [RippleData] = []
     @State private var ready = false
 
     var body: some View {
@@ -64,145 +52,131 @@ struct VoyagerNebulaScene: View {
             let t = tl.date.timeIntervalSince(startDate)
             Canvas { ctx, size in
                 guard ready else { return }
-                drawDeepBackground(ctx: &ctx, size: size, t: t)
-                drawBackgroundStars(ctx: &ctx, size: size, t: t)
-                drawFarGasClouds(ctx: &ctx, size: size, t: t)
-                drawDustLanes(ctx: &ctx, size: size, t: t)
-                drawMidGasClouds(ctx: &ctx, size: size, t: t)
-                drawStellarCores(ctx: &ctx, size: size, t: t)
-                drawNearGasClouds(ctx: &ctx, size: size, t: t)
-                drawGodRays(ctx: &ctx, size: size, t: t)
-                drawShockwaves(ctx: &ctx, size: size, t: t)
-                drawViewscreenFrame(ctx: &ctx, size: size, t: t)
+                drawBackground(ctx: &ctx, size: size, t: t)
+                drawStars(ctx: &ctx, size: size, t: t)
+                drawGasClouds(ctx: &ctx, size: size, t: t, depth: 0)
+                drawGasClouds(ctx: &ctx, size: size, t: t, depth: 1)
+                drawCores(ctx: &ctx, size: size, t: t)
+                drawGasClouds(ctx: &ctx, size: size, t: t, depth: 2)
+                drawRipples(ctx: &ctx, size: size, t: t)
             }
         }
         .background(.black)
         .drawingGroup(opaque: false, colorMode: .extendedLinear)
         .allowedDynamicRange(.high)
-        .onAppear(perform: setup)
+        .onAppear(perform: generate)
         .onChange(of: interaction.tapCount) { _, _ in
             guard let loc = interaction.tapLocation else { return }
-            shockwaves.append(ShockwaveData(x: loc.x, y: loc.y,
-                                            birth: Date().timeIntervalSince(startDate)))
-            if shockwaves.count > 5 { shockwaves.removeFirst() }
+            ripples.append(RippleData(x: loc.x, y: loc.y,
+                                      birth: Date().timeIntervalSince(startDate)))
+            if ripples.count > 6 { ripples.removeFirst() }
         }
     }
 
-    // MARK: - Setup
+    // MARK: - Generate
 
-    private func setup() {
+    private func generate() {
         var rng = SplitMix64(seed: 4747)
 
-        // Voyager-palette gas clouds: teals, magentas, amber, violet, rose
+        // Muted, desaturated palette — more natural gas cloud colours
         let palette: [(Double, Double, Double)] = [
-            (0.15, 0.65, 0.75),  // teal
-            (0.80, 0.20, 0.55),  // magenta
-            (0.90, 0.55, 0.15),  // amber
-            (0.50, 0.25, 0.75),  // violet
-            (0.85, 0.35, 0.40),  // rose
-            (0.25, 0.50, 0.85),  // cerulean
-            (0.70, 0.70, 0.25),  // gold
-            (0.30, 0.75, 0.50),  // seafoam
-            (0.60, 0.15, 0.80),  // deep purple
+            (0.20, 0.45, 0.55),   // muted teal
+            (0.55, 0.22, 0.42),   // dusty mauve
+            (0.60, 0.40, 0.18),   // amber haze
+            (0.35, 0.22, 0.50),   // dim violet
+            (0.50, 0.30, 0.35),   // muted rose
+            (0.22, 0.38, 0.55),   // slate blue
+            (0.45, 0.42, 0.22),   // faded gold
+            (0.25, 0.48, 0.38),   // seafoam grey
         ]
 
-        gasClouds = (0..<22).map { i in
+        // Fewer clouds, more irregular shapes, lower opacity
+        gasClouds = (0..<16).map { i in
             let (cr, cg, cb) = palette[i % palette.count]
-            let depth = i < 7 ? 0 : (i < 15 ? 1 : 2)
+            let depth = i < 5 ? 0 : (i < 11 ? 1 : 2)
             return GasCloudData(
-                cx: nextDouble(&rng) * 1.4 - 0.2,
-                cy: nextDouble(&rng) * 1.4 - 0.2,
-                radius: 0.10 + nextDouble(&rng) * 0.30,
-                r: cr + (nextDouble(&rng) - 0.5) * 0.15,
-                g: cg + (nextDouble(&rng) - 0.5) * 0.15,
-                b: cb + (nextDouble(&rng) - 0.5) * 0.15,
-                driftX: (nextDouble(&rng) - 0.5) * 0.003,
-                driftY: (nextDouble(&rng) - 0.5) * 0.002,
-                phase: nextDouble(&rng) * .pi * 2,
-                density: 0.15 + nextDouble(&rng) * 0.45,
-                layerDepth: depth
+                cx: Double.random(in: -0.15...1.15, using: &rng),
+                cy: Double.random(in: -0.15...1.15, using: &rng),
+                radiusX: Double.random(in: 0.10...0.35, using: &rng),
+                radiusY: Double.random(in: 0.06...0.25, using: &rng),
+                r: cr + Double.random(in: -0.08...0.08, using: &rng),
+                g: cg + Double.random(in: -0.08...0.08, using: &rng),
+                b: cb + Double.random(in: -0.08...0.08, using: &rng),
+                driftX: Double.random(in: -0.0015...0.0015, using: &rng),
+                driftY: Double.random(in: -0.001...0.001, using: &rng),
+                phase: Double.random(in: 0...(.pi * 2), using: &rng),
+                opacity: Double.random(in: 0.06...0.18, using: &rng),
+                depth: depth
             )
         }
 
-        dustLanes = (0..<8).map { _ in
-            DustLaneData(
-                startX: nextDouble(&rng) * 0.3,
-                startY: nextDouble(&rng),
-                endX: 0.7 + nextDouble(&rng) * 0.3,
-                endY: nextDouble(&rng),
-                thickness: 0.02 + nextDouble(&rng) * 0.04,
-                opacity: 0.25 + nextDouble(&rng) * 0.35,
-                curl: (nextDouble(&rng) - 0.5) * 0.15
+        // Plentiful dim stars
+        stars = (0..<350).map { _ in
+            StarData(
+                x: Double.random(in: 0...1, using: &rng),
+                y: Double.random(in: 0...1, using: &rng),
+                brightness: Double.random(in: 0.08...0.65, using: &rng),
+                size: Double.random(in: 0.3...1.8, using: &rng),
+                twinkleRate: Double.random(in: 0.2...0.9, using: &rng),
+                twinklePhase: Double.random(in: 0...(.pi * 2), using: &rng),
+                warmth: Double.random(in: 0...1, using: &rng)
             )
         }
 
-        stellarCores = (0..<5).map { _ in
-            let (cr, cg, cb) = palette[Int(nextDouble(&rng) * Double(palette.count)) % palette.count]
-            return StellarCoreData(
-                cx: 0.15 + nextDouble(&rng) * 0.7,
-                cy: 0.15 + nextDouble(&rng) * 0.7,
-                brightness: 1.3 + nextDouble(&rng) * 0.8,
-                r: min(cr + 0.3, 1.0),
-                g: min(cg + 0.3, 1.0),
-                b: min(cb + 0.3, 1.0),
-                pulseRate: 0.15 + nextDouble(&rng) * 0.2,
-                pulsePhase: nextDouble(&rng) * .pi * 2,
-                coreSize: 0.01 + nextDouble(&rng) * 0.02
-            )
-        }
-
-        stars = (0..<250).map { _ in
-            BackgroundStarData(
-                x: nextDouble(&rng),
-                y: nextDouble(&rng),
-                brightness: nextDouble(&rng) * 0.7 + 0.1,
-                size: 0.3 + nextDouble(&rng) * 2.0,
-                twinkleRate: 0.3 + nextDouble(&rng) * 1.0,
-                twinklePhase: nextDouble(&rng) * .pi * 2,
-                warmth: nextDouble(&rng)
+        // Just 3 subtle cores — small, gentle glow
+        cores = (0..<3).map { _ in
+            let (cr, cg, cb) = palette[Int.random(in: 0..<palette.count, using: &rng)]
+            return CoreData(
+                cx: Double.random(in: 0.15...0.85, using: &rng),
+                cy: Double.random(in: 0.15...0.85, using: &rng),
+                r: min(cr + 0.25, 1.0),
+                g: min(cg + 0.25, 1.0),
+                b: min(cb + 0.25, 1.0),
+                pulseRate: Double.random(in: 0.08...0.18, using: &rng),
+                pulsePhase: Double.random(in: 0...(.pi * 2), using: &rng),
+                size: Double.random(in: 0.005...0.012, using: &rng)
             )
         }
 
         ready = true
     }
 
-    // MARK: - Deep background — dark with subtle colour wash
+    // MARK: - Background
 
-    private func drawDeepBackground(ctx: inout GraphicsContext, size: CGSize, t: Double) {
-        // Slowly cycling deep space wash
-        let cycle = sin(t * 0.012) * 0.5 + 0.5
-        let r1 = 0.015 + cycle * 0.02
-        let g1 = 0.008 + (1 - cycle) * 0.015
-        let b1 = 0.03 + cycle * 0.02
+    private func drawBackground(ctx: inout GraphicsContext, size: CGSize, t: Double) {
+        let cycle = sin(t * 0.015) * 0.5 + 0.5
+        let r1 = 0.012 + cycle * 0.015
+        let g1 = 0.006 + (1 - cycle) * 0.01
+        let b1 = 0.025 + cycle * 0.015
 
         ctx.fill(
             Rectangle().path(in: CGRect(origin: .zero, size: size)),
             with: .linearGradient(
                 Gradient(colors: [
                     Color(red: r1, green: g1, blue: b1),
-                    Color(red: r1 * 0.6, green: g1 * 1.3, blue: b1 * 1.5),
-                    Color(red: r1 * 1.4, green: g1 * 0.8, blue: b1 * 0.7),
+                    Color(red: r1 * 0.7, green: g1 * 1.2, blue: b1 * 1.3),
+                    Color(red: r1 * 1.3, green: g1 * 0.7, blue: b1 * 0.8),
                 ]),
-                startPoint: CGPoint(x: size.width * (0.3 + sin(t * 0.008) * 0.2), y: 0),
-                endPoint: CGPoint(x: size.width * (0.7 + cos(t * 0.01) * 0.2), y: size.height)
+                startPoint: CGPoint(x: size.width * (0.3 + sin(t * 0.006) * 0.2), y: 0),
+                endPoint: CGPoint(x: size.width * (0.7 + cos(t * 0.008) * 0.2), y: size.height)
             )
         )
     }
 
-    // MARK: - Background stars — dim, twinkling behind gas
+    // MARK: - Stars
 
-    private func drawBackgroundStars(ctx: inout GraphicsContext, size: CGSize, t: Double) {
+    private func drawStars(ctx: inout GraphicsContext, size: CGSize, t: Double) {
         for s in stars {
             let twinkle = (sin(t * s.twinkleRate + s.twinklePhase) + 1.0) * 0.5
-            let alpha = s.brightness * (twinkle * 0.3 + 0.7)
+            let alpha = s.brightness * (twinkle * 0.25 + 0.75)
             let x = s.x * size.width
             let y = s.y * size.height
-            let sz = s.size * (0.85 + twinkle * 0.15)
+            let sz = s.size * (0.9 + twinkle * 0.1)
 
             let w = s.warmth
-            let sr = (0.85 + w * 0.15)
-            let sg = (0.82 + w * 0.08)
-            let sb = (1.0 - w * 0.2)
+            let sr = 0.85 + w * 0.15
+            let sg = 0.82 + w * 0.08
+            let sb = 1.0 - w * 0.2
 
             let rect = CGRect(x: x - sz / 2, y: y - sz / 2, width: sz, height: sz)
             ctx.fill(Ellipse().path(in: rect),
@@ -210,132 +184,72 @@ struct VoyagerNebulaScene: View {
         }
     }
 
-    // MARK: - Gas clouds (by layer)
+    // MARK: - Gas clouds — painted in a single blur layer per depth
 
-    private func drawGasCloudLayer(ctx: inout GraphicsContext, size: CGSize, t: Double, depth: Int) {
-        let clouds = gasClouds.filter { $0.layerDepth == depth }
+    private func drawGasClouds(ctx: inout GraphicsContext, size: CGSize, t: Double, depth: Int) {
+        let clouds = gasClouds.filter { $0.depth == depth }
         guard !clouds.isEmpty else { return }
 
-        // Single shared blur layer for all sub-ellipses at this depth
-        // (was 4 separate layers per cloud = ~30 layers × 3 depths = 90!)
         ctx.drawLayer { layerCtx in
-            layerCtx.addFilter(.blur(radius: size.width * 0.08))
+            layerCtx.addFilter(.blur(radius: size.width * 0.10))
 
             for cloud in clouds {
-                let x = (cloud.cx + sin(t * 0.05 + cloud.phase) * 0.03
+                let x = (cloud.cx + sin(t * 0.03 + cloud.phase) * 0.02
                          + t * cloud.driftX) * size.width
-                let y = (cloud.cy + cos(t * 0.04 + cloud.phase) * 0.025
+                let y = (cloud.cy + cos(t * 0.025 + cloud.phase) * 0.015
                          + t * cloud.driftY) * size.height
 
-                let breathe = sin(t * 0.08 + cloud.phase) * 0.06 + 1.0
-                let baseR = cloud.radius * max(size.width, size.height) * breathe
+                let breathe = sin(t * 0.06 + cloud.phase) * 0.04 + 1.0
+                let rx = cloud.radiusX * size.width * breathe
+                let ry = cloud.radiusY * size.height * breathe
                 let color = Color(red: cloud.r, green: cloud.g, blue: cloud.b)
 
-                for sub in 0..<4 {
-                    let angle = Double(sub) / 4.0 * .pi * 2 + cloud.phase
-                    let offsetX = cos(angle + t * 0.02) * baseR * 0.25
-                    let offsetY = sin(angle + t * 0.015) * baseR * 0.2
-                    let subR = baseR * (0.6 + Double(sub) * 0.12)
-
-                    let sx = x + offsetX
-                    let sy = y + offsetY
-
-                    let rect = CGRect(x: sx - subR, y: sy - subR * 0.7,
-                                     width: subR * 2, height: subR * 1.4)
-
-                    layerCtx.fill(
-                        Ellipse().path(in: rect),
-                        with: .radialGradient(
-                            Gradient(colors: [
-                                color.opacity(cloud.density * 0.25 * 0.8),
-                                color.opacity(cloud.density * 0.25 * 0.35),
-                                color.opacity(cloud.density * 0.25 * 0.08),
-                                .clear
-                            ]),
-                            center: CGPoint(x: sx, y: sy),
-                            startRadius: 0,
-                            endRadius: subR * 0.8
-                        )
+                // One large soft ellipse per cloud — no sub-ellipse loops
+                let rect = CGRect(x: x - rx, y: y - ry, width: rx * 2, height: ry * 2)
+                layerCtx.fill(
+                    Ellipse().path(in: rect),
+                    with: .radialGradient(
+                        Gradient(colors: [
+                            color.opacity(cloud.opacity),
+                            color.opacity(cloud.opacity * 0.4),
+                            color.opacity(cloud.opacity * 0.08),
+                            .clear
+                        ]),
+                        center: CGPoint(x: x, y: y),
+                        startRadius: 0,
+                        endRadius: max(rx, ry)
                     )
-                }
-
-                // Bright inner edge — HDR glow
-                let innerR = baseR * 0.2
-                let innerRect = CGRect(x: x - innerR, y: y - innerR,
-                                       width: innerR * 2, height: innerR * 2)
-                let hdrColor = Color(red: min(cloud.r * 1.5, 1.5),
-                                     green: min(cloud.g * 1.5, 1.5),
-                                     blue: min(cloud.b * 1.5, 1.5))
-                layerCtx.fill(Ellipse().path(in: innerRect),
-                             with: .color(hdrColor.opacity(cloud.density * 0.12)))
+                )
             }
         }
     }
 
-    private func drawFarGasClouds(ctx: inout GraphicsContext, size: CGSize, t: Double) {
-        drawGasCloudLayer(ctx: &ctx, size: size, t: t, depth: 0)
-    }
+    // MARK: - Stellar cores — small gentle glowing points, no spikes
 
-    private func drawMidGasClouds(ctx: inout GraphicsContext, size: CGSize, t: Double) {
-        drawGasCloudLayer(ctx: &ctx, size: size, t: t, depth: 1)
-    }
-
-    private func drawNearGasClouds(ctx: inout GraphicsContext, size: CGSize, t: Double) {
-        drawGasCloudLayer(ctx: &ctx, size: size, t: t, depth: 2)
-    }
-
-    // MARK: - Dust lanes — dark ribbons snaking through the nebula
-
-    private func drawDustLanes(ctx: inout GraphicsContext, size: CGSize, t: Double) {
-        // Single shared blur layer for all dust lanes (was 8 separate layers)
+    private func drawCores(ctx: inout GraphicsContext, size: CGSize, t: Double) {
+        // Soft halo layer
         ctx.drawLayer { layerCtx in
-            layerCtx.addFilter(.blur(radius: size.height * 0.02))
-            for lane in dustLanes {
-                let sx = lane.startX * size.width
-                let sy = lane.startY * size.height
-                let ex = lane.endX * size.width
-                let ey = lane.endY * size.height
-                let thick = lane.thickness * size.height
-
-                let midX = (sx + ex) / 2 + lane.curl * size.width + sin(t * 0.03) * 20
-                let midY = (sy + ey) / 2 + lane.curl * size.height * 0.5
-
-                var path = Path()
-                path.move(to: CGPoint(x: sx, y: sy))
-                path.addQuadCurve(to: CGPoint(x: ex, y: ey),
-                                  control: CGPoint(x: midX, y: midY))
-
-                layerCtx.stroke(path, with: .color(.black.opacity(lane.opacity)),
-                                lineWidth: thick)
-            }
-        }
-    }
-
-    // MARK: - Stellar cores — bright HDR points with blooming light
-
-    private func drawStellarCores(ctx: inout GraphicsContext, size: CGSize, t: Double) {
-        // Single halo glow layer for all cores (was 5 separate layers)
-        ctx.drawLayer { layerCtx in
-            layerCtx.addFilter(.blur(radius: size.width * 0.04))
-            for core in stellarCores {
-                let pulse = sin(t * core.pulseRate + core.pulsePhase) * 0.15 + 1.0
+            layerCtx.addFilter(.blur(radius: size.width * 0.025))
+            for core in cores {
+                let pulse = sin(t * core.pulseRate + core.pulsePhase) * 0.12 + 1.0
                 let x = core.cx * size.width
                 let y = core.cy * size.height
-                let coreR = core.coreSize * max(size.width, size.height) * pulse
-                let hdrBright = core.brightness * pulse
-                let coreColor = Color(red: core.r * hdrBright,
-                                      green: core.g * hdrBright,
-                                      blue: core.b * hdrBright)
+                let coreR = core.size * max(size.width, size.height) * pulse
+                let bright = 1.1 * pulse
+                let coreColor = Color(red: core.r * bright,
+                                      green: core.g * bright,
+                                      blue: core.b * bright)
 
-                let haloR = coreR * 6
+                // Outer halo
+                let haloR = coreR * 5
                 let haloRect = CGRect(x: x - haloR, y: y - haloR,
                                       width: haloR * 2, height: haloR * 2)
                 layerCtx.fill(
                     Ellipse().path(in: haloRect),
                     with: .radialGradient(
                         Gradient(colors: [
-                            coreColor.opacity(0.35),
-                            coreColor.opacity(0.08),
+                            coreColor.opacity(0.18),
+                            coreColor.opacity(0.04),
                             .clear
                         ]),
                         center: CGPoint(x: x, y: y),
@@ -343,147 +257,125 @@ struct VoyagerNebulaScene: View {
                         endRadius: haloR
                     )
                 )
-
-                let midR = coreR * 2.5
-                let midRect = CGRect(x: x - midR, y: y - midR,
-                                     width: midR * 2, height: midR * 2)
-                layerCtx.fill(Ellipse().path(in: midRect),
-                              with: .color(coreColor.opacity(0.5)))
             }
         }
 
-        // Hard cores and spikes (no layer needed)
-        for core in stellarCores {
-            let pulse = sin(t * core.pulseRate + core.pulsePhase) * 0.15 + 1.0
+        // Hard bright dots
+        for core in cores {
+            let pulse = sin(t * core.pulseRate + core.pulsePhase) * 0.12 + 1.0
             let x = core.cx * size.width
             let y = core.cy * size.height
-            let coreR = core.coreSize * max(size.width, size.height) * pulse
-            let hdrBright = core.brightness * pulse
-            let coreColor = Color(red: core.r * hdrBright,
-                                  green: core.g * hdrBright,
-                                  blue: core.b * hdrBright)
+            let coreR = core.size * max(size.width, size.height) * pulse
+            let bright = 1.15 * pulse
+            let coreColor = Color(red: core.r * bright,
+                                  green: core.g * bright,
+                                  blue: core.b * bright)
 
-            let coreRect = CGRect(x: x - coreR, y: y - coreR,
-                                  width: coreR * 2, height: coreR * 2)
-            ctx.fill(Ellipse().path(in: coreRect), with: .color(coreColor))
-
-            for angle in [0.0, Double.pi / 2] {
-                let spikeLen = coreR * 4 * pulse
-                var spike = Path()
-                spike.move(to: CGPoint(x: x - cos(angle) * spikeLen,
-                                       y: y - sin(angle) * spikeLen))
-                spike.addLine(to: CGPoint(x: x + cos(angle) * spikeLen,
-                                          y: y + sin(angle) * spikeLen))
-                ctx.stroke(spike, with: .color(coreColor.opacity(0.25)),
-                           lineWidth: 1.0)
-            }
+            let dotR = coreR * 0.6
+            let dotRect = CGRect(x: x - dotR, y: y - dotR,
+                                 width: dotR * 2, height: dotR * 2)
+            ctx.fill(Ellipse().path(in: dotRect), with: .color(coreColor))
         }
     }
 
-    // MARK: - God rays — sweeping light beams from stellar cores
+    // MARK: - Tap ripples — gentle expanding ring of light
 
-    private func drawGodRays(ctx: inout GraphicsContext, size: CGSize, t: Double) {
-        guard let brightest = stellarCores.max(by: { $0.brightness < $1.brightness }) else { return }
-        let cx = brightest.cx * size.width
-        let cy = brightest.cy * size.height
+    private func drawRipples(ctx: inout GraphicsContext, size: CGSize, t: Double) {
+        let active = ripples.filter { t - $0.birth < 8.0 }
+        guard !active.isEmpty else { return }
 
-        // Single layer for all god rays (was 6 separate)
-        ctx.drawLayer { layerCtx in
-            layerCtx.addFilter(.blur(radius: 25))
-            let rayColor = Color(red: brightest.r * 0.5,
-                                 green: brightest.g * 0.5,
-                                 blue: brightest.b * 0.5)
+        for ripple in active {
+            let age = t - ripple.birth
+            let p = age / 8.0
 
-            for i in 0..<6 {
-                let baseAngle = Double(i) / 6.0 * .pi * 2
-                let angle = baseAngle + t * 0.008 + sin(t * 0.03 + Double(i)) * 0.15
-                let rayLen = max(size.width, size.height) * 0.6
-                let spread = 0.04 + sin(t * 0.1 + Double(i) * 1.5) * 0.02
-
-                var path = Path()
-                path.move(to: CGPoint(x: cx, y: cy))
-                path.addLine(to: CGPoint(x: cx + cos(angle - spread) * rayLen,
-                                         y: cy + sin(angle - spread) * rayLen))
-                path.addLine(to: CGPoint(x: cx + cos(angle + spread) * rayLen,
-                                         y: cy + sin(angle + spread) * rayLen))
-                path.closeSubpath()
-
-                layerCtx.fill(path, with: .color(rayColor.opacity(0.04)))
+            // Stellar core flash
+            let coreFade = age < 0.4 ? age / 0.4 : max(0, 1.0 - (age - 0.4) / 2.5)
+            if coreFade > 0 {
+                ctx.drawLayer { l in
+                    l.addFilter(.blur(radius: 25 + p * 40))
+                    let r = 20 + p * 50
+                    l.fill(Ellipse().path(in: CGRect(x: ripple.x - r, y: ripple.y - r,
+                                                     width: r * 2, height: r * 2)),
+                        with: .radialGradient(
+                            Gradient(colors: [
+                                Color(red: 1.6, green: 1.4, blue: 1.8).opacity(0.35 * coreFade),
+                                Color(red: 1.0, green: 0.8, blue: 1.3).opacity(0.12 * coreFade),
+                                .clear
+                            ]),
+                            center: CGPoint(x: ripple.x, y: ripple.y),
+                            startRadius: 0, endRadius: r))
+                }
             }
-        }
-    }
 
-    // MARK: - Tap shockwaves — expanding ring of illumination
+            // 3 color band rings: amber → teal → violet
+            let bands: [(r: Double, g: Double, b: Double, delay: Double)] = [
+                (1.3, 0.9, 0.4, 0.0),
+                (0.3, 1.1, 0.9, 0.5),
+                (0.7, 0.4, 1.2, 1.0),
+            ]
+            ctx.drawLayer { l in
+                l.addFilter(.blur(radius: 12))
+                for band in bands {
+                    let bandAge = age - band.delay
+                    guard bandAge > 0 else { continue }
+                    let bp = min(bandAge / 6.0, 1.0)
+                    let bandFade = max(0, 1.0 - bp)
+                    let scale = max(size.width, size.height)
+                    let radius = bp * scale * 0.3
+                    let rect = CGRect(x: ripple.x - radius, y: ripple.y - radius,
+                                     width: radius * 2, height: radius * 2)
+                    l.stroke(Ellipse().path(in: rect),
+                        with: .color(Color(red: band.r, green: band.g, blue: band.b)
+                            .opacity(bandFade * 0.18)),
+                        lineWidth: 2.5 - bp * 1.5)
+                }
+            }
 
-    private func drawShockwaves(ctx: inout GraphicsContext, size: CGSize, t: Double) {
-        let activeWaves = shockwaves.filter { t - $0.birth < 4.0 }
-        guard !activeWaves.isEmpty else { return }
+            // Wispy tendrils curving outward
+            let seed = UInt64(ripple.birth * 1000) & 0xFFFFFF
+            var rng = SplitMix64(seed: seed)
+            ctx.drawLayer { l in
+                l.addFilter(.blur(radius: 8))
+                for _ in 0..<10 {
+                    let baseAngle = nextDouble(&rng) * .pi * 2
+                    let curveBias = (nextDouble(&rng) - 0.5) * 1.5
+                    let tendrilSpeed = nextDouble(&rng) * 0.6 + 0.4
+                    let lifespan = nextDouble(&rng) * 3.5 + 4.0
+                    guard age < lifespan else { continue }
+                    let tp = age / lifespan
+                    let tendrilFade = tp < 0.15 ? tp / 0.15 : max(0, 1.0 - (tp - 0.15) / 0.85)
+                    let len = tp * tendrilSpeed * 140
 
-        // Single blur layer for all expanding rings (was up to 15 separate layers)
-        ctx.drawLayer { layerCtx in
-            layerCtx.addFilter(.blur(radius: 10))
-            let color = Color(red: 0.5, green: 0.8, blue: 1.3)
+                    var path = Path()
+                    path.move(to: CGPoint(x: ripple.x, y: ripple.y))
+                    let steps = 8
+                    for s in 1...steps {
+                        let sf = Double(s) / Double(steps)
+                        let dist = sf * len
+                        let angle = baseAngle + sf * curveBias
+                        let wx = ripple.x + cos(angle) * dist
+                        let wy = ripple.y + sin(angle) * dist
+                        path.addLine(to: CGPoint(x: wx, y: wy))
+                    }
 
-            for wave in activeWaves {
-                let age = t - wave.birth
-                let progress = age / 4.0
-                let radius = progress * max(size.width, size.height) * 0.5
-                let alpha = (1.0 - progress) * 0.3
+                    let warmth = nextDouble(&rng)
+                    let col = warmth > 0.5
+                        ? Color(red: 0.5, green: 0.8, blue: 1.2)
+                        : Color(red: 0.8, green: 0.5, blue: 1.1)
+                    l.stroke(path, with: .color(col.opacity(tendrilFade * 0.15)),
+                        lineWidth: 2.0 * tendrilFade)
 
-                // Outer ring
-                let rect = CGRect(x: wave.x - radius, y: wave.y - radius,
-                                  width: radius * 2, height: radius * 2)
-                layerCtx.stroke(Ellipse().path(in: rect),
-                                with: .color(color.opacity(alpha)),
-                                lineWidth: 3.0 - progress * 2.0)
-
-                // Inner ring
-                let r2 = radius * 0.7
-                let rect2 = CGRect(x: wave.x - r2, y: wave.y - r2,
-                                   width: r2 * 2, height: r2 * 2)
-                layerCtx.stroke(Ellipse().path(in: rect2),
-                                with: .color(color.opacity(alpha * 0.5)),
-                                lineWidth: 1.5)
-
-                // Flash at centre
-                if progress < 0.075 {
-                    let flashAlpha = (1.0 - progress / 0.075) * 0.5
-                    let flashR = 30.0 + progress * 100.0
-                    let flashRect = CGRect(x: wave.x - flashR, y: wave.y - flashR,
-                                           width: flashR * 2, height: flashR * 2)
-                    layerCtx.fill(Ellipse().path(in: flashRect),
-                                  with: .color(Color(red: 0.8, green: 0.9, blue: 1.5).opacity(flashAlpha)))
+                    // Bright tip particle
+                    let tipDist = tp * tendrilSpeed * 140
+                    let tipAngle = baseAngle + curveBias
+                    let tx = ripple.x + cos(tipAngle) * tipDist
+                    let ty = ripple.y + sin(tipAngle) * tipDist
+                    let tipS = 3.0 * tendrilFade
+                    l.fill(Ellipse().path(in: CGRect(x: tx - tipS, y: ty - tipS,
+                                                     width: tipS * 2, height: tipS * 2)),
+                        with: .color(Color(red: 1.3, green: 1.2, blue: 1.5).opacity(tendrilFade * 0.4)))
                 }
             }
         }
-    }
-
-    // MARK: - Viewscreen frame — subtle LCARS-ish border feel
-
-    private func drawViewscreenFrame(ctx: inout GraphicsContext, size: CGSize, t: Double) {
-        // Very subtle rounded-corner darkening to suggest a starship viewscreen
-        let inset: Double = 12
-        let cornerR: Double = 28
-        let frameRect = CGRect(x: inset, y: inset,
-                              width: size.width - inset * 2, height: size.height - inset * 2)
-        let framePath = RoundedRectangle(cornerRadius: cornerR).path(in: CGRect(origin: .zero, size: size))
-        let innerPath = RoundedRectangle(cornerRadius: cornerR - 4).path(in: frameRect)
-
-        // Dark border band
-        ctx.drawLayer { layerCtx in
-            layerCtx.clip(to: framePath)
-            // Fill entire view with dark
-            layerCtx.fill(Rectangle().path(in: CGRect(origin: .zero, size: size)),
-                          with: .color(.black.opacity(0.12)))
-            // Cut out inner — by drawing inner with clear blend mode
-            layerCtx.blendMode = .destinationOut
-            layerCtx.fill(innerPath, with: .color(.white))
-        }
-
-        // Faint edge highlight on inner border (teal tint — Federation feel)
-        let edgeColor = Color(red: 0.3, green: 0.6, blue: 0.8)
-        ctx.stroke(RoundedRectangle(cornerRadius: cornerR - 4).path(in: frameRect),
-                   with: .color(edgeColor.opacity(0.06 + sin(t * 0.3) * 0.02)),
-                   lineWidth: 0.8)
     }
 }

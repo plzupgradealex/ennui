@@ -85,7 +85,7 @@ struct RetroPS1Scene: View {
                 speed: 350 + Double.random(in: 0...150),
                 birth: t
             ))
-            if shootingStars.count > 5 { shootingStars.removeFirst() }
+            if shootingStars.count > 8 { shootingStars.removeFirst() }
         }
     }
 
@@ -193,21 +193,59 @@ struct RetroPS1Scene: View {
     private func drawShootingStars(ctx: inout GraphicsContext, size: CGSize, t: Double) {
         for ss in shootingStars {
             let age = t - ss.birth
-            guard age < 2.0 else { continue }
-            let fade = max(0, 1.0 - age / 2.0)
+            guard age < 4.0 else { continue }
 
-            // Draw trail of square pixels
-            let trailLen = 8
-            for ti in 0..<trailLen {
-                let ft = Double(ti) / Double(trailLen)
-                let dist = age * ss.speed - ft * 40
-                guard dist > 0 else { continue }
-                let x = snap(ss.startX + cos(ss.angle) * dist, t: t, seed: Double(ti))
-                let y = snap(ss.startY + sin(ss.angle) * dist, t: t, seed: Double(ti) + 5)
-                let a = fade * (1.0 - ft) * 0.8
-                let s = gridSnap * (2.0 - ft)
-                ctx.fill(Rectangle().path(in: CGRect(x: x, y: y, width: s, height: s)),
-                         with: .color(Color(red: 1.0, green: 0.95, blue: 0.7).opacity(a)))
+            // Main trail phase (first 2s)
+            if age < 2.5 {
+                let fade = max(0, 1.0 - age / 2.5)
+                let trailLen = 12
+                for ti in 0..<trailLen {
+                    let ft = Double(ti) / Double(trailLen)
+                    let dist = age * ss.speed - ft * 50
+                    guard dist > 0 else { continue }
+                    let x = snap(ss.startX + cos(ss.angle) * dist, t: t, seed: Double(ti))
+                    let y = snap(ss.startY + sin(ss.angle) * dist, t: t, seed: Double(ti) + 5)
+                    let a = fade * (1.0 - ft) * 0.8
+                    let s = gridSnap * (2.0 - ft)
+                    ctx.fill(Rectangle().path(in: CGRect(x: x, y: y, width: s, height: s)),
+                             with: .color(Color(red: 1.0, green: 0.95, blue: 0.7).opacity(a)))
+                }
+
+                // Bright head glow
+                let headX = snap(ss.startX + cos(ss.angle) * age * ss.speed, t: t, seed: 999)
+                let headY = snap(ss.startY + sin(ss.angle) * age * ss.speed, t: t, seed: 998)
+                let headFade = age < 0.3 ? age / 0.3 : fade
+                let headS = gridSnap * 3
+                ctx.fill(Rectangle().path(in: CGRect(x: headX - headS / 2, y: headY - headS / 2,
+                                                     width: headS, height: headS)),
+                    with: .color(Color(red: 1.3, green: 1.2, blue: 0.9).opacity(headFade * 0.6)))
+            }
+
+            // Pixel dust scatter (appears after 0.5s, lingers)
+            if age > 0.5 {
+                let dustAge = age - 0.5
+                let seed = UInt64(ss.birth * 1000) & 0xFFFFFF
+                var rng = SplitMix64(seed: seed)
+                let impactX = ss.startX + cos(ss.angle) * 0.5 * ss.speed
+                let impactY = ss.startY + sin(ss.angle) * 0.5 * ss.speed
+                for _ in 0..<10 {
+                    let angle = nextDouble(&rng) * .pi * 2
+                    let drift = nextDouble(&rng) * 30 + 15
+                    let fallSpeed = nextDouble(&rng) * 15 + 8
+                    let lifespan = nextDouble(&rng) * 1.5 + 2.0
+                    guard dustAge < lifespan else { continue }
+                    let dp = dustAge / lifespan
+                    let dFade = dp < 0.1 ? dp / 0.1 : max(0, 1.0 - (dp - 0.1) / 0.9)
+                    let dx = snap(impactX + cos(angle) * dp * drift, t: t, seed: nextDouble(&rng) * 100)
+                    let dy = snap(impactY + sin(angle) * dp * drift * 0.5 + dp * fallSpeed, t: t, seed: nextDouble(&rng) * 100)
+                    let s = gridSnap * dFade
+                    let warmth = nextDouble(&rng)
+                    let color = warmth > 0.5
+                        ? Color(red: 1.0, green: 0.9, blue: 0.6)
+                        : Color(red: 0.8, green: 0.7, blue: 1.0)
+                    ctx.fill(Rectangle().path(in: CGRect(x: dx, y: dy, width: s, height: s)),
+                        with: .color(color.opacity(dFade * 0.45)))
+                }
             }
         }
     }

@@ -15,11 +15,20 @@ struct DeepOceanScene: View {
     struct BioFlash: Identifiable {
         let id = UUID()
         let x, y, birth: Double
+        let seed: UInt64
+    }
+    struct SeafloorPeak {
+        let x, height: Double
+    }
+    struct DeepSpeck {
+        let x, y, size, phase, rate: Double
     }
 
     @State private var particles: [Particle] = []
     @State private var jellies: [Jelly] = []
     @State private var flashes: [BioFlash] = []
+    @State private var seafloor: [SeafloorPeak] = []
+    @State private var deepSpecks: [DeepSpeck] = []
     @State private var ready = false
 
     var body: some View {
@@ -29,6 +38,8 @@ struct DeepOceanScene: View {
                 guard ready else { return }
                 drawBG(ctx: &ctx, size: size, t: t)
                 drawRays(ctx: &ctx, size: size, t: t)
+                drawSeafloor(ctx: &ctx, size: size, t: t)
+                drawDeepSpecks(ctx: &ctx, size: size, t: t)
                 drawCurrents(ctx: &ctx, size: size, t: t)
                 drawParticles(ctx: &ctx, size: size, t: t)
                 drawJellies(ctx: &ctx, size: size, t: t)
@@ -41,24 +52,48 @@ struct DeepOceanScene: View {
         .allowedDynamicRange(.high)
         .onChange(of: interaction.tapCount) { _, _ in
             guard let loc = interaction.tapLocation else { return }
-            flashes.append(BioFlash(x: loc.x, y: loc.y, birth: Date().timeIntervalSince(startDate)))
-            if flashes.count > 6 { flashes.removeFirst() }
+            let t = Date().timeIntervalSince(startDate)
+            flashes.append(BioFlash(x: loc.x, y: loc.y, birth: t, seed: UInt64(t * 1000) & 0xFFFFFF))
+            if flashes.count > 8 { flashes.removeFirst() }
         }
     }
 
     private func setup() {
+        var rng = SplitMix64(seed: 0xAB155)
+
         particles = (0..<160).map { i in
-            Particle(x: .random(in: 0...1), baseY: .random(in: 0...1),
-                     size: .random(in: 0.8...5), speed: .random(in: 0.005...0.025),
-                     brightness: .random(in: 0.2...1.0), hue: .random(in: 0.45...0.7),
-                     phase: .random(in: 0...(.pi * 2)),
+            Particle(x: Double.random(in: 0...1, using: &rng),
+                     baseY: Double.random(in: 0...1, using: &rng),
+                     size: Double.random(in: 0.8...5, using: &rng),
+                     speed: Double.random(in: 0.005...0.025, using: &rng),
+                     brightness: Double.random(in: 0.2...1.0, using: &rng),
+                     hue: Double.random(in: 0.45...0.7, using: &rng),
+                     phase: Double.random(in: 0...(.pi * 2), using: &rng),
                      layer: i < 50 ? 0 : (i < 110 ? 1 : 2))
         }
         jellies = (0..<8).map { _ in
-            Jelly(x: .random(in: 0.08...0.92), baseY: .random(in: 0.15...0.75),
-                  size: .random(in: 25...85), speed: .random(in: 0.002...0.008),
-                  phase: .random(in: 0...(.pi * 2)), hue: .random(in: 0.5...0.9),
-                  tents: Int.random(in: 5...9))
+            Jelly(x: Double.random(in: 0.08...0.92, using: &rng),
+                  baseY: Double.random(in: 0.15...0.75, using: &rng),
+                  size: Double.random(in: 25...85, using: &rng),
+                  speed: Double.random(in: 0.002...0.008, using: &rng),
+                  phase: Double.random(in: 0...(.pi * 2), using: &rng),
+                  hue: Double.random(in: 0.5...0.9, using: &rng),
+                  tents: Int.random(in: 5...9, using: &rng))
+        }
+        seafloor = (0..<20).map { i in
+            SeafloorPeak(
+                x: Double(i) / 19.0,
+                height: Double.random(in: 0.02...0.08, using: &rng)
+            )
+        }
+        deepSpecks = (0..<25).map { _ in
+            DeepSpeck(
+                x: Double.random(in: 0...1, using: &rng),
+                y: Double.random(in: 0.6...0.95, using: &rng),
+                size: Double.random(in: 0.5...1.5, using: &rng),
+                phase: Double.random(in: 0...(.pi * 2), using: &rng),
+                rate: Double.random(in: 0.3...0.9, using: &rng)
+            )
         }
         ready = true
     }
@@ -105,6 +140,51 @@ struct DeepOceanScene: View {
                 }
                 l.stroke(p, with: .color(Color(hue: 0.55, saturation: 0.5, brightness: 0.8)), lineWidth: 20)
             }
+        }
+    }
+
+    // MARK: - Seafloor silhouette
+
+    private func drawSeafloor(ctx: inout GraphicsContext, size: CGSize, t: Double) {
+        let baseY = size.height * 0.92
+        var floor = Path()
+        floor.move(to: CGPoint(x: 0, y: size.height))
+        for peak in seafloor {
+            let x = peak.x * size.width
+            let sway = sin(t * 0.05 + peak.x * 6) * 3
+            let y = baseY - peak.height * size.height + sway
+            floor.addLine(to: CGPoint(x: x, y: y))
+        }
+        floor.addLine(to: CGPoint(x: size.width, y: size.height))
+        floor.closeSubpath()
+        ctx.fill(floor, with: .color(Color(red: 0.01, green: 0.015, blue: 0.03).opacity(0.8)))
+
+        // Faint warm glow along the ridgeline
+        ctx.drawLayer { l in
+            l.addFilter(.blur(radius: 12))
+            for peak in seafloor where peak.height > 0.05 {
+                let x = peak.x * size.width
+                let y = baseY - peak.height * size.height
+                let s = 8.0
+                l.fill(Ellipse().path(in: CGRect(x: x - s, y: y - s * 0.5, width: s * 2, height: s)),
+                    with: .color(Color(hue: 0.55, saturation: 0.6, brightness: 0.8).opacity(0.06)))
+            }
+        }
+    }
+
+    // MARK: - Distant bioluminescent specks
+
+    private func drawDeepSpecks(ctx: inout GraphicsContext, size: CGSize, t: Double) {
+        for speck in deepSpecks {
+            let pulse = sin(t * speck.rate + speck.phase)
+            // Only visible during the bright half of the pulse cycle
+            let alpha = max(0, pulse) * 0.2
+            guard alpha > 0.01 else { continue }
+            let x = speck.x * size.width + sin(t * 0.1 + speck.phase) * 5
+            let y = speck.y * size.height
+            let s = speck.size
+            ctx.fill(Ellipse().path(in: CGRect(x: x - s, y: y - s, width: s * 2, height: s * 2)),
+                with: .color(Color(hue: 0.52, saturation: 0.6, brightness: 1.2).opacity(alpha)))
         }
     }
 
@@ -206,31 +286,93 @@ struct DeepOceanScene: View {
     private func drawFlashes(ctx: inout GraphicsContext, size: CGSize, t: Double) {
         for fl in flashes {
             let age = t - fl.birth
-            guard age < 3.5 else { continue }
-            let p = age / 3.5
-            let r = p * 100
-            let fade = (1 - p) * (1 - p)
+            guard age < 7.0 else { continue }
+            let p = age / 7.0
 
-            ctx.drawLayer { l in
-                l.addFilter(.blur(radius: 15 + p * 30))
-                l.fill(Ellipse().path(in: CGRect(x: fl.x - r, y: fl.y - r, width: r * 2, height: r * 2)),
-                    with: .radialGradient(
-                        Gradient(colors: [
-                            Color(red: 0.3, green: 1.4, blue: 1.6).opacity(0.35 * fade),
-                            Color(red: 0.2, green: 1.0, blue: 1.2).opacity(0.12 * fade),
-                            .clear,
-                        ]),
-                        center: CGPoint(x: fl.x, y: fl.y), startRadius: 0, endRadius: r))
+            // Central bioluminescent bloom — two pulses
+            let pulse1 = age < 0.5 ? age / 0.5 : max(0, 1.0 - (age - 0.5) / 2.5)
+            let pulse2 = age > 1.5 && age < 2.0 ? (age - 1.5) / 0.5 : (age >= 2.0 ? max(0, 1.0 - (age - 2.0) / 2.0) : 0)
+            let bloomIntensity = max(pulse1, pulse2 * 0.5)
+
+            if bloomIntensity > 0 {
+                ctx.drawLayer { l in
+                    l.addFilter(.blur(radius: 20 + p * 35))
+                    let r = 25 + p * 80
+                    l.fill(Ellipse().path(in: CGRect(x: fl.x - r, y: fl.y - r,
+                                                     width: r * 2, height: r * 2)),
+                        with: .radialGradient(
+                            Gradient(colors: [
+                                Color(red: 0.3, green: 1.5, blue: 1.7).opacity(0.30 * bloomIntensity),
+                                Color(red: 0.4, green: 1.0, blue: 1.3).opacity(0.10 * bloomIntensity),
+                                Color(red: 0.6, green: 0.3, blue: 1.2).opacity(0.04 * bloomIntensity),
+                                .clear
+                            ]),
+                            center: CGPoint(x: fl.x, y: fl.y),
+                            startRadius: 0, endRadius: r))
+                }
             }
 
-            for i in 0..<10 {
-                let angle = Double(i) / 10 * .pi * 2 + age * 0.3
-                let dist = p * 60 + sin(age * 2 + Double(i)) * 10
-                let mx = fl.x + cos(angle) * dist
-                let my = fl.y + sin(angle) * dist
-                let s = 2.0 * fade
-                ctx.fill(Ellipse().path(in: CGRect(x: mx - s, y: my - s, width: s * 2, height: s * 2)),
-                    with: .color(Color(red: 0.2, green: 1.3, blue: 1.5).opacity(fade * 0.45)))
+            // Jellyfish-like tendrils extending from center
+            var rng = SplitMix64(seed: fl.seed)
+            ctx.drawLayer { l in
+                l.addFilter(.blur(radius: 6))
+                for _ in 0..<8 {
+                    let baseAngle = nextDouble(&rng) * .pi * 2
+                    let curveBias = (nextDouble(&rng) - 0.5) * 2.0
+                    let tendrilSpeed = nextDouble(&rng) * 0.5 + 0.4
+                    let lifespan = nextDouble(&rng) * 3.0 + 3.5
+                    guard age < lifespan else { continue }
+                    let tp = age / lifespan
+                    let tendrilFade = tp < 0.15 ? tp / 0.15 : max(0, 1.0 - (tp - 0.15) / 0.85)
+                    let len = tp * tendrilSpeed * 120
+
+                    var path = Path()
+                    path.move(to: CGPoint(x: fl.x, y: fl.y))
+                    let steps = 10
+                    for s in 1...steps {
+                        let sf = Double(s) / Double(steps)
+                        let dist = sf * len
+                        let angle = baseAngle + sf * curveBias + sin(age * 0.8 + sf * 3) * 0.3
+                        let wx = fl.x + cos(angle) * dist
+                        let wy = fl.y + sin(angle) * dist + sf * 15 // slight downward drift
+                        path.addLine(to: CGPoint(x: wx, y: wy))
+                    }
+
+                    let warmth = nextDouble(&rng)
+                    let col = warmth > 0.5
+                        ? Color(red: 0.2, green: 1.3, blue: 1.5)
+                        : Color(red: 0.5, green: 0.3, blue: 1.3)
+                    l.stroke(path, with: .color(col.opacity(tendrilFade * 0.18)),
+                        lineWidth: 2.0 * tendrilFade)
+                }
+            }
+
+            // Chain-reaction particles spreading outward
+            ctx.drawLayer { l in
+                l.addFilter(.blur(radius: 4))
+                for _ in 0..<14 {
+                    let angle = nextDouble(&rng) * .pi * 2
+                    let driftSpeed = nextDouble(&rng) * 0.5 + 0.3
+                    let delay = nextDouble(&rng) * 1.0
+                    let moteAge = age - delay
+                    guard moteAge > 0 else { continue }
+                    let lifespan = nextDouble(&rng) * 2.5 + 3.0
+                    guard moteAge < lifespan else { continue }
+                    let mp = moteAge / lifespan
+                    let moteFade = mp < 0.1 ? mp / 0.1 : max(0, 1.0 - (mp - 0.1) / 0.9)
+                    let dist = mp * driftSpeed * 100
+                    let wobble = sin(moteAge * 1.5 + nextDouble(&rng) * 6) * 10
+                    let mx = fl.x + cos(angle) * dist + wobble
+                    let my = fl.y + sin(angle) * dist * 0.7 + mp * 20
+                    let sz = (nextDouble(&rng) * 2.0 + 1.5) * moteFade
+                    let pulse = sin(moteAge * 3.0 + nextDouble(&rng) * 6) * 0.3 + 0.7
+                    let warmth = nextDouble(&rng)
+                    let color = warmth > 0.5
+                        ? Color(red: 0.2, green: 1.4, blue: 1.6)
+                        : Color(red: 0.5, green: 0.4, blue: 1.4)
+                    l.fill(Ellipse().path(in: CGRect(x: mx - sz, y: my - sz, width: sz * 2, height: sz * 2)),
+                        with: .color(color.opacity(moteFade * 0.45 * pulse)))
+                }
             }
         }
     }

@@ -43,7 +43,7 @@ struct LushRuinsScene: View {
         .onChange(of: interaction.tapCount) { _, _ in
             guard let loc = interaction.tapLocation else { return }
             gusts.append((x: loc.x, y: loc.y, birth: Date().timeIntervalSince(startDate)))
-            if gusts.count > 5 { gusts.removeFirst() }
+            if gusts.count > 8 { gusts.removeFirst() }
         }
     }
 
@@ -486,19 +486,45 @@ struct LushRuinsScene: View {
         let currentT = Date().timeIntervalSince(startDate)
         for gust in gusts {
             let age = currentT - gust.birth
-            guard age < 3.0 else { continue }
-            let p = age / 3.0
-            let fade = (1 - p) * (1 - p)
+            guard age < 5.5 else { continue }
+            let p = age / 5.5
 
+            // Warm god-ray bloom at impact point
+            let glowFade = age < 0.3 ? age / 0.3 : max(0, 1.0 - (age - 0.3) / 2.0)
+            if glowFade > 0 {
+                ctx.drawLayer { l in
+                    l.addFilter(.blur(radius: 35))
+                    let r = 30 + p * 50
+                    l.fill(Ellipse().path(in: CGRect(x: gust.x - r, y: gust.y - r * 0.7,
+                                                     width: r * 2, height: r * 1.4)),
+                        with: .radialGradient(
+                            Gradient(colors: [
+                                Color(red: 1.2, green: 1.1, blue: 0.6).opacity(0.12 * glowFade),
+                                .clear
+                            ]),
+                            center: CGPoint(x: gust.x, y: gust.y),
+                            startRadius: 0, endRadius: r))
+                }
+            }
+
+            // Scattering leaves
             var rng = SplitMix64(seed: UInt64(gust.birth * 1000) & 0xFFFFFF)
-            for _ in 0..<20 {
+            for _ in 0..<24 {
                 let angle = nextDouble(&rng) * .pi * 2
-                let dist = p * (60 + nextDouble(&rng) * 80)
-                let lx = gust.x + cos(angle) * dist + sin(age * 2 + nextDouble(&rng) * 4) * 15
-                let ly = gust.y + sin(angle) * dist * 0.6 - p * 30
-                let sz = 4 + nextDouble(&rng) * 4
-                let g = 0.12 + nextDouble(&rng) * 0.15
-                let rotation = age * 3 + nextDouble(&rng) * 6
+                let dist = p * (70 + nextDouble(&rng) * 90)
+                let risePhase = nextDouble(&rng) * .pi * 2
+                let wobbleAmp = nextDouble(&rng) * 18 + 8
+                let fallSpeed = nextDouble(&rng) * 12 + 5
+                let sz = 4 + nextDouble(&rng) * 5
+                let g = 0.12 + nextDouble(&rng) * 0.18
+                let rotation = age * (2 + nextDouble(&rng) * 3) + nextDouble(&rng) * 6
+                let lifespan = nextDouble(&rng) * 2.5 + 2.5
+                guard age < lifespan else { continue }
+                let lp = age / lifespan
+                let leafFade = lp < 0.1 ? lp / 0.1 : max(0, 1.0 - (lp - 0.3) / 0.7)
+
+                let lx = gust.x + cos(angle) * dist + sin(age * 0.8 + risePhase) * wobbleAmp
+                let ly = gust.y + sin(angle) * dist * 0.5 - (lp < 0.3 ? lp / 0.3 * 25 : 25 - (lp - 0.3) / 0.7 * 25) + (age > 1.0 ? (age - 1.0) * fallSpeed : 0)
 
                 var leaf = Path()
                 leaf.move(to: CGPoint(x: lx, y: ly))
@@ -506,7 +532,26 @@ struct LushRuinsScene: View {
                                  control: CGPoint(x: lx + sz * 0.5 * cos(rotation + 1), y: ly + sz * 0.5 * sin(rotation + 1) - 3))
                 leaf.addQuadCurve(to: CGPoint(x: lx, y: ly),
                                  control: CGPoint(x: lx + sz * 0.5 * cos(rotation - 1), y: ly + sz * 0.5 * sin(rotation - 1) + 3))
-                ctx.fill(leaf, with: .color(Color(red: 0.06, green: g, blue: 0.03).opacity(fade * 0.7)))
+                ctx.fill(leaf, with: .color(Color(red: 0.06, green: g, blue: 0.03).opacity(max(0, leafFade) * 0.7)))
+            }
+
+            // Water droplets from wet foliage
+            ctx.drawLayer { l in
+                l.addFilter(.blur(radius: 2))
+                for _ in 0..<10 {
+                    let dAngle = nextDouble(&rng) * .pi * 2
+                    let dDist = p * (40 + nextDouble(&rng) * 50)
+                    let dRise = nextDouble(&rng) * 20 + 10
+                    let lifespan = nextDouble(&rng) * 1.5 + 1.5
+                    guard age < lifespan else { continue }
+                    let dp = age / lifespan
+                    let dFade = dp < 0.1 ? dp / 0.1 : max(0, 1.0 - (dp - 0.1) / 0.9)
+                    let dx = gust.x + cos(dAngle) * dDist
+                    let dy = gust.y + sin(dAngle) * dDist * 0.5 - dRise * (1.0 - dp) + dp * 15
+                    let ds = 1.5 * dFade
+                    l.fill(Ellipse().path(in: CGRect(x: dx - ds, y: dy - ds, width: ds * 2, height: ds * 2)),
+                        with: .color(Color(red: 0.5, green: 0.7, blue: 0.9).opacity(dFade * 0.35)))
+                }
             }
         }
     }
