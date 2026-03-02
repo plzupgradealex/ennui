@@ -28,6 +28,7 @@ enum SceneKind: String, CaseIterable, Identifiable {
     case floatingKingdom = "floatingKingdom"
     case ontarioCountryside = "ontarioCountryside"
     case minnesotaSmallTown = "minnesotaSmallTown"
+    case shimizuEvening = "shimizuEvening"
 
     var id: String { rawValue }
 
@@ -62,6 +63,7 @@ enum SceneKind: String, CaseIterable, Identifiable {
         case .floatingKingdom: return "Floating Kingdom"
         case .ontarioCountryside: return "Ontario Countryside"
         case .minnesotaSmallTown: return "Minnesota Small Town"
+        case .shimizuEvening: return "Shimizu Evening"
         }
     }
 
@@ -96,6 +98,7 @@ enum SceneKind: String, CaseIterable, Identifiable {
         case .floatingKingdom: return "A sky kingdom floating above an ocean of clouds, with crystalline spires, waterfalls cascading into mist, and motes of ancient magical energy drifting upward"
         case .ontarioCountryside: return "A warm summer evening settling over the rural countryside of southern Ontario in the early nineteen-nineties, with golden wheat fields, an old red barn, a gravel road, and fireflies beginning to blink in the blue hour"
         case .minnesotaSmallTown: return "A calm summer evening in a tiny Minnesota prairie town, with a church steeple, a water tower, a grain elevator, a diner with a flickering neon sign, and fireflies drifting over Main Street"
+        case .shimizuEvening: return "A quiet Japanese residential neighbourhood on a rainy evening, with a peaked wooden house, a concrete block wall, a corner shop with a striped awning, utility poles, and warm yellow windows glowing through the rain"
         }
     }
 
@@ -130,6 +133,7 @@ enum SceneKind: String, CaseIterable, Identifiable {
         case .floatingKingdom: return "Tap to send a pulse of magical energy rippling outward"
         case .ontarioCountryside: return "Tap to send a gust of wind rippling through the wheat"
         case .minnesotaSmallTown: return "Tap to send a firefly drifting across the scene"
+        case .shimizuEvening: return "Tap to send a splash rippling through a puddle"
         }
     }
 
@@ -162,6 +166,7 @@ enum SceneKind: String, CaseIterable, Identifiable {
         case .floatingKingdom: return "cloud.sun"
         case .ontarioCountryside: return "sun.horizon"
         case .minnesotaSmallTown: return "house"
+        case .shimizuEvening: return "cloud.rain.fill"
         }
     }
 
@@ -194,6 +199,7 @@ enum SceneKind: String, CaseIterable, Identifiable {
         case .floatingKingdom: return Color(red: 0.4, green: 0.3, blue: 0.7)
         case .ontarioCountryside: return Color(red: 0.75, green: 0.55, blue: 0.20)
         case .minnesotaSmallTown: return Color(red: 0.85, green: 0.55, blue: 0.30)
+        case .shimizuEvening: return Color(red: 0.30, green: 0.38, blue: 0.58)
         }
     }
 }

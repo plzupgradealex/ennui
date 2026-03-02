@@ -33,6 +33,7 @@ actor HaikuGenerator {
             .floatingKingdom: "a sky kingdom floating above luminous clouds, crystalline spires catching ancient light, waterfalls cascading off floating islands into golden mist, motes of warm magical energy drifting upward like prayers, the peaceful heart of an eternal dream",
             .ontarioCountryside: "a warm summer evening in the rural countryside of southern Ontario in the early 1990s, golden wheat fields rolling toward a distant treeline, an old red barn and silo, a gravel road vanishing to the horizon, fireflies blinking in the blue hour, power lines tracing the road, the last amber light on everything",
             .minnesotaSmallTown: "a calm summer evening in a tiny Minnesota prairie town, an enormous pink and gold sky over Main Street, a white church steeple, a water tower, a grain elevator, a diner with a flickering neon sign, street lamps coming on, fireflies over the flat quiet land, nothing happens and that is the whole point",
+            .shimizuEvening: "a quiet rainy evening in a small Japanese residential neighbourhood in Shizuoka, warm yellow windows glowing behind a concrete block wall, rain falling on a street with puddles, a corner shop with a striped awning, utility poles and wires, rounded bushes, the gentle sound of rain on everything, a feeling of being safely home while the world is soft and wet outside",
         ]
         let theme = themes[scene] ?? "a peaceful calming moment"
 
@@ -194,6 +195,11 @@ struct HaikuOverlayView: View {
             "The steeple holds still\nMain Street darkens by degrees\nNeon hums alone",
             "Water tower stands\nAbove the quiet prairie\nNothing needs to change",
             "A dog sleeps on the porch\nThe diner light stays on late\nSomeone knows your name",
+        ],
+        .shimizuEvening: [
+            "Rain taps the grey wall\nWarm light through the window glass\nSupper must be soon",
+            "Puddles on the street\nThe shop awning drips a tune\nEvening settles in",
+            "Wires hum with rain\nA window glows behind the fence\nSomeone is still home",
         ],
     ]
 

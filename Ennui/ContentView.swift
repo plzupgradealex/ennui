@@ -259,6 +259,7 @@ struct ContentView: View {
         case .floatingKingdom: FloatingKingdomScene(interaction: interaction)
         case .ontarioCountryside: OntarioCountrysideScene(interaction: interaction)
         case .minnesotaSmallTown: MinnesotaSmallTownScene(interaction: interaction)
+        case .shimizuEvening: ShimizuEveningScene(interaction: interaction)
         }
     }
 
