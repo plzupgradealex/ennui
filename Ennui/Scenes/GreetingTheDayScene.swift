@@ -454,7 +454,6 @@ struct GreetingTheDayScene: View {
             let hlRect = CGRect(x: hlX, y: cy - height * 0.4, width: 3, height: 2)
             ctx.fill(Rectangle().path(in: hlRect), with: .color(Color(red: 1.2, green: 1.1, blue: 0.8).opacity(0.6)))
         }
-        _ = rng // suppress unused warning
     }
 
     private func drawGround(ctx: inout GraphicsContext, size: CGSize, sunProgress: Double) {
