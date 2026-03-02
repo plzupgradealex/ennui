@@ -113,6 +113,7 @@ struct DesertStarscapeScene: View {
     }
 
     private func drawStars(ctx: inout GraphicsContext, size: CGSize, t: Double) {
+        // Draw all star cores
         for s in stars {
             let tw = sin(t * s.rate + s.offset) * 0.25 + 0.75
             let alpha = s.brightness * tw
@@ -124,9 +125,28 @@ struct DesertStarscapeScene: View {
 
             ctx.fill(Ellipse().path(in: CGRect(x: x - s.size / 2, y: y - s.size / 2, width: s.size, height: s.size)),
                 with: .color(c.opacity(alpha)))
+        }
 
-            if s.brightness > 0.85 && s.size > 2 {
-                drawStarFlare(ctx: &ctx, x: x, y: y, flareLen: s.size * 3 * tw, alpha: alpha)
+        // Single shared flare layer for all bright stars (was ~20 separate layers)
+        ctx.drawLayer { l in
+            l.addFilter(.blur(radius: 2))
+            for s in stars {
+                guard s.brightness > 0.85 && s.size > 2 else { continue }
+                let tw = sin(t * s.rate + s.offset) * 0.25 + 0.75
+                let alpha = s.brightness * tw
+                let x = s.x * size.width
+                let y = s.y * size.height
+                let flareLen = s.size * 3 * tw
+
+                l.opacity = alpha * 0.2
+                var h = Path()
+                h.move(to: CGPoint(x: x - flareLen, y: y))
+                h.addLine(to: CGPoint(x: x + flareLen, y: y))
+                l.stroke(h, with: .color(Color(red: 1.5, green: 1.4, blue: 1.7)), lineWidth: 0.5)
+                var v = Path()
+                v.move(to: CGPoint(x: x, y: y - flareLen))
+                v.addLine(to: CGPoint(x: x, y: y + flareLen))
+                l.stroke(v, with: .color(Color(red: 1.5, green: 1.4, blue: 1.7)), lineWidth: 0.5)
             }
         }
     }

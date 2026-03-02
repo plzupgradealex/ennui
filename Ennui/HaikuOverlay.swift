@@ -19,6 +19,9 @@ actor HaikuGenerator {
             .celShadedRainyDay: "bright flowers thriving in gentle rain, fat raindrops on petals, puddles forming, a cosy rainy day in a cartoon world",
             .voyagerNebula: "drifting through a magnificent nebula in deep space, swirling colours of teal and magenta, stellar nurseries glowing warmly",
             .retroPS1: "a nostalgic PS1/N64 nighttime scene with low-poly mountains, a glowing cabin, fireflies, and chunky pixel stars",
+            .auroraBorealis: "the northern lights dancing in green and violet curtains over a frozen lake with silhouetted pine trees and a distant warm cabin",
+            .paperLanternFestival: "hundreds of warm glowing paper lanterns rising gently into the twilight sky over a dark reflective lake, fireflies dancing between them",
+            .forgottenLibrary: "an infinite twilight library with towering bookshelves, candlelight, floating golden letters drifting upward like embers, and moonlight through arched windows",
         ]
         let theme = themes[scene] ?? "a peaceful calming moment"
 
@@ -105,6 +108,21 @@ struct HaikuOverlayView: View {
             "Pixels hold the night\nA cabin glows in the dark\nFireflies remember",
             "Low-poly mountains\nReflected in quiet lakes\nNostalgia is warm",
             "Vertex jitter dreams\nChunky stars above the pines\nThe old world still hums",
+        ],
+        .auroraBorealis: [
+            "Green curtains unfold\nThe frozen lake holds its breath\nLight dances alone",
+            "Violet ribbons\nStitch the dark sky back together\nPines stand and witness",
+            "Cold air carries light\nThe aurora hums in silence\nSnow remembers warmth",
+        ],
+        .paperLanternFestival: [
+            "A hundred small suns\nRise slowly from the water\nWishes float like light",
+            "Warm paper and flame\nDrifting through the evening sky\nThe lake holds their glow",
+            "Lanterns climb the dark\nEach one a quiet prayer\nThe night leans in close",
+        ],
+        .forgottenLibrary: [
+            "Dust motes catch the flame\nOld pages breathe forgotten\nWords still drift upward",
+            "Moonlight through the arch\nA thousand spines lean and wait\nSilence reads itself",
+            "Candle flickers soft\nLetters rise from open books\nKnowledge turns to light",
         ],
     ]
 

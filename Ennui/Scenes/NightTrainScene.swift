@@ -349,6 +349,7 @@ struct NightTrainScene: View {
         let visibility = phase.night * 0.9 + phase.sunset * 0.5 + phase.rain * 0.15
         guard visibility > 0.05 else { return }
 
+        // Hard cores
         for light in distantLights {
             let lx = fmod(light.x * w - t * 8 + w * 20, w * 1.5) - w * 0.25
             let ly = light.y * h
@@ -360,15 +361,23 @@ struct NightTrainScene: View {
             let rect = CGRect(x: lx - s/2, y: ly - s/2, width: s, height: s)
             ctx.fill(Ellipse().path(in: rect),
                      with: .color(Color(red: light.r * hdrMul, green: light.g * hdrMul, blue: light.b * hdrMul).opacity(alpha)))
+        }
 
-            if alpha > 0.3 {
+        // Single shared glow layer for all village lights (was up to 20 separate layers)
+        ctx.drawLayer { l in
+            l.addFilter(.blur(radius: 6))
+            for light in distantLights {
+                let lx = fmod(light.x * w - t * 8 + w * 20, w * 1.5) - w * 0.25
+                let ly = light.y * h
+                let flicker = sin(t * light.flickerRate + light.flickerPhase) * 0.15 + 0.85
+                let alpha = light.brightness * flicker * visibility
+                let hdrMul = phase.night > 0.5 ? 1.25 : 1.0
+                guard alpha > 0.3 else { continue }
+                let s: Double = 2.5 + light.brightness * 2.0
                 let gs = s * 5
                 let glowRect = CGRect(x: lx - gs/2, y: ly - gs/2, width: gs, height: gs)
-                ctx.drawLayer { l in
-                    l.addFilter(.blur(radius: 6))
-                    l.fill(Ellipse().path(in: glowRect),
-                           with: .color(Color(red: light.r * hdrMul, green: light.g * 0.7, blue: light.b * 0.5).opacity(alpha * 0.08)))
-                }
+                l.fill(Ellipse().path(in: glowRect),
+                       with: .color(Color(red: light.r * hdrMul, green: light.g * 0.7, blue: light.b * 0.5).opacity(alpha * 0.08)))
             }
         }
     }
@@ -478,16 +487,17 @@ struct NightTrainScene: View {
         guard phase.rain > 0.15 else { return }
         let w = size.width, h = size.height * 0.70
 
-        for drop in windowDrops {
-            let slideSpeed = 0.02 + drop.radius * 0.008
-            let dy = fmod(drop.birthPhase + t * slideSpeed * phase.rain, 1.0)
-            let dx = drop.x * w
-            let dyPos = dy * h
+        // Single shared layer for all window droplets (was 35 separate layers!)
+        ctx.drawLayer { l in
+            for drop in windowDrops {
+                let slideSpeed = 0.02 + drop.radius * 0.008
+                let dy = fmod(drop.birthPhase + t * slideSpeed * phase.rain, 1.0)
+                let dx = drop.x * w
+                let dyPos = dy * h
 
-            let r = drop.radius * (0.8 + phase.rain * 0.4)
-            let rect = CGRect(x: dx - r, y: dyPos - r, width: r * 2, height: r * 2.5)
+                let r = drop.radius * (0.8 + phase.rain * 0.4)
+                let rect = CGRect(x: dx - r, y: dyPos - r, width: r * 2, height: r * 2.5)
 
-            ctx.drawLayer { l in
                 l.fill(Ellipse().path(in: rect),
                        with: .color(Color.white.opacity(phase.rain * 0.12)))
                 let sparkRect = CGRect(x: dx - r * 0.3, y: dyPos - r * 0.4,
@@ -501,15 +511,17 @@ struct NightTrainScene: View {
     // MARK: - Tap condensation bloom
 
     private func drawCondensation(ctx: inout GraphicsContext, size: CGSize, t: Double, phase: WeatherPhase) {
-        for bloom in condensation {
-            let age = t - bloom.birthTime
-            guard age < 6.0 else { continue }
-            let progress = age / 6.0
-            let radius = 20 + progress * 80
-            let alpha = (1.0 - progress) * 0.25
+        let active = condensation.filter { t - $0.birthTime < 6.0 }
+        guard !active.isEmpty else { return }
 
-            ctx.drawLayer { l in
-                l.addFilter(.blur(radius: radius * 0.4))
+        // Single shared blur layer for all condensation blooms (was up to 8 separate layers)
+        ctx.drawLayer { l in
+            l.addFilter(.blur(radius: 25))
+            for bloom in active {
+                let age = t - bloom.birthTime
+                let progress = age / 6.0
+                let radius = 20 + progress * 80
+                let alpha = (1.0 - progress) * 0.25
                 let rect = CGRect(x: bloom.x - radius, y: bloom.y - radius,
                                  width: radius * 2, height: radius * 2)
                 l.fill(Ellipse().path(in: rect),
@@ -596,17 +608,17 @@ struct NightTrainScene: View {
         ctx.fill(Path(teaSurface),
                  with: .color(Color(red: 1.3, green: 0.75, blue: 0.2).opacity(shimmer)))
 
-        // Steam wisps
-        for i in 0..<3 {
-            let steamX = cx + sway + sin(t * 0.6 + Double(i) * 2.1) * 5
-            let steamBase = baseY - glassH + 15
-            let steamY = steamBase - Double(i) * 8 - fmod(t * 3, 20)
-            let steamAlpha = max(0, 0.15 - Double(i) * 0.04 - fmod(t * 0.1, 0.1))
-            let steamR: Double = 4 + Double(i) * 3
-            let rect = CGRect(x: steamX - steamR, y: steamY - steamR,
-                             width: steamR * 2, height: steamR * 2)
-            ctx.drawLayer { l in
-                l.addFilter(.blur(radius: 5))
+        // Steam wisps — single shared blur layer (was 3 separate)
+        ctx.drawLayer { l in
+            l.addFilter(.blur(radius: 5))
+            for i in 0..<3 {
+                let steamX = cx + sway + sin(t * 0.6 + Double(i) * 2.1) * 5
+                let steamBase = baseY - glassH + 15
+                let steamY = steamBase - Double(i) * 8 - fmod(t * 3, 20)
+                let steamAlpha = max(0, 0.15 - Double(i) * 0.04 - fmod(t * 0.1, 0.1))
+                let steamR: Double = 4 + Double(i) * 3
+                let rect = CGRect(x: steamX - steamR, y: steamY - steamR,
+                                 width: steamR * 2, height: steamR * 2)
                 l.fill(Ellipse().path(in: rect),
                        with: .color(Color.white.opacity(steamAlpha)))
             }

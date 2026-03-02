@@ -184,6 +184,9 @@ struct ContentView: View {
         case .celShadedRainyDay: CelShadedRainyDayScene(interaction: interaction)
         case .voyagerNebula: VoyagerNebulaScene(interaction: interaction)
         case .retroPS1: RetroPS1Scene(interaction: interaction)
+        case .auroraBorealis: AuroraBorealisScene(interaction: interaction)
+        case .paperLanternFestival: PaperLanternFestivalScene(interaction: interaction)
+        case .forgottenLibrary: ForgottenLibraryScene(interaction: interaction)
         }
     }
 

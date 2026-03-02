@@ -25,6 +25,9 @@
 		CC0000000000000000000013 /* CelShadedRainyDayScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC0000000000000000000003 /* CelShadedRainyDayScene.swift */; };
 		CC0000000000000000000014 /* VoyagerNebulaScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC0000000000000000000004 /* VoyagerNebulaScene.swift */; };
 		CC0000000000000000000015 /* RetroPS1Scene.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC0000000000000000000005 /* RetroPS1Scene.swift */; };
+		CC0000000000000000000016 /* AuroraBorealisScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC0000000000000000000006 /* AuroraBorealisScene.swift */; };
+		CC0000000000000000000017 /* PaperLanternFestivalScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC0000000000000000000007 /* PaperLanternFestivalScene.swift */; };
+		CC0000000000000000000018 /* ForgottenLibraryScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC0000000000000000000008 /* ForgottenLibraryScene.swift */; };
 		BB0000000000000000000001 /* EnnuiUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0000000000000000000010 /* EnnuiUITests.swift */; };
 /* End PBXBuildFile section */
 
@@ -46,6 +49,9 @@
 		CC0000000000000000000003 /* CelShadedRainyDayScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CelShadedRainyDayScene.swift; sourceTree = "<group>"; };
 		CC0000000000000000000004 /* VoyagerNebulaScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoyagerNebulaScene.swift; sourceTree = "<group>"; };
 		CC0000000000000000000005 /* RetroPS1Scene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RetroPS1Scene.swift; sourceTree = "<group>"; };
+		CC0000000000000000000006 /* AuroraBorealisScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuroraBorealisScene.swift; sourceTree = "<group>"; };
+		CC0000000000000000000007 /* PaperLanternFestivalScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaperLanternFestivalScene.swift; sourceTree = "<group>"; };
+		CC0000000000000000000008 /* ForgottenLibraryScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ForgottenLibraryScene.swift; sourceTree = "<group>"; };
 		AA0000000000000000000018 /* MultipeerManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MultipeerManager.swift; sourceTree = "<group>"; };
 		AA000000000000000000001B /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		AA000000000000000000001A /* Ennui.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Ennui.entitlements; sourceTree = "<group>"; };
@@ -130,6 +136,9 @@
 				CC0000000000000000000003 /* CelShadedRainyDayScene.swift */,
 				CC0000000000000000000004 /* VoyagerNebulaScene.swift */,
 				CC0000000000000000000005 /* RetroPS1Scene.swift */,
+				CC0000000000000000000006 /* AuroraBorealisScene.swift */,
+				CC0000000000000000000007 /* PaperLanternFestivalScene.swift */,
+				CC0000000000000000000008 /* ForgottenLibraryScene.swift */,
 			);
 			path = Scenes;
 			sourceTree = "<group>";
@@ -266,6 +275,9 @@
 				CC0000000000000000000013 /* CelShadedRainyDayScene.swift in Sources */,
 				CC0000000000000000000014 /* VoyagerNebulaScene.swift in Sources */,
 				CC0000000000000000000015 /* RetroPS1Scene.swift in Sources */,
+				CC0000000000000000000016 /* AuroraBorealisScene.swift in Sources */,
+				CC0000000000000000000017 /* PaperLanternFestivalScene.swift in Sources */,
+				CC0000000000000000000018 /* ForgottenLibraryScene.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

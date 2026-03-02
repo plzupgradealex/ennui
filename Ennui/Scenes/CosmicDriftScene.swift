@@ -107,18 +107,18 @@ struct CosmicDriftScene: View {
     }
 
     private func drawNebulae(ctx: inout GraphicsContext, size: CGSize, t: Double) {
-        for n in nebulae {
-            let x = (n.cx + sin(t * n.driftX * 8 + n.phase) * 0.06) * size.width
-            let y = (n.cy + cos(t * n.driftY * 8 + n.phase) * 0.06) * size.height
-            let baseR = n.radius * max(size.width, size.height)
-            // Breathe: radius pulses gently
-            let breathe = sin(t * 0.15 + n.phase) * 0.08 + 1.0
-            let r = baseR * breathe
-            let color = Color(red: n.r, green: n.g, blue: n.b)
+        // Single shared blur layer for all 14 nebulae (was 14 separate layers)
+        ctx.drawLayer { layerCtx in
+            layerCtx.addFilter(.blur(radius: size.width * 0.08))
+            layerCtx.opacity = 0.3
+            for n in nebulae {
+                let x = (n.cx + sin(t * n.driftX * 8 + n.phase) * 0.06) * size.width
+                let y = (n.cy + cos(t * n.driftY * 8 + n.phase) * 0.06) * size.height
+                let baseR = n.radius * max(size.width, size.height)
+                let breathe = sin(t * 0.15 + n.phase) * 0.08 + 1.0
+                let r = baseR * breathe
+                let color = Color(red: n.r, green: n.g, blue: n.b)
 
-            ctx.drawLayer { layerCtx in
-                layerCtx.addFilter(.blur(radius: r * 0.5))
-                layerCtx.opacity = 0.3
                 let rect = CGRect(x: x - r, y: y - r, width: r * 2, height: r * 2)
                 layerCtx.fill(
                     Ellipse().path(in: rect),
@@ -210,19 +210,23 @@ struct CosmicDriftScene: View {
     }
 
     private func drawRipples(ctx: inout GraphicsContext, size: CGSize, t: Double) {
-        for ripple in ripples {
-            let age = t - ripple.birthTime
-            guard age < 4.0 else { continue }
-            let progress = age / 4.0
-            let radius = progress * 120.0
-            let alpha = (1.0 - progress) * 0.25
+        let active = ripples.filter { t - $0.birthTime < 4.0 }
+        guard !active.isEmpty else { return }
 
+        // Single shared layer for all ripples (was up to 6 separate layers)
+        ctx.drawLayer { layerCtx in
+            layerCtx.addFilter(.blur(radius: 15))
             let warmColor = Color(red: 1.1, green: 0.6, blue: 1.3)
-            let rect = CGRect(x: ripple.x - radius, y: ripple.y - radius,
-                             width: radius * 2, height: radius * 2)
 
-            ctx.drawLayer { layerCtx in
-                layerCtx.addFilter(.blur(radius: 8 + progress * 20))
+            for ripple in active {
+                let age = t - ripple.birthTime
+                let progress = age / 4.0
+                let radius = progress * 120.0
+                let alpha = (1.0 - progress) * 0.25
+
+                let rect = CGRect(x: ripple.x - radius, y: ripple.y - radius,
+                                 width: radius * 2, height: radius * 2)
+
                 layerCtx.stroke(
                     Ellipse().path(in: rect),
                     with: .color(warmColor.opacity(alpha)),
