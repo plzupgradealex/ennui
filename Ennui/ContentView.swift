@@ -192,6 +192,9 @@ struct ContentView: View {
         case .urbanDreamscape: UrbanDreamscapeScene(interaction: interaction)
         case .lushRuins: LushRuinsScene(interaction: interaction)
         case .enchantedArchives: EnchantedArchivesScene(interaction: interaction)
+        case .celestialScrollHall: CelestialScrollHallScene(interaction: interaction)
+        case .jeonjuNight: JeonjuNightScene(interaction: interaction)
+        case .quietMeal: QuietMealScene(interaction: interaction)
         }
     }
 

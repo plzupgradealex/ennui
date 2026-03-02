@@ -27,6 +27,9 @@ actor HaikuGenerator {
             .urbanDreamscape: "a dreamy cel-shaded city blending Paris, Tokyo, Rome, Istanbul, and New York at night, neon signs reflecting in rain puddles, an elevated train passing, PS1-style lo-fi aesthetic",
             .lushRuins: "ancient moss-covered temple ruins in a lush humid tropical jungle, waterfalls cascading over carved stone, god rays through dense canopy, butterflies, dripping water, Borobudur-inspired",
             .enchantedArchives: "a wild magical library where books fly open and paper origami birds soar between living shelves, lightning arcs between bookcases, stained glass rosette windows cast kaleidoscopic light, golden glyphs orbit in galaxies",
+            .celestialScrollHall: "a moonlit Chinese study hall with calligraphy scrolls, ink stones, and positive characters glowing softly like lanterns in a quiet courtyard",
+            .jeonjuNight: "a quiet Korean neighbourhood at night in the 1990s, hanok rooftops, a convenience store glowing, telephone wires against a lavender sky, a cat on a wall, moths around a street lamp",
+            .quietMeal: "two friends sharing a quiet meal in a small restaurant, seen through the window from outside on a rainy evening, warmth inside, blue dusk outside, the simple joy of being together",
         ]
         let theme = themes[scene] ?? "a peaceful calming moment"
 
@@ -153,6 +156,21 @@ struct HaikuOverlayView: View {
             "Lightning finds the page\nPaper birds scatter like thoughts\nInk becomes the sky",
             "Glyphs orbit in gold\nThe shelves breathe and lean toward\nKnowledge made of light",
             "Books open and fly\nStained glass casts a thousand hues\nMagic reads itself",
+        ],
+        .celestialScrollHall: [
+            "Ink meets moonlit silk\nCharacters glow like lanterns\nWisdom breathes in light",
+            "Scrolls unfurl in dark\nBrush strokes hold a thousand years\nThe hall remembers",
+            "Quiet courtyard waits\nMoonlight paints the empty page\nWords find their own way",
+        ],
+        .jeonjuNight: [
+            "Hanok roofs hold dew\nA convenience store still glows\nThe cat watches on",
+            "Telephone wires hum\nMoth wings catch the lamplight's glow\nSummer in Jeonju",
+            "One window goes dark\nAnother flickers awake\nThe neighbourhood breathes",
+        ],
+        .quietMeal: [
+            "Rain on window glass\nTwo friends laugh over their bowls\nWarmth needs no reason",
+            "Steam rises between\nTwo people who chose each day\nTo simply show up",
+            "Through the foggy pane\nA meal shared is all it takes\nThe world feels smaller",
         ],
     ]
 
