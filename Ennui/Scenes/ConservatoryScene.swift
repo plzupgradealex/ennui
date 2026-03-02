@@ -105,7 +105,7 @@ struct ConservatoryScene: View {
 
         ctx.drawLayer { l in
             l.opacity = 0.08
-            drawGlassArch(ctx: &ctx, size: size)
+            drawGlassArch(ctx: &l, size: size)
         }
 
         // Condensation glow

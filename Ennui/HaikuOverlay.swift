@@ -16,6 +16,8 @@ actor HaikuGenerator {
             .conservatory: "rain on greenhouse windows with plants swaying and steam from old pipes",
             .nightTrain: "a gentle night train journey through moonlit countryside with warm glowing windows",
             .greetingTheDay: "a city waking up at sunrise with buildings growing and a feeling of calm readiness",
+            .celShadedRainyDay: "bright flowers thriving in gentle rain, fat raindrops on petals, puddles forming, a cosy rainy day in a cartoon world",
+            .voyagerNebula: "drifting through a magnificent nebula in deep space, swirling colours of teal and magenta, stellar nurseries glowing warmly",
         ]
         let theme = themes[scene] ?? "a peaceful calming moment"
 
@@ -87,6 +89,16 @@ struct HaikuOverlayView: View {
             "The city awakens\nEach window a gentle eye\nSunrise says begin",
             "Buildings reach for light\nNew day stretches, safe and warm\nReady for the world",
             "Morning paints the town\nEvery corner holds a hope\nSteady as the sun",
+        ],
+        .celShadedRainyDay: [
+            "Bright petals hold rain\nDroplets slide from leaf to ground\nPuddles bloom below",
+            "Grey clouds roll above\nFlowers dance in gentle storms\nColour fills the world",
+            "Fat drops tap the leaves\nEvery petal wears a gem\nThe garden drinks deep",
+        ],
+        .voyagerNebula: [
+            "Teal and rose entwine\nGas clouds birth a thousand suns\nSilence paints the sky",
+            "Dust lanes curve like roads\nStarlight finds its way between\nThe nebula breathes",
+            "Colours without name\nSwirl through ancient cosmic dust\nWe drift, warm and still",
         ],
     ]
 

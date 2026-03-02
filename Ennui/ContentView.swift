@@ -176,6 +176,8 @@ struct ContentView: View {
         case .conservatory: ConservatoryScene(interaction: interaction)
         case .nightTrain: NightTrainScene(interaction: interaction)
         case .greetingTheDay: GreetingTheDayScene(interaction: interaction)
+        case .celShadedRainyDay: CelShadedRainyDayScene(interaction: interaction)
+        case .voyagerNebula: VoyagerNebulaScene(interaction: interaction)
         }
     }
 

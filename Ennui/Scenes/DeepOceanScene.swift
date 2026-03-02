@@ -110,8 +110,9 @@ struct DeepOceanScene: View {
 
     private func drawParticles(ctx: inout GraphicsContext, size: CGSize, t: Double) {
         for p in particles {
-            let la = [0.3, 0.6, 1.0][p.layer]
-            let ls = [0.6, 1.0, 1.5][p.layer]
+            let li = min(p.layer, 2)
+            let la = [0.3, 0.6, 1.0][li]
+            let ls = [0.6, 1.0, 1.5][li]
             let x = (p.x + sin(t * 0.2 + p.phase) * 0.025) * size.width
             let y = fmod(p.baseY - t * p.speed * ls + 10, 1.0) * size.height
             let pulse = sin(t + p.phase) * 0.3 + 0.7
@@ -157,7 +158,7 @@ struct DeepOceanScene: View {
                 l.opacity = 0.25 + pulse * 0.25
 
                 // Outer glow
-                ctx.drawLayer { g in
+                l.drawLayer { g in
                     g.addFilter(.blur(radius: s * 0.4))
                     g.fill(Ellipse().path(in: CGRect(x: x - s * 0.8, y: y - s * 0.5, width: s * 1.6, height: s)),
                         with: .color(c.opacity(0.12 * pulse)))
@@ -165,7 +166,7 @@ struct DeepOceanScene: View {
 
                 let bw = s * contract
                 let bh = s * 0.55 * (1.1 - contract * 0.1)
-                drawJellyBell(ctx: &ctx, x: x, y: y, bw: bw, bh: bh, color: c, pulse: pulse)
+                drawJellyBell(ctx: &l, x: x, y: y, bw: bw, bh: bh, color: c, pulse: pulse)
 
                 // Tentacles
                 for ti in 0..<jf.tents {
