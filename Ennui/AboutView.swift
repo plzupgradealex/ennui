@@ -112,8 +112,8 @@ struct AboutView: View {
                     """)
 
                     bodyText("""
-                    It believes that children and adults deserve the same thing: \
-                    something gentle that never startles, never manipulates, and \
+                    It believes that everyone deserves something gentle. \
+                    Something that never startles, never manipulates, and \
                     never asks for more than you want to give.
                     """)
 
@@ -137,9 +137,10 @@ struct AboutView: View {
 
                     Spacer().frame(height: 20)
 
-                    Text("Made with care, for everyone.")
+                    Text("Everything was beautiful and nothing hurt.")
                         .font(.system(size: 11, weight: .light, design: .serif))
                         .foregroundStyle(warmGrey.opacity(0.3))
+                        .italic()
                         .padding(.bottom, 48)
                 }
                 .frame(maxWidth: 480)

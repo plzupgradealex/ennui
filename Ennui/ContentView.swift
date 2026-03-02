@@ -257,6 +257,7 @@ struct ContentView: View {
         case .quietMeal: QuietMealScene(interaction: interaction)
         case .artDecoLA: ArtDecoLAScene(interaction: interaction)
         case .floatingKingdom: FloatingKingdomScene(interaction: interaction)
+        case .ontarioCountryside: OntarioCountrysideScene(interaction: interaction)
         }
     }
 
@@ -293,65 +294,68 @@ struct ContentView: View {
             let t = timeline.date.timeIntervalSinceReferenceDate
             VStack {
                 Spacer()
-                HStack(spacing: 28) {
-                    ForEach(Array(SceneKind.allCases.enumerated()), id: \.element.id) { idx, scene in
-                        let isActive = scene == currentScene
-                        let float = sin(t * 0.6 + Double(idx) * 1.1) * 4
-                        let glow = sin(t * 0.8 + Double(idx) * 0.7) * 0.15 + 0.85
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 10) {
+                        ForEach(Array(SceneKind.allCases.enumerated()), id: \.element.id) { idx, scene in
+                            let isActive = scene == currentScene
+                            let float = sin(t * 0.6 + Double(idx) * 1.1) * 3
+                            let glow = sin(t * 0.8 + Double(idx) * 0.7) * 0.15 + 0.85
 
-                        Button {
-                            transitionToScene(scene)
-                        } label: {
-                            ZStack {
-                                // Outer glow ring
-                                Circle()
-                                    .fill(
-                                        RadialGradient(
-                                            colors: [
-                                                scene.tint.opacity(isActive ? 0.5 * glow : 0.1),
-                                                scene.tint.opacity(isActive ? 0.15 : 0.0),
-                                                .clear
-                                            ],
-                                            center: .center,
-                                            startRadius: 6,
-                                            endRadius: isActive ? 32 : 22
+                            Button {
+                                transitionToScene(scene)
+                            } label: {
+                                ZStack {
+                                    // Outer glow ring
+                                    Circle()
+                                        .fill(
+                                            RadialGradient(
+                                                colors: [
+                                                    scene.tint.opacity(isActive ? 0.5 * glow : 0.1),
+                                                    scene.tint.opacity(isActive ? 0.15 : 0.0),
+                                                    .clear
+                                                ],
+                                                center: .center,
+                                                startRadius: 4,
+                                                endRadius: isActive ? 22 : 15
+                                            )
                                         )
-                                    )
-                                    .frame(width: isActive ? 56 : 40, height: isActive ? 56 : 40)
+                                        .frame(width: isActive ? 40 : 30, height: isActive ? 40 : 30)
 
-                                // Inner orb
-                                Circle()
-                                    .fill(
-                                        RadialGradient(
-                                            colors: [
-                                                scene.tint.opacity(isActive ? 0.95 : 0.35),
-                                                scene.tint.opacity(isActive ? 0.6 : 0.15),
-                                                .clear
-                                            ],
-                                            center: .center,
-                                            startRadius: 0,
-                                            endRadius: isActive ? 14 : 9
+                                    // Inner orb
+                                    Circle()
+                                        .fill(
+                                            RadialGradient(
+                                                colors: [
+                                                    scene.tint.opacity(isActive ? 0.95 : 0.35),
+                                                    scene.tint.opacity(isActive ? 0.6 : 0.15),
+                                                    .clear
+                                                ],
+                                                center: .center,
+                                                startRadius: 0,
+                                                endRadius: isActive ? 10 : 7
+                                            )
                                         )
-                                    )
-                                    .frame(width: isActive ? 28 : 18, height: isActive ? 28 : 18)
+                                        .frame(width: isActive ? 20 : 14, height: isActive ? 20 : 14)
 
-                                // Bright core
-                                Circle()
-                                    .fill(scene.tint.opacity(isActive ? 0.9 * glow : 0.3))
-                                    .frame(width: isActive ? 8 : 4, height: isActive ? 8 : 4)
-                                    .blur(radius: isActive ? 2 : 1)
+                                    // Bright core
+                                    Circle()
+                                        .fill(scene.tint.opacity(isActive ? 0.9 * glow : 0.3))
+                                        .frame(width: isActive ? 6 : 3, height: isActive ? 6 : 3)
+                                        .blur(radius: isActive ? 1.5 : 0.5)
+                                }
+                                .offset(y: float)
+                                .animation(.easeInOut(duration: 0.6), value: isActive)
                             }
-                            .offset(y: float)
-                            .animation(.easeInOut(duration: 0.6), value: isActive)
+                            .buttonStyle(.plain)
+                            .accessibilityLabel(scene.displayName)
+                            .accessibilityHint(isActive ? "Currently viewing" : "Switch to \(scene.displayName)")
+                            .accessibilityAddTraits(isActive ? .isSelected : [])
                         }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel(scene.displayName)
-                        .accessibilityHint(isActive ? "Currently viewing" : "Switch to \(scene.displayName)")
-                        .accessibilityAddTraits(isActive ? .isSelected : [])
                     }
+                    .padding(.horizontal, 24)
                 }
-                .padding(.horizontal, 32)
-                .padding(.vertical, 20)
+                .frame(maxWidth: 700)
+                .padding(.vertical, 14)
                 .background(
                     Capsule()
                         .fill(.black.opacity(0.25))

@@ -26,6 +26,7 @@ enum SceneKind: String, CaseIterable, Identifiable {
     case quietMeal = "quietMeal"
     case artDecoLA = "artDecoLA"
     case floatingKingdom = "floatingKingdom"
+    case ontarioCountryside = "ontarioCountryside"
 
     var id: String { rawValue }
 
@@ -58,6 +59,7 @@ enum SceneKind: String, CaseIterable, Identifiable {
         case .quietMeal: return "Quiet Meal"
         case .artDecoLA: return "Art Deco LA"
         case .floatingKingdom: return "Floating Kingdom"
+        case .ontarioCountryside: return "Ontario Countryside"
         }
     }
 
@@ -90,6 +92,7 @@ enum SceneKind: String, CaseIterable, Identifiable {
         case .quietMeal: return "Two friends sharing a quiet meal, seen through the window on a rainy evening"
         case .artDecoLA: return "An art deco Los Angeles boulevard at golden hour with palm trees, streamline moderne buildings, and a vintage red streetcar"
         case .floatingKingdom: return "A sky kingdom floating above an ocean of clouds, with crystalline spires, waterfalls cascading into mist, and motes of ancient magical energy drifting upward"
+        case .ontarioCountryside: return "A warm summer evening settling over the rural countryside of southern Ontario in the early nineteen-nineties, with golden wheat fields, an old red barn, a gravel road, and fireflies beginning to blink in the blue hour"
         }
     }
 
@@ -122,6 +125,7 @@ enum SceneKind: String, CaseIterable, Identifiable {
         case .quietMeal: return "Tap to send a raindrop down the glass"
         case .artDecoLA: return "Tap to sweep a searchlight across the sky"
         case .floatingKingdom: return "Tap to send a pulse of magical energy rippling outward"
+        case .ontarioCountryside: return "Tap to send a gust of wind rippling through the wheat"
         }
     }
 
@@ -152,6 +156,7 @@ enum SceneKind: String, CaseIterable, Identifiable {
         case .quietMeal: return "cup.and.saucer"
         case .artDecoLA: return "building.columns.fill"
         case .floatingKingdom: return "cloud.sun"
+        case .ontarioCountryside: return "sun.horizon"
         }
     }
 
@@ -182,6 +187,7 @@ enum SceneKind: String, CaseIterable, Identifiable {
         case .quietMeal: return Color(red: 0.7, green: 0.6, blue: 0.45)
         case .artDecoLA: return Color(red: 0.9, green: 0.7, blue: 0.35)
         case .floatingKingdom: return Color(red: 0.4, green: 0.3, blue: 0.7)
+        case .ontarioCountryside: return Color(red: 0.75, green: 0.55, blue: 0.20)
         }
     }
 }
