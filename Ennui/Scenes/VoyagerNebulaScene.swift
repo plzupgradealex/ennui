@@ -387,26 +387,27 @@ struct VoyagerNebulaScene: View {
         let cx = brightest.cx * size.width
         let cy = brightest.cy * size.height
 
-        for i in 0..<6 {
-            let baseAngle = Double(i) / 6.0 * .pi * 2
-            let angle = baseAngle + t * 0.008 + sin(t * 0.03 + Double(i)) * 0.15
-            let rayLen = max(size.width, size.height) * 0.6
-            let spread = 0.04 + sin(t * 0.1 + Double(i) * 1.5) * 0.02
-
-            var path = Path()
-            path.move(to: CGPoint(x: cx, y: cy))
-            path.addLine(to: CGPoint(x: cx + cos(angle - spread) * rayLen,
-                                     y: cy + sin(angle - spread) * rayLen))
-            path.addLine(to: CGPoint(x: cx + cos(angle + spread) * rayLen,
-                                     y: cy + sin(angle + spread) * rayLen))
-            path.closeSubpath()
-
+        // Single layer for all god rays (was 6 separate)
+        ctx.drawLayer { layerCtx in
+            layerCtx.addFilter(.blur(radius: 25))
             let rayColor = Color(red: brightest.r * 0.5,
                                  green: brightest.g * 0.5,
                                  blue: brightest.b * 0.5)
 
-            ctx.drawLayer { layerCtx in
-                layerCtx.addFilter(.blur(radius: 25))
+            for i in 0..<6 {
+                let baseAngle = Double(i) / 6.0 * .pi * 2
+                let angle = baseAngle + t * 0.008 + sin(t * 0.03 + Double(i)) * 0.15
+                let rayLen = max(size.width, size.height) * 0.6
+                let spread = 0.04 + sin(t * 0.1 + Double(i) * 1.5) * 0.02
+
+                var path = Path()
+                path.move(to: CGPoint(x: cx, y: cy))
+                path.addLine(to: CGPoint(x: cx + cos(angle - spread) * rayLen,
+                                         y: cy + sin(angle - spread) * rayLen))
+                path.addLine(to: CGPoint(x: cx + cos(angle + spread) * rayLen,
+                                         y: cy + sin(angle + spread) * rayLen))
+                path.closeSubpath()
+
                 layerCtx.fill(path, with: .color(rayColor.opacity(0.04)))
             }
         }
@@ -415,44 +416,41 @@ struct VoyagerNebulaScene: View {
     // MARK: - Tap shockwaves — expanding ring of illumination
 
     private func drawShockwaves(ctx: inout GraphicsContext, size: CGSize, t: Double) {
-        for wave in shockwaves {
-            let age = t - wave.birth
-            guard age < 4.0 else { continue }
-            let progress = age / 4.0
-            let radius = progress * max(size.width, size.height) * 0.5
-            let alpha = (1.0 - progress) * 0.3
+        let activeWaves = shockwaves.filter { t - $0.birth < 4.0 }
+        guard !activeWaves.isEmpty else { return }
 
+        // Single blur layer for all expanding rings (was up to 15 separate layers)
+        ctx.drawLayer { layerCtx in
+            layerCtx.addFilter(.blur(radius: 10))
             let color = Color(red: 0.5, green: 0.8, blue: 1.3)
 
-            // Expanding ring
-            let rect = CGRect(x: wave.x - radius, y: wave.y - radius,
-                              width: radius * 2, height: radius * 2)
-            ctx.drawLayer { layerCtx in
-                layerCtx.addFilter(.blur(radius: 6 + progress * 15))
+            for wave in activeWaves {
+                let age = t - wave.birth
+                let progress = age / 4.0
+                let radius = progress * max(size.width, size.height) * 0.5
+                let alpha = (1.0 - progress) * 0.3
+
+                // Outer ring
+                let rect = CGRect(x: wave.x - radius, y: wave.y - radius,
+                                  width: radius * 2, height: radius * 2)
                 layerCtx.stroke(Ellipse().path(in: rect),
                                 with: .color(color.opacity(alpha)),
                                 lineWidth: 3.0 - progress * 2.0)
-            }
 
-            // Inner brighter ring
-            let r2 = radius * 0.7
-            let rect2 = CGRect(x: wave.x - r2, y: wave.y - r2,
-                               width: r2 * 2, height: r2 * 2)
-            ctx.drawLayer { layerCtx in
-                layerCtx.addFilter(.blur(radius: 4))
+                // Inner ring
+                let r2 = radius * 0.7
+                let rect2 = CGRect(x: wave.x - r2, y: wave.y - r2,
+                                   width: r2 * 2, height: r2 * 2)
                 layerCtx.stroke(Ellipse().path(in: rect2),
                                 with: .color(color.opacity(alpha * 0.5)),
                                 lineWidth: 1.5)
-            }
 
-            // Flash at centre (first 0.3s)
-            if progress < 0.075 {
-                let flashAlpha = (1.0 - progress / 0.075) * 0.5
-                let flashR = 30.0 + progress * 100.0
-                let flashRect = CGRect(x: wave.x - flashR, y: wave.y - flashR,
-                                       width: flashR * 2, height: flashR * 2)
-                ctx.drawLayer { layerCtx in
-                    layerCtx.addFilter(.blur(radius: flashR * 0.5))
+                // Flash at centre
+                if progress < 0.075 {
+                    let flashAlpha = (1.0 - progress / 0.075) * 0.5
+                    let flashR = 30.0 + progress * 100.0
+                    let flashRect = CGRect(x: wave.x - flashR, y: wave.y - flashR,
+                                           width: flashR * 2, height: flashR * 2)
                     layerCtx.fill(Ellipse().path(in: flashRect),
                                   with: .color(Color(red: 0.8, green: 0.9, blue: 1.5).opacity(flashAlpha)))
                 }

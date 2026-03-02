@@ -205,37 +205,48 @@ struct AncientRuinsScene: View {
     }
 
     private func drawFireflies(ctx: inout GraphicsContext, size: CGSize, t: Double) {
+        // Single shared glow layer for all 50 fireflies (was 50 separate layers!)
+        ctx.drawLayer { l in
+            l.addFilter(.blur(radius: 10))
+            for ff in fireflies {
+                let x = (ff.bx + sin(t * ff.speed + ff.phase) * ff.wander) * size.width
+                let y = (ff.by + cos(t * ff.speed * 0.7 + ff.phase) * ff.wander * 0.5) * size.height
+                let pulse = sin(t * 1.8 + ff.phase) * 0.5 + 0.5
+                let alpha = ff.brightness * pulse
+                let color = Color(red: 1.4, green: 1.35, blue: 0.55)
+                l.fill(Ellipse().path(in: CGRect(x: x - 10, y: y - 10, width: 20, height: 20)),
+                    with: .color(color.opacity(alpha * 0.35)))
+            }
+        }
+        // Hard cores (no layer needed)
         for ff in fireflies {
             let x = (ff.bx + sin(t * ff.speed + ff.phase) * ff.wander) * size.width
             let y = (ff.by + cos(t * ff.speed * 0.7 + ff.phase) * ff.wander * 0.5) * size.height
             let pulse = sin(t * 1.8 + ff.phase) * 0.5 + 0.5
             let alpha = ff.brightness * pulse
             let color = Color(red: 1.4, green: 1.35, blue: 0.55)
-
-            ctx.drawLayer { l in
-                l.addFilter(.blur(radius: 10))
-                l.fill(Ellipse().path(in: CGRect(x: x - 10, y: y - 10, width: 20, height: 20)),
-                    with: .color(color.opacity(alpha * 0.35)))
-            }
             ctx.fill(Ellipse().path(in: CGRect(x: x - 2, y: y - 2, width: 4, height: 4)),
                 with: .color(color.opacity(alpha * 0.9)))
         }
     }
 
     private func drawBursts(ctx: inout GraphicsContext, size: CGSize, t: Double) {
-        for b in bursts {
-            let age = t - b.birth
-            guard age < 3 else { continue }
-            let p = age / 3.0
-            let fade = (1 - p) * (1 - p)
-            for i in 0..<16 {
-                let angle = Double(i) / 16 * .pi * 2 + age * 1.2
-                let dist = p * 70 + sin(age * 3 + Double(i)) * 10
-                let px = b.x + cos(angle) * dist
-                let py = b.y + sin(angle) * dist - p * 20
-                let s = 3.0 * fade
-                ctx.drawLayer { l in
-                    l.addFilter(.blur(radius: 5))
+        let activeBursts = bursts.filter { t - $0.birth < 3 }
+        guard !activeBursts.isEmpty else { return }
+
+        // Single shared blur layer for all burst particles (was 16×bursts = up to 80 layers!)
+        ctx.drawLayer { l in
+            l.addFilter(.blur(radius: 5))
+            for b in activeBursts {
+                let age = t - b.birth
+                let p = age / 3.0
+                let fade = (1 - p) * (1 - p)
+                for i in 0..<16 {
+                    let angle = Double(i) / 16 * .pi * 2 + age * 1.2
+                    let dist = p * 70 + sin(age * 3 + Double(i)) * 10
+                    let px = b.x + cos(angle) * dist
+                    let py = b.y + sin(angle) * dist - p * 20
+                    let s = 3.0 * fade
                     l.fill(Ellipse().path(in: CGRect(x: px - s, y: py - s, width: s * 2, height: s * 2)),
                         with: .color(Color(red: 1.4, green: 1.3, blue: 0.5).opacity(fade * 0.55)))
                 }
