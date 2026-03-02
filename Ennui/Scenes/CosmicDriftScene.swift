@@ -142,11 +142,12 @@ struct CosmicDriftScene: View {
             let y = star.y * size.height
             let s = star.size * (0.8 + smoothTwinkle * 0.2)
 
-            // Warm/cool star color
+            // Warm/cool star color — HDR bloom for bright stars
             let w = star.warmth
-            let sr = 0.85 + w * 0.15
-            let sg = 0.8 + w * 0.1 - (1 - w) * 0.1
-            let sb = 1.0 - w * 0.3
+            let brightMul = star.brightness > 0.7 ? 1.35 : 1.0
+            let sr = (0.85 + w * 0.15) * brightMul
+            let sg = (0.8 + w * 0.1 - (1 - w) * 0.1) * brightMul
+            let sb = (1.0 - w * 0.3) * brightMul
             let starColor = Color(red: sr, green: sg, blue: sb)
 
             let rect = CGRect(x: x - s / 2, y: y - s / 2, width: s, height: s)
@@ -195,14 +196,16 @@ struct CosmicDriftScene: View {
             path.move(to: CGPoint(x: sx, y: sy))
             path.addLine(to: CGPoint(x: sx + dx * tailLen, y: sy + dy * tailLen * 0.8))
 
+            let hdrHead = Color(red: 1.6, green: 1.5, blue: 1.8)
+
             ctx.stroke(path, with: .linearGradient(
-                Gradient(colors: [.white.opacity(0.8 * fade), .white.opacity(0)]),
+                Gradient(colors: [hdrHead.opacity(0.8 * fade), hdrHead.opacity(0)]),
                 startPoint: CGPoint(x: sx, y: sy),
                 endPoint: CGPoint(x: sx + dx * tailLen, y: sy + dy * tailLen * 0.8)
             ), lineWidth: 1.5)
 
             let headRect = CGRect(x: sx - 2, y: sy - 2, width: 4, height: 4)
-            ctx.fill(Ellipse().path(in: headRect), with: .color(.white.opacity(0.9 * fade)))
+            ctx.fill(Ellipse().path(in: headRect), with: .color(hdrHead.opacity(0.9 * fade)))
         }
     }
 
@@ -214,7 +217,7 @@ struct CosmicDriftScene: View {
             let radius = progress * 120.0
             let alpha = (1.0 - progress) * 0.25
 
-            let warmColor = Color(red: 0.8, green: 0.5, blue: 0.9)
+            let warmColor = Color(red: 1.1, green: 0.6, blue: 1.3)
             let rect = CGRect(x: ripple.x - radius, y: ripple.y - radius,
                              width: radius * 2, height: radius * 2)
 

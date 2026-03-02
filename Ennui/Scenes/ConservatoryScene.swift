@@ -174,7 +174,7 @@ struct ConservatoryScene: View {
                 l.addFilter(.blur(radius: 8))
                 let gr = CGRect(x: bx + plantSway - 8, y: top - 8, width: 16, height: 16)
                 l.fill(Ellipse().path(in: gr), with: .color(
-                    Color(hue: p.hue, saturation: 0.4, brightness: 0.6).opacity(0.12 * breathe)))
+                    Color(hue: p.hue, saturation: 0.5, brightness: 1.3).opacity(0.14 * breathe)))
             }
         }
     }
@@ -223,7 +223,7 @@ struct ConservatoryScene: View {
                     l.addFilter(.blur(radius: 3))
                     l.stroke(
                         Ellipse().path(in: CGRect(x: d.x - r, y: d.y - r * 0.4, width: r * 2, height: r * 0.8)),
-                        with: .color(Color(red: 0.5, green: 0.7, blue: 0.6).opacity(rf * 0.2)),
+                        with: .color(Color(red: 0.6, green: 1.1, blue: 0.9).opacity(rf * 0.22)),
                         lineWidth: 1)
                 }
             }
@@ -236,7 +236,7 @@ struct ConservatoryScene: View {
                 let sy = d.y + sin(angle) * dist * 0.5 - p * 15
                 let s = 1.5 * fade
                 ctx.fill(Ellipse().path(in: CGRect(x: sx - s, y: sy - s, width: s * 2, height: s * 2)),
-                    with: .color(Color(red: 0.6, green: 0.8, blue: 0.7).opacity(fade * 0.3)))
+                    with: .color(Color(red: 0.7, green: 1.0, blue: 0.85).opacity(fade * 0.35)))
             }
         }
     }

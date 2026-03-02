@@ -79,7 +79,7 @@ struct DesertStarscapeScene: View {
                 control1: CGPoint(x: size.width * 0.7, y: size.height * 0.18),
                 control2: CGPoint(x: size.width * 0.3, y: size.height * 0.22))
             band.closeSubpath()
-            l.fill(band, with: .color(Color(red: 0.55, green: 0.45, blue: 0.75)))
+            l.fill(band, with: .color(Color(red: 0.7, green: 0.55, blue: 1.1)))
         }
         // Dust clouds
         ctx.drawLayer { l in
@@ -92,7 +92,7 @@ struct DesertStarscapeScene: View {
                 let r = nextDouble(&rng) * 60 + 30
                 let hue = 0.6 + nextDouble(&rng) * 0.2
                 l.fill(Ellipse().path(in: CGRect(x: cx - r, y: cy - r, width: r * 2, height: r * 2)),
-                    with: .color(Color(hue: hue, saturation: 0.4, brightness: 0.7)))
+                    with: .color(Color(hue: hue, saturation: 0.5, brightness: 1.1)))
             }
         }
     }
@@ -104,11 +104,11 @@ struct DesertStarscapeScene: View {
             var h = Path()
             h.move(to: CGPoint(x: x - flareLen, y: y))
             h.addLine(to: CGPoint(x: x + flareLen, y: y))
-            l.stroke(h, with: .color(.white), lineWidth: 0.5)
+            l.stroke(h, with: .color(Color(red: 1.5, green: 1.4, blue: 1.7)), lineWidth: 0.5)
             var v = Path()
             v.move(to: CGPoint(x: x, y: y - flareLen))
             v.addLine(to: CGPoint(x: x, y: y + flareLen))
-            l.stroke(v, with: .color(.white), lineWidth: 0.5)
+            l.stroke(v, with: .color(Color(red: 1.5, green: 1.4, blue: 1.7)), lineWidth: 0.5)
         }
     }
 
@@ -119,7 +119,8 @@ struct DesertStarscapeScene: View {
             let x = s.x * size.width
             let y = s.y * size.height
             let w = s.warmth
-            let c = Color(red: 0.9 + w * 0.1, green: 0.85 + (1 - w) * 0.15, blue: 0.75 + (1 - w) * 0.25)
+            let brightBoost = s.brightness > 0.85 ? 1.3 : 1.0
+            let c = Color(red: (0.9 + w * 0.1) * brightBoost, green: (0.85 + (1 - w) * 0.15) * brightBoost, blue: (0.75 + (1 - w) * 0.25) * brightBoost)
 
             ctx.fill(Ellipse().path(in: CGRect(x: x - s.size / 2, y: y - s.size / 2, width: s.size, height: s.size)),
                 with: .color(c.opacity(alpha)))
@@ -154,13 +155,14 @@ struct DesertStarscapeScene: View {
             var path = Path()
             path.move(to: CGPoint(x: hx, y: hy))
             path.addLine(to: CGPoint(x: hx - cos(angle) * tl, y: hy - sin(angle) * tl * 0.6))
+            let hdrMeteor = Color(red: 1.6, green: 1.5, blue: 1.7)
             ctx.stroke(path, with: .linearGradient(
-                Gradient(colors: [.white.opacity(0.7 * fade), .white.opacity(0)]),
+                Gradient(colors: [hdrMeteor.opacity(0.7 * fade), hdrMeteor.opacity(0)]),
                 startPoint: CGPoint(x: hx, y: hy),
                 endPoint: CGPoint(x: hx - cos(angle) * tl, y: hy - sin(angle) * tl * 0.6)),
                 lineWidth: 1.5)
             ctx.fill(Ellipse().path(in: CGRect(x: hx - 2, y: hy - 2, width: 4, height: 4)),
-                with: .color(.white.opacity(0.9 * fade)))
+                with: .color(hdrMeteor.opacity(0.9 * fade)))
         }
     }
 
@@ -172,7 +174,7 @@ struct DesertStarscapeScene: View {
                 let x = size.width * Double(i) / 5.0
                 let y = size.height * 0.68 + sin(t * 0.8 + Double(i) * 1.5) * 8
                 l.fill(Ellipse().path(in: CGRect(x: x - 50, y: y - 5, width: 100, height: 10)),
-                    with: .color(Color(red: 0.8, green: 0.6, blue: 0.3)))
+                    with: .color(Color(red: 1.1, green: 0.8, blue: 0.4)))
             }
         }
     }

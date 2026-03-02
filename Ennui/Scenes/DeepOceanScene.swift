@@ -116,7 +116,7 @@ struct DeepOceanScene: View {
             let y = fmod(p.baseY - t * p.speed * ls + 10, 1.0) * size.height
             let pulse = sin(t + p.phase) * 0.3 + 0.7
             let alpha = p.brightness * pulse * la
-            let c = Color(hue: p.hue, saturation: 0.7, brightness: 0.9)
+            let c = Color(hue: p.hue, saturation: 0.7, brightness: 1.3)
             let s = p.size * (0.8 + pulse * 0.3)
 
             ctx.fill(Ellipse().path(in: CGRect(x: x - s / 2, y: y - s / 2, width: s, height: s)),
@@ -141,7 +141,7 @@ struct DeepOceanScene: View {
                     center: CGPoint(x: x, y: y - bh * 0.1), startRadius: 0, endRadius: bw * 0.5))
         }
         ctx.fill(Ellipse().path(in: CGRect(x: x - bw * 0.25, y: y - bh * 0.2, width: bw * 0.5, height: bh * 0.4)),
-            with: .color(.white.opacity(0.08 * pulse)))
+            with: .color(Color(red: 0.7, green: 1.4, blue: 1.6).opacity(0.12 * pulse)))
     }
 
     private func drawJellies(ctx: inout GraphicsContext, size: CGSize, t: Double) {
@@ -198,8 +198,8 @@ struct DeepOceanScene: View {
                 l.fill(Ellipse().path(in: CGRect(x: fl.x - r, y: fl.y - r, width: r * 2, height: r * 2)),
                     with: .radialGradient(
                         Gradient(colors: [
-                            Color(hue: 0.55, saturation: 0.6, brightness: 1).opacity(0.3 * fade),
-                            Color(hue: 0.5, saturation: 0.5, brightness: 0.8).opacity(0.1 * fade),
+                            Color(red: 0.3, green: 1.4, blue: 1.6).opacity(0.35 * fade),
+                            Color(red: 0.2, green: 1.0, blue: 1.2).opacity(0.12 * fade),
                             .clear,
                         ]),
                         center: CGPoint(x: fl.x, y: fl.y), startRadius: 0, endRadius: r))
@@ -212,7 +212,7 @@ struct DeepOceanScene: View {
                 let my = fl.y + sin(angle) * dist
                 let s = 2.0 * fade
                 ctx.fill(Ellipse().path(in: CGRect(x: mx - s, y: my - s, width: s * 2, height: s * 2)),
-                    with: .color(Color(hue: 0.5, saturation: 0.6, brightness: 1).opacity(fade * 0.4)))
+                    with: .color(Color(red: 0.2, green: 1.3, blue: 1.5).opacity(fade * 0.45)))
             }
         }
     }

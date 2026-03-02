@@ -145,7 +145,7 @@ struct RetroGardenScene: View {
         let sunY = h * 0.12
         let sunR: Double = 50
         let rect = CGRect(x: sunX - sunR, y: sunY - sunR, width: sunR * 2, height: sunR * 2)
-        ctx.fill(Path(ellipseIn: rect), with: .color(Color(white: 0.82, opacity: 0.3)))
+        ctx.fill(Path(ellipseIn: rect), with: .color(Color(red: 1.15, green: 1.1, blue: 1.0).opacity(0.3)))
     }
 
     // MARK: - Clouds (puffy grey, flat pixel fills)
@@ -329,7 +329,7 @@ struct RetroGardenScene: View {
             // Yellow center
             let cr = CGRect(x: snap(topX - s * 0.22), y: snap(topY - s * 0.22),
                             width: snap(s * 0.44), height: snap(s * 0.44))
-            ctx.fill(Path(ellipseIn: cr), with: .color(Color(red: 0.95, green: 0.88, blue: 0.35)))
+            ctx.fill(Path(ellipseIn: cr), with: .color(Color(red: 1.15, green: 1.05, blue: 0.4)))
         }
     }
 
@@ -374,8 +374,8 @@ struct RetroGardenScene: View {
                 let s = 4.0 * fade
                 let hueShift = Double(i) / Double(petals)
                 let colors: [(Double, Double, Double)] = [
-                    (0.92, 0.55, 0.60), (0.60, 0.75, 0.90), (0.95, 0.80, 0.40),
-                    (0.80, 0.55, 0.85), (0.60, 0.85, 0.65),
+                    (1.15, 0.65, 0.70), (0.70, 0.90, 1.15), (1.2, 1.0, 0.5),
+                    (1.0, 0.65, 1.1), (0.70, 1.1, 0.8),
                 ]
                 let c = colors[i % colors.count]
                 let r = CGRect(x: px - s, y: py - s, width: s * 2, height: s * 2)

@@ -62,8 +62,8 @@ struct SaltLampScene: View {
                 Ellipse().path(in: rect),
                 with: .radialGradient(
                     Gradient(colors: [
-                        Color(red: 0.95, green: 0.45, blue: 0.15).opacity(0.15),
-                        Color(red: 0.85, green: 0.3, blue: 0.1).opacity(0.06),
+                        Color(red: 1.5, green: 0.6, blue: 0.2).opacity(0.18),
+                        Color(red: 1.1, green: 0.4, blue: 0.12).opacity(0.07),
                         Color.clear,
                     ]),
                     center: CGPoint(x: cx, y: cy),
@@ -124,10 +124,10 @@ struct SaltLampScene: View {
                 Rectangle().path(in: gradRect),
                 with: .linearGradient(
                     Gradient(colors: [
-                        Color(red: 0.98, green: 0.65, blue: 0.25).opacity(0.9 * innerPulse),
-                        Color(red: 0.95, green: 0.45, blue: 0.15).opacity(0.85 * innerPulse),
-                        Color(red: 0.85, green: 0.30, blue: 0.10).opacity(0.9 * innerPulse),
-                        Color(red: 0.70, green: 0.20, blue: 0.08).opacity(0.95 * innerPulse),
+                        Color(red: 1.4, green: 0.8, blue: 0.3).opacity(0.9 * innerPulse),
+                        Color(red: 1.2, green: 0.55, blue: 0.18).opacity(0.85 * innerPulse),
+                        Color(red: 1.0, green: 0.35, blue: 0.12).opacity(0.9 * innerPulse),
+                        Color(red: 0.80, green: 0.22, blue: 0.09).opacity(0.95 * innerPulse),
                     ]),
                     startPoint: CGPoint(x: cx, y: topY),
                     endPoint: CGPoint(x: cx, y: botY)
@@ -172,7 +172,7 @@ struct SaltLampScene: View {
 
                 // Color: deep orange to pale peach
                 let w: Double = blob.warmth
-                let r: Double = 0.95 - w * 0.1
+                let r: Double = min(0.95 - w * 0.1, 1.0) * 1.3
                 let g: Double = 0.35 + w * 0.3
                 let b: Double = 0.1 + w * 0.15
                 let blobColor = Color(red: r, green: g, blue: b)
@@ -212,9 +212,9 @@ struct SaltLampScene: View {
 
         ctx.drawLayer { layerCtx in
             layerCtx.addFilter(.blur(radius: 8))
-            layerCtx.opacity = 0.15 * pulse
+            layerCtx.opacity = 0.25 * pulse
             let rect = CGRect(x: hlX - hlW / 2, y: hlY, width: hlW, height: hlH)
-            layerCtx.fill(Ellipse().path(in: rect), with: .color(.white))
+            layerCtx.fill(Ellipse().path(in: rect), with: .color(Color(red: 2.0, green: 1.5, blue: 1.1)))
         }
     }
 }

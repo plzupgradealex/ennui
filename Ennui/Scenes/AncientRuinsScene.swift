@@ -83,12 +83,12 @@ struct AncientRuinsScene: View {
     private func drawAurora(ctx: inout GraphicsContext, size: CGSize, t: Double) {
         let w = size.width, h = size.height
         let cols: [(Double, Double, Double)] = [
-            (0.15, 0.8, 0.45), (0.2, 0.55, 0.85), (0.45, 0.25, 0.8),
-            (0.1, 0.9, 0.55), (0.3, 0.7, 0.6),
+            (0.2, 1.4, 0.6), (0.3, 0.8, 1.5), (0.6, 0.3, 1.4),
+            (0.15, 1.6, 0.7), (0.4, 1.2, 0.9),
         ]
         ctx.drawLayer { l in
             l.addFilter(.blur(radius: 55))
-            l.opacity = 0.35
+            l.opacity = 0.45
             for (i, c) in cols.enumerated() {
                 let off = Double(i) * 0.7
                 var p = Path()
@@ -210,12 +210,12 @@ struct AncientRuinsScene: View {
             let y = (ff.by + cos(t * ff.speed * 0.7 + ff.phase) * ff.wander * 0.5) * size.height
             let pulse = sin(t * 1.8 + ff.phase) * 0.5 + 0.5
             let alpha = ff.brightness * pulse
-            let color = Color(red: 0.95, green: 0.92, blue: 0.45)
+            let color = Color(red: 1.4, green: 1.35, blue: 0.55)
 
             ctx.drawLayer { l in
-                l.addFilter(.blur(radius: 8))
-                l.fill(Ellipse().path(in: CGRect(x: x - 8, y: y - 8, width: 16, height: 16)),
-                    with: .color(color.opacity(alpha * 0.3)))
+                l.addFilter(.blur(radius: 10))
+                l.fill(Ellipse().path(in: CGRect(x: x - 10, y: y - 10, width: 20, height: 20)),
+                    with: .color(color.opacity(alpha * 0.35)))
             }
             ctx.fill(Ellipse().path(in: CGRect(x: x - 2, y: y - 2, width: 4, height: 4)),
                 with: .color(color.opacity(alpha * 0.9)))
@@ -235,9 +235,9 @@ struct AncientRuinsScene: View {
                 let py = b.y + sin(angle) * dist - p * 20
                 let s = 3.0 * fade
                 ctx.drawLayer { l in
-                    l.addFilter(.blur(radius: 4))
+                    l.addFilter(.blur(radius: 5))
                     l.fill(Ellipse().path(in: CGRect(x: px - s, y: py - s, width: s * 2, height: s * 2)),
-                        with: .color(Color(red: 0.95, green: 0.9, blue: 0.4).opacity(fade * 0.5)))
+                        with: .color(Color(red: 1.4, green: 1.3, blue: 0.5).opacity(fade * 0.55)))
                 }
             }
         }
@@ -255,7 +255,7 @@ struct AncientRuinsScene: View {
             let pulse = sin(t * 0.7 + ph) * 0.4 + 0.6
             let s = 2.0
             ctx.fill(Ellipse().path(in: CGRect(x: x - s, y: y - s, width: s * 2, height: s * 2)),
-                with: .color(Color(red: 0.9, green: 0.8, blue: 0.4).opacity(pulse * 0.3)))
+                with: .color(Color(red: 1.2, green: 1.05, blue: 0.5).opacity(pulse * 0.35)))
         }
     }
 }
