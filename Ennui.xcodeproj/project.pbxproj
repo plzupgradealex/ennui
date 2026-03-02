@@ -40,6 +40,7 @@
 		EE0000000000000000000002 /* ArtDecoLAScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE0000000000000000000001 /* ArtDecoLAScene.swift */; };
 		EE0000000000000000000004 /* FloatingKingdomScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE0000000000000000000003 /* FloatingKingdomScene.swift */; };
 		EE0000000000000000000006 /* OntarioCountrysideScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE0000000000000000000005 /* OntarioCountrysideScene.swift */; };
+		EE0000000000000000000008 /* MinnesotaSmallTownScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE0000000000000000000007 /* MinnesotaSmallTownScene.swift */; };
 		DD0000000000000000000004 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = DD0000000000000000000003 /* PrivacyInfo.xcprivacy */; };
 		BB0000000000000000000001 /* EnnuiUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0000000000000000000010 /* EnnuiUITests.swift */; };
 /* End PBXBuildFile section */
@@ -77,6 +78,7 @@
 		EE0000000000000000000001 /* ArtDecoLAScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArtDecoLAScene.swift; sourceTree = "<group>"; };
 		EE0000000000000000000003 /* FloatingKingdomScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FloatingKingdomScene.swift; sourceTree = "<group>"; };
 		EE0000000000000000000005 /* OntarioCountrysideScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OntarioCountrysideScene.swift; sourceTree = "<group>"; };
+		EE0000000000000000000007 /* MinnesotaSmallTownScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MinnesotaSmallTownScene.swift; sourceTree = "<group>"; };
 		AA0000000000000000000018 /* MultipeerManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MultipeerManager.swift; sourceTree = "<group>"; };
 		AA000000000000000000001B /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		AA000000000000000000001A /* Ennui.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Ennui.entitlements; sourceTree = "<group>"; };
@@ -178,6 +180,7 @@
 				EE0000000000000000000001 /* ArtDecoLAScene.swift */,
 				EE0000000000000000000003 /* FloatingKingdomScene.swift */,
 				EE0000000000000000000005 /* OntarioCountrysideScene.swift */,
+				EE0000000000000000000007 /* MinnesotaSmallTownScene.swift */,
 			);
 			path = Scenes;
 			sourceTree = "<group>";
@@ -330,6 +333,7 @@
 				EE0000000000000000000002 /* ArtDecoLAScene.swift in Sources */,
 				EE0000000000000000000004 /* FloatingKingdomScene.swift in Sources */,
 				EE0000000000000000000006 /* OntarioCountrysideScene.swift in Sources */,
+				EE0000000000000000000008 /* MinnesotaSmallTownScene.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

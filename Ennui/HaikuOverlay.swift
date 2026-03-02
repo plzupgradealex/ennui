@@ -32,6 +32,7 @@ actor HaikuGenerator {
             .artDecoLA: "a golden hour art deco Los Angeles boulevard with palm tree silhouettes, streamline moderne buildings, warm neon signs, a vintage red Pacific Electric streetcar, and searchlight beams sweeping a coral and violet sky",
             .floatingKingdom: "a sky kingdom floating above luminous clouds, crystalline spires catching ancient light, waterfalls cascading off floating islands into golden mist, motes of warm magical energy drifting upward like prayers, the peaceful heart of an eternal dream",
             .ontarioCountryside: "a warm summer evening in the rural countryside of southern Ontario in the early 1990s, golden wheat fields rolling toward a distant treeline, an old red barn and silo, a gravel road vanishing to the horizon, fireflies blinking in the blue hour, power lines tracing the road, the last amber light on everything",
+            .minnesotaSmallTown: "a calm summer evening in a tiny Minnesota prairie town, an enormous pink and gold sky over Main Street, a white church steeple, a water tower, a grain elevator, a diner with a flickering neon sign, street lamps coming on, fireflies over the flat quiet land, nothing happens and that is the whole point",
         ]
         let theme = themes[scene] ?? "a peaceful calming moment"
 
@@ -188,6 +189,11 @@ struct HaikuOverlayView: View {
             "Wheat bends in the wind\nThe barn holds the last amber\nFireflies begin",
             "Gravel under tires\nPower lines hum the same song\nAugust never ends",
             "The window glows warm\nFields darken toward the treeline\nSomeone is still home",
+        ],
+        .minnesotaSmallTown: [
+            "The steeple holds still\nMain Street darkens by degrees\nNeon hums alone",
+            "Water tower stands\nAbove the quiet prairie\nNothing needs to change",
+            "A dog sleeps on the porch\nThe diner light stays on late\nSomeone knows your name",
         ],
     ]
 

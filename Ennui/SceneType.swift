@@ -27,6 +27,7 @@ enum SceneKind: String, CaseIterable, Identifiable {
     case artDecoLA = "artDecoLA"
     case floatingKingdom = "floatingKingdom"
     case ontarioCountryside = "ontarioCountryside"
+    case minnesotaSmallTown = "minnesotaSmallTown"
 
     var id: String { rawValue }
 
@@ -60,6 +61,7 @@ enum SceneKind: String, CaseIterable, Identifiable {
         case .artDecoLA: return "Art Deco LA"
         case .floatingKingdom: return "Floating Kingdom"
         case .ontarioCountryside: return "Ontario Countryside"
+        case .minnesotaSmallTown: return "Minnesota Small Town"
         }
     }
 
@@ -93,6 +95,7 @@ enum SceneKind: String, CaseIterable, Identifiable {
         case .artDecoLA: return "An art deco Los Angeles boulevard at golden hour with palm trees, streamline moderne buildings, and a vintage red streetcar"
         case .floatingKingdom: return "A sky kingdom floating above an ocean of clouds, with crystalline spires, waterfalls cascading into mist, and motes of ancient magical energy drifting upward"
         case .ontarioCountryside: return "A warm summer evening settling over the rural countryside of southern Ontario in the early nineteen-nineties, with golden wheat fields, an old red barn, a gravel road, and fireflies beginning to blink in the blue hour"
+        case .minnesotaSmallTown: return "A calm summer evening in a tiny Minnesota prairie town, with a church steeple, a water tower, a grain elevator, a diner with a flickering neon sign, and fireflies drifting over Main Street"
         }
     }
 
@@ -126,6 +129,7 @@ enum SceneKind: String, CaseIterable, Identifiable {
         case .artDecoLA: return "Tap to sweep a searchlight across the sky"
         case .floatingKingdom: return "Tap to send a pulse of magical energy rippling outward"
         case .ontarioCountryside: return "Tap to send a gust of wind rippling through the wheat"
+        case .minnesotaSmallTown: return "Tap to send a firefly drifting across the scene"
         }
     }
 
@@ -157,6 +161,7 @@ enum SceneKind: String, CaseIterable, Identifiable {
         case .artDecoLA: return "building.columns.fill"
         case .floatingKingdom: return "cloud.sun"
         case .ontarioCountryside: return "sun.horizon"
+        case .minnesotaSmallTown: return "house"
         }
     }
 
@@ -188,6 +193,7 @@ enum SceneKind: String, CaseIterable, Identifiable {
         case .artDecoLA: return Color(red: 0.9, green: 0.7, blue: 0.35)
         case .floatingKingdom: return Color(red: 0.4, green: 0.3, blue: 0.7)
         case .ontarioCountryside: return Color(red: 0.75, green: 0.55, blue: 0.20)
+        case .minnesotaSmallTown: return Color(red: 0.85, green: 0.55, blue: 0.30)
         }
     }
 }
