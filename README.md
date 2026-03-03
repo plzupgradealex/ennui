@@ -1,6 +1,6 @@
 # Ennui
 
-An ambient scene viewer for macOS. 29 procedural scenes rendered at 60 fps
+An ambient scene viewer for macOS. 30 procedural scenes rendered at 60 fps
 via Metal GPU compositing. No data collection, no accounts, no onboarding.
 You watch, breathe, tap sometimes.
 
@@ -18,11 +18,11 @@ SwiftUI Canvas at 60 fps, flattened to a single Metal texture each frame.
 | Cosmic Drift | Deep Ocean | Desert Starscape |
 | Enchanted Archives | Floating Kingdom | Forgotten Library |
 | Greeting the Day | Jeonju Night | Late Night Rerun |
-| Lush Ruins | Medieval Village | Minnesota Small Town |
-| Mystify | Night Train | Ontario Countryside |
-| Paper Lantern Festival | Quiet Meal | Retro Garden |
-| Retro PS1 | Salt Lamp | Shimizu Evening |
-| Urban Dreamscape | Voyager Nebula | |
+| Lush Ruins | Medieval Village | Midnight Motel |
+| Minnesota Small Town | Mystify | Night Train |
+| Ontario Countryside | Paper Lantern Festival | Quiet Meal |
+| Retro Garden | Retro PS1 | Salt Lamp |
+| Shimizu Evening | Urban Dreamscape | Voyager Nebula |
 
 Tapping does something gentle in each scene — a firefly, a ripple, a lantern
 released with a kind message, a warmth pulse. Nothing resets, nothing startles.

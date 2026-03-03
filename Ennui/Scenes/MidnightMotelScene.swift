@@ -123,7 +123,7 @@ struct MidnightMotelScene: View {
             ]), startPoint: CGPoint(x: wx, y: wy), endPoint: CGPoint(x: wx, y: wy + wh)))
 
         // A few stars visible
-        var rng = SplitMix64(seed: 0x1968_STAR)
+        var rng = SplitMix64(seed: 0x1968_57A4)
         for _ in 0..<12 {
             let sx = wx + Double.random(in: 5...(ww - 5), using: &rng)
             let sy = wy + Double.random(in: 5...(wh * 0.4), using: &rng)
@@ -467,7 +467,7 @@ struct MidnightMotelScene: View {
             ]), startPoint: CGPoint(x: 0, y: floorY), endPoint: CGPoint(x: 0, y: h)))
 
         // Carpet texture — subtle pattern
-        var rng = SplitMix64(seed: 0x1968_CARP)
+        var rng = SplitMix64(seed: 0x1968_CA40)
         for _ in 0..<80 {
             let cx = Double.random(in: 0...w, using: &rng)
             let cy = Double.random(in: floorY...(h - 5), using: &rng)
@@ -524,7 +524,7 @@ struct MidnightMotelScene: View {
     // MARK: - Floating dust motes in lamplight
 
     private func drawDust(ctx: inout GraphicsContext, w: Double, h: Double, t: Double) {
-        var rng = SplitMix64(seed: 0x1968_DUST)
+        var rng = SplitMix64(seed: 0x1968_D057)
         let lampX = w * 0.66
         let lampY = h * 0.42
 
