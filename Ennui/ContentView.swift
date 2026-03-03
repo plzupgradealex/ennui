@@ -276,6 +276,7 @@ struct ContentView: View {
         case .minnesotaSmallTown: MinnesotaSmallTownScene(interaction: interaction)
         case .shimizuEvening: ShimizuEveningScene(interaction: interaction)
         case .mystify: MystifyScene(interaction: interaction)
+        case .midnightMotel: MidnightMotelScene(interaction: interaction)
         }
     }
 

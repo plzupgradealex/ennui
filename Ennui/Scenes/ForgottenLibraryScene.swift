@@ -1,12 +1,10 @@
 import SwiftUI
 
-// Forgotten Library — an infinite twilight library stretching into darkness.
-// Towering bookshelves recede into fog. Warm candlelight pools on old wood.
-// Occasionally a book flutters open and releases glowing golden letters that
-// drift upward like embers. Dust motes catch the light. Tall arched windows
-// on one side let in pale blue moonlight. A reading desk with a single
-// flickering candle anchors the foreground.
-// Tap to open a book and release a shower of luminous glyphs.
+// Forgotten Library — a warm infinite library at twilight.
+// A few tall shelves recede into amber shadow. One candle on a reading desk
+// casts a generous pool of light. Pale windows glow faintly. Golden glyphs
+// drift upward like embers. Dust motes float slowly in the warmth.
+// Tap to release a shower of luminous glyphs.
 // Pure Canvas, 60fps, no state mutation inside Canvas closure.
 
 struct ForgottenLibraryScene: View {
@@ -16,10 +14,10 @@ struct ForgottenLibraryScene: View {
     // MARK: - Data
 
     struct BookshelfRow {
-        let x: Double           // normalised left edge
-        let depth: Double       // 0=near, 1=far (affects scale, fog, shade)
+        let x: Double
+        let depth: Double       // 0=near, 1=far
         let bookCount: Int
-        let bookSeeds: [UInt64] // seed per book for colour/height
+        let bookSeeds: [UInt64]
     }
 
     struct DustMote {
@@ -31,7 +29,7 @@ struct ForgottenLibraryScene: View {
     }
 
     struct CandleData {
-        let x, y: Double       // normalised
+        let x, y: Double
         let brightness: Double
         let flickerRate: Double
         let flickerPhase: Double
@@ -39,24 +37,17 @@ struct ForgottenLibraryScene: View {
 
     struct FloatingGlyph: Identifiable {
         let id = UUID()
-        let x, y: Double       // spawn position
+        let x, y: Double
         let birth: Double
-        let char: String        // the glyph character
+        let char: String
         let driftX: Double
         let size: Double
         let rotation: Double
     }
 
-    struct WindowData {
-        let x, y: Double       // normalised centre
-        let width, height: Double
-        let archHeight: Double
-    }
-
     @State private var shelves: [BookshelfRow] = []
     @State private var dust: [DustMote] = []
     @State private var candles: [CandleData] = []
-    @State private var windows: [WindowData] = []
     @State private var glyphs: [FloatingGlyph] = []
     @State private var autoGlyphs: [FloatingGlyph] = []
     @State private var ready = false
@@ -64,8 +55,7 @@ struct ForgottenLibraryScene: View {
 
     private let glyphChars = ["α", "β", "γ", "δ", "ε", "ζ", "η", "θ",
                                "λ", "μ", "π", "σ", "φ", "ψ", "ω",
-                               "∞", "∑", "∫", "√", "♪", "☽", "✦", "✧",
-                               "あ", "の", "を", "は", "か", "き"]
+                               "∞", "∑", "∫", "√", "☽", "✦", "✧"]
 
     var body: some View {
         TimelineView(.animation(minimumInterval: 1.0 / 60.0)) { tl in
@@ -76,7 +66,7 @@ struct ForgottenLibraryScene: View {
                 drawWindows(ctx: &ctx, size: size, t: t)
                 drawShelves(ctx: &ctx, size: size, t: t)
                 drawReadingDesk(ctx: &ctx, size: size, t: t)
-                drawCandles(ctx: &ctx, size: size, t: t)
+                drawCandleGlow(ctx: &ctx, size: size, t: t)
                 drawAutoGlyphs(ctx: &ctx, size: size, t: t)
                 drawGlyphs(ctx: &ctx, size: size, t: t)
                 drawDust(ctx: &ctx, size: size, t: t)
@@ -109,68 +99,61 @@ struct ForgottenLibraryScene: View {
         guard !ready else { return }
         var rng = SplitMix64(seed: 0xB00C11B)
 
-        // Bookshelves at varying depths
-        for i in 0..<8 {
-            let depth = Double(i) / 7.0
-            let bookCount = 15 + Int(rng.nextDouble() * 10)
+        // Five bookshelves at varying depths — fewer, more readable
+        for i in 0..<5 {
+            let depth = Double(i) / 4.0
+            let bookCount = 12 + Int(rng.nextDouble() * 6)
             var seeds: [UInt64] = []
             for _ in 0..<bookCount {
                 seeds.append(UInt64(rng.nextDouble() * Double(UInt32.max)))
             }
             shelves.append(BookshelfRow(
-                x: 0.05 + depth * 0.12 + rng.nextDouble() * 0.05,
+                x: 0.06 + Double(i) * 0.16 + rng.nextDouble() * 0.04,
                 depth: depth,
                 bookCount: bookCount,
                 bookSeeds: seeds
             ))
         }
 
-        // Dust motes
-        for _ in 0..<100 {
+        // Dust motes — fewer, slower
+        for _ in 0..<50 {
             dust.append(DustMote(
                 x: rng.nextDouble(),
                 y: rng.nextDouble(),
-                driftX: (rng.nextDouble() - 0.5) * 0.008,
-                driftY: -0.002 - rng.nextDouble() * 0.004,
-                brightness: 0.2 + rng.nextDouble() * 0.5,
-                size: 0.5 + rng.nextDouble() * 1.5,
+                driftX: (rng.nextDouble() - 0.5) * 0.004,
+                driftY: -0.001 - rng.nextDouble() * 0.002,
+                brightness: 0.3 + rng.nextDouble() * 0.4,
+                size: 0.5 + rng.nextDouble() * 1.0,
                 phase: rng.nextDouble() * .pi * 2
             ))
         }
 
-        // Candles
-        candles.append(CandleData(x: 0.5, y: 0.82, brightness: 1.0, flickerRate: 6.0, flickerPhase: 0))
-        for _ in 0..<4 {
-            candles.append(CandleData(
-                x: 0.1 + rng.nextDouble() * 0.8,
-                y: 0.3 + rng.nextDouble() * 0.4,
-                brightness: 0.3 + rng.nextDouble() * 0.3,
-                flickerRate: 3.0 + rng.nextDouble() * 5.0,
-                flickerPhase: rng.nextDouble() * .pi * 2
-            ))
-        }
+        // One main candle on the desk, two distant ones — all slow-flickering
+        candles.append(CandleData(x: 0.5, y: 0.80, brightness: 1.0, flickerRate: 1.2, flickerPhase: 0))
+        candles.append(CandleData(
+            x: 0.18 + rng.nextDouble() * 0.06,
+            y: 0.38 + rng.nextDouble() * 0.1,
+            brightness: 0.35,
+            flickerRate: 0.9 + rng.nextDouble() * 0.6,
+            flickerPhase: rng.nextDouble() * .pi * 2
+        ))
+        candles.append(CandleData(
+            x: 0.72 + rng.nextDouble() * 0.06,
+            y: 0.42 + rng.nextDouble() * 0.1,
+            brightness: 0.3,
+            flickerRate: 1.0 + rng.nextDouble() * 0.5,
+            flickerPhase: rng.nextDouble() * .pi * 2
+        ))
 
-        // Arched windows on the left side
-        for i in 0..<3 {
-            let yPos = 0.15 + Double(i) * 0.25
-            windows.append(WindowData(
-                x: 0.02 + Double(i) * 0.01,
-                y: yPos,
-                width: 0.06,
-                height: 0.18,
-                archHeight: 0.04
-            ))
-        }
-
-        // Auto-generated floating glyphs (ambient)
-        for _ in 0..<20 {
+        // Ambient floating glyphs — fewer, gentler
+        for _ in 0..<10 {
             autoGlyphs.append(FloatingGlyph(
-                x: 0.1 + rng.nextDouble() * 0.8,
-                y: 0.3 + rng.nextDouble() * 0.5,
-                birth: -rng.nextDouble() * 30.0,
+                x: 0.15 + rng.nextDouble() * 0.7,
+                y: 0.3 + rng.nextDouble() * 0.4,
+                birth: -rng.nextDouble() * 40.0,
                 char: glyphChars[Int(rng.nextDouble() * Double(glyphChars.count))],
-                driftX: (rng.nextDouble() - 0.5) * 0.005,
-                size: 8.0 + rng.nextDouble() * 14.0,
+                driftX: (rng.nextDouble() - 0.5) * 0.003,
+                size: 10.0 + rng.nextDouble() * 12.0,
                 rotation: rng.nextDouble() * .pi * 2
             ))
         }
@@ -180,33 +163,33 @@ struct ForgottenLibraryScene: View {
 
     private func spawnGlyphs(at nx: Double, y ny: Double, t: Double) {
         var rng = SplitMix64(seed: UInt64(t * 10000))
-        for _ in 0..<12 {
+        for _ in 0..<8 {
             glyphs.append(FloatingGlyph(
-                x: nx + (rng.nextDouble() - 0.5) * 0.08,
-                y: ny + (rng.nextDouble() - 0.5) * 0.04,
+                x: nx + (rng.nextDouble() - 0.5) * 0.06,
+                y: ny + (rng.nextDouble() - 0.5) * 0.03,
                 birth: t,
                 char: glyphChars[Int(rng.nextDouble() * Double(glyphChars.count))],
-                driftX: (rng.nextDouble() - 0.5) * 0.01,
-                size: 10.0 + rng.nextDouble() * 16.0,
+                driftX: (rng.nextDouble() - 0.5) * 0.006,
+                size: 10.0 + rng.nextDouble() * 14.0,
                 rotation: rng.nextDouble() * .pi * 2
             ))
         }
-        if glyphs.count > 60 { glyphs.removeFirst(12) }
+        if glyphs.count > 40 { glyphs.removeFirst(8) }
     }
 
     // MARK: - Drawing
 
     private func drawBackground(ctx: inout GraphicsContext, size: CGSize, t: Double) {
         let w = size.width, h = size.height
-        // Warm dark wood tones
-        let steps = 15
+        // Warm dark amber-brown gradient — readable, not pitch black
+        let steps = 10
         for i in 0..<steps {
             let frac = Double(i) / Double(steps)
             let y0 = frac * h
             let y1 = (frac + 1.0 / Double(steps)) * h + 1
-            let r = 0.04 + frac * 0.02
-            let g = 0.03 + frac * 0.015
-            let b = 0.02 + frac * 0.01
+            let r = 0.06 + frac * 0.03
+            let g = 0.045 + frac * 0.025
+            let b = 0.03 + frac * 0.015
             ctx.fill(
                 Path(CGRect(x: 0, y: y0, width: w, height: y1 - y0)),
                 with: .color(Color(red: r, green: g, blue: b))
@@ -217,42 +200,45 @@ struct ForgottenLibraryScene: View {
     private func drawWindows(ctx: inout GraphicsContext, size: CGSize, t: Double) {
         let w = size.width, h = size.height
 
-        for win in windows {
+        // Two tall windows on the left — soft warm moonlight, no beams
+        let windowPositions: [(x: Double, y: Double)] = [(0.03, 0.18), (0.04, 0.48)]
+        let ww = w * 0.05
+        let wh = h * 0.16
+
+        for win in windowPositions {
             let cx = win.x * w
             let cy = win.y * h
-            let ww = win.width * w
-            let wh = win.height * h
 
-            // Window frame — darker outline
-            var frame = Path()
+            // Frame
             let frameRect = CGRect(x: cx - ww * 0.55, y: cy - wh * 0.5, width: ww * 1.1, height: wh)
-            frame.addRoundedRect(in: frameRect, cornerSize: CGSize(width: ww * 0.1, height: ww * 0.1))
-            ctx.fill(frame, with: .color(Color(red: 0.06, green: 0.05, blue: 0.04)))
-
-            // Window glass — pale moonlight blue
-            let glassRect = CGRect(x: cx - ww * 0.45, y: cy - wh * 0.45, width: ww * 0.9, height: wh * 0.9)
             ctx.fill(
-                RoundedRectangle(cornerRadius: ww * 0.08).path(in: glassRect),
+                RoundedRectangle(cornerRadius: ww * 0.08).path(in: frameRect),
+                with: .color(Color(red: 0.07, green: 0.06, blue: 0.05))
+            )
+
+            // Glass — pale warm blue
+            let glassRect = CGRect(x: cx - ww * 0.42, y: cy - wh * 0.44, width: ww * 0.84, height: wh * 0.88)
+            ctx.fill(
+                RoundedRectangle(cornerRadius: ww * 0.06).path(in: glassRect),
                 with: .linearGradient(
                     Gradient(colors: [
-                        Color(red: 0.12, green: 0.15, blue: 0.25).opacity(0.7),
-                        Color(red: 0.08, green: 0.1, blue: 0.18).opacity(0.5),
+                        Color(red: 0.14, green: 0.16, blue: 0.22).opacity(0.6),
+                        Color(red: 0.10, green: 0.12, blue: 0.18).opacity(0.4),
                     ]),
                     startPoint: CGPoint(x: cx, y: glassRect.minY),
                     endPoint: CGPoint(x: cx, y: glassRect.maxY)
                 )
             )
 
-            // Moonlight beam casting in
+            // Soft spill of light on the floor near the window — no geometric beam
             ctx.drawLayer { layer in
-                layer.addFilter(.blur(radius: 40))
-                var beam = Path()
-                beam.move(to: CGPoint(x: cx + ww * 0.3, y: cy - wh * 0.3))
-                beam.addLine(to: CGPoint(x: cx + ww * 6, y: h * 0.9))
-                beam.addLine(to: CGPoint(x: cx + ww * 3, y: h * 0.9))
-                beam.addLine(to: CGPoint(x: cx, y: cy + wh * 0.3))
-                beam.closeSubpath()
-                layer.fill(beam, with: .color(Color(red: 0.15, green: 0.18, blue: 0.35).opacity(0.04)))
+                layer.addFilter(.blur(radius: 60))
+                let spillR = wh * 1.2
+                let spillRect = CGRect(x: cx + ww * 0.3 - spillR * 0.3, y: cy + wh * 0.2, width: spillR, height: spillR * 0.6)
+                layer.fill(
+                    Ellipse().path(in: spillRect),
+                    with: .color(Color(red: 0.12, green: 0.14, blue: 0.22).opacity(0.06))
+                )
             }
         }
     }
@@ -264,32 +250,30 @@ struct ForgottenLibraryScene: View {
 
         for shelf in sortedShelves {
             let depth = shelf.depth
-            let fogAlpha = depth * 0.6      // far = more fog
-            let scale = 1.0 - depth * 0.4   // far = smaller
-            let shade = 0.08 + (1.0 - depth) * 0.06  // near = lighter
+            let fogAlpha = depth * 0.5
+            let scale = 1.0 - depth * 0.35
+            let shade = 0.10 + (1.0 - depth) * 0.06
 
-            // Bookshelf vertical position
             let shelfX = shelf.x * w
-            let shelfBaseY = h * 0.3
-            let shelfTopY = h * 0.02
-            let shelfWidth = w * 0.08 * scale
-            let rowCount = 5
+            let shelfBaseY = h * 0.32
+            let shelfTopY = h * 0.04
+            let shelfWidth = w * 0.09 * scale
+            let rowCount = 4
 
-            // Shelf back
-            let backRect = CGRect(x: shelfX, y: shelfTopY, width: shelfWidth, height: shelfBaseY - shelfTopY + h * 0.6)
+            // Shelf back panel
+            let backRect = CGRect(x: shelfX, y: shelfTopY, width: shelfWidth, height: shelfBaseY - shelfTopY + h * 0.55)
             ctx.fill(Path(backRect), with: .color(Color(red: shade * 0.7, green: shade * 0.6, blue: shade * 0.4).opacity(1.0 - fogAlpha * 0.5)))
 
-            // Shelf planks and books
             for row in 0..<rowCount {
                 let rowFrac = Double(row) / Double(rowCount)
-                let rowY = shelfTopY + rowFrac * (shelfBaseY - shelfTopY + h * 0.5)
-                let rowH = (shelfBaseY - shelfTopY + h * 0.5) / Double(rowCount)
+                let rowY = shelfTopY + rowFrac * (shelfBaseY - shelfTopY + h * 0.45)
+                let rowH = (shelfBaseY - shelfTopY + h * 0.45) / Double(rowCount)
 
                 // Shelf plank
-                let plankRect = CGRect(x: shelfX - 2, y: rowY + rowH - 2, width: shelfWidth + 4, height: 3)
+                let plankRect = CGRect(x: shelfX - 1, y: rowY + rowH - 2, width: shelfWidth + 2, height: 2)
                 ctx.fill(Path(plankRect), with: .color(Color(red: shade, green: shade * 0.85, blue: shade * 0.6).opacity(1.0 - fogAlpha * 0.5)))
 
-                // Books on this shelf
+                // Books
                 let booksOnRow = min(shelf.bookCount / rowCount + 1, shelf.bookSeeds.count - row * (shelf.bookCount / rowCount))
                 let startIdx = row * (shelf.bookCount / rowCount)
                 var bookX = shelfX + 2
@@ -299,23 +283,21 @@ struct ForgottenLibraryScene: View {
                     guard seedIdx < shelf.bookSeeds.count else { break }
                     var bRng = SplitMix64(seed: shelf.bookSeeds[seedIdx])
 
-                    let bookW = (2.0 + bRng.nextDouble() * 4.0) * scale
-                    let bookH = (rowH * 0.7 + bRng.nextDouble() * rowH * 0.25)
+                    let bookW = (2.5 + bRng.nextDouble() * 4.0) * scale
+                    let bookH = (rowH * 0.65 + bRng.nextDouble() * rowH * 0.25)
                     let bookY = rowY + rowH - bookH - 2
 
-                    // Book colour — muted jewel tones
+                    // Muted jewel tones
                     let hue = bRng.nextDouble()
                     let r: Double, g: Double, b: Double
-                    if hue < 0.2 {
-                        r = 0.25 + bRng.nextDouble() * 0.15; g = 0.08; b = 0.08  // deep red
-                    } else if hue < 0.4 {
-                        r = 0.1; g = 0.15 + bRng.nextDouble() * 0.1; b = 0.08    // forest green
-                    } else if hue < 0.6 {
-                        r = 0.1; g = 0.1; b = 0.2 + bRng.nextDouble() * 0.15     // midnight blue
-                    } else if hue < 0.8 {
-                        r = 0.2 + bRng.nextDouble() * 0.1; g = 0.15; b = 0.05    // leather brown
+                    if hue < 0.25 {
+                        r = 0.22 + bRng.nextDouble() * 0.1; g = 0.08; b = 0.07
+                    } else if hue < 0.5 {
+                        r = 0.09; g = 0.14 + bRng.nextDouble() * 0.08; b = 0.07
+                    } else if hue < 0.75 {
+                        r = 0.09; g = 0.09; b = 0.18 + bRng.nextDouble() * 0.1
                     } else {
-                        r = 0.18; g = 0.1; b = 0.18 + bRng.nextDouble() * 0.1    // plum
+                        r = 0.18 + bRng.nextDouble() * 0.08; g = 0.13; b = 0.06
                     }
 
                     let bookRect = CGRect(x: bookX, y: bookY, width: bookW, height: bookH)
@@ -323,15 +305,6 @@ struct ForgottenLibraryScene: View {
                         Path(bookRect),
                         with: .color(Color(red: r, green: g, blue: b).opacity(1.0 - fogAlpha * 0.6))
                     )
-
-                    // Spine accent line
-                    if bookW > 3 {
-                        let accentRect = CGRect(x: bookX + bookW * 0.15, y: bookY + bookH * 0.2, width: bookW * 0.08, height: bookH * 0.6)
-                        ctx.fill(
-                            Path(accentRect),
-                            with: .color(Color(red: 0.6, green: 0.5, blue: 0.3).opacity(0.15 * (1.0 - fogAlpha)))
-                        )
-                    }
 
                     bookX += bookW + 1
                 }
@@ -342,97 +315,108 @@ struct ForgottenLibraryScene: View {
     private func drawReadingDesk(ctx: inout GraphicsContext, size: CGSize, t: Double) {
         let w = size.width, h = size.height
         let deskY = h * 0.78
-        let deskW = w * 0.25
-        let deskH = h * 0.03
+        let deskW = w * 0.22
+        let deskH = h * 0.025
         let deskX = w * 0.5 - deskW / 2
 
         // Desk surface
-        let deskRect = CGRect(x: deskX, y: deskY, width: deskW, height: deskH)
-        ctx.fill(Path(deskRect), with: .color(Color(red: 0.12, green: 0.08, blue: 0.05)))
+        ctx.fill(
+            Path(CGRect(x: deskX, y: deskY, width: deskW, height: deskH)),
+            with: .color(Color(red: 0.14, green: 0.10, blue: 0.06))
+        )
 
         // Open book on desk
-        let bookX = w * 0.48
-        let bookY = deskY - 2
-        let pageW = w * 0.04
-        let pageH = h * 0.025
+        let bookCenterX = w * 0.48
+        let bookY = deskY - 1
+        let pageW = w * 0.035
+        let pageH = h * 0.02
 
-        // Left page
-        let leftPage = CGRect(x: bookX - pageW, y: bookY - pageH, width: pageW, height: pageH)
-        ctx.fill(Path(leftPage), with: .color(Color(red: 0.75, green: 0.7, blue: 0.6).opacity(0.3)))
+        // Pages
+        ctx.fill(
+            Path(CGRect(x: bookCenterX - pageW, y: bookY - pageH, width: pageW, height: pageH)),
+            with: .color(Color(red: 0.7, green: 0.65, blue: 0.55).opacity(0.25))
+        )
+        ctx.fill(
+            Path(CGRect(x: bookCenterX, y: bookY - pageH, width: pageW, height: pageH)),
+            with: .color(Color(red: 0.72, green: 0.67, blue: 0.57).opacity(0.25))
+        )
 
-        // Right page
-        let rightPage = CGRect(x: bookX, y: bookY - pageH, width: pageW, height: pageH)
-        ctx.fill(Path(rightPage), with: .color(Color(red: 0.8, green: 0.75, blue: 0.65).opacity(0.3)))
-
-        // Spine line
+        // Spine
         var spine = Path()
-        spine.move(to: CGPoint(x: bookX, y: bookY - pageH))
-        spine.addLine(to: CGPoint(x: bookX, y: bookY))
-        ctx.stroke(spine, with: .color(Color(red: 0.35, green: 0.25, blue: 0.15).opacity(0.4)), lineWidth: 1)
-
-        // Faint text lines on pages
-        var rng = SplitMix64(seed: 0xEE100)
-        for page in 0..<2 {
-            let px = page == 0 ? bookX - pageW + 3 : bookX + 3
-            for line in 0..<4 {
-                let ly = bookY - pageH + 3 + Double(line) * (pageH / 5.0)
-                let lineW = pageW * 0.7 * (0.5 + rng.nextDouble() * 0.5)
-                let lineRect = CGRect(x: px, y: ly, width: lineW, height: 0.5)
-                ctx.fill(Path(lineRect), with: .color(Color(red: 0.3, green: 0.25, blue: 0.2).opacity(0.15)))
-            }
-        }
+        spine.move(to: CGPoint(x: bookCenterX, y: bookY - pageH))
+        spine.addLine(to: CGPoint(x: bookCenterX, y: bookY))
+        ctx.stroke(spine, with: .color(Color(red: 0.3, green: 0.22, blue: 0.12).opacity(0.3)), lineWidth: 1)
 
         // Desk legs
         for side in [-1.0, 1.0] {
             let legX = w * 0.5 + side * deskW * 0.4
-            let legRect = CGRect(x: legX - 2, y: deskY + deskH, width: 4, height: h * 0.15)
-            ctx.fill(Path(legRect), with: .color(Color(red: 0.08, green: 0.06, blue: 0.04)))
+            ctx.fill(
+                Path(CGRect(x: legX - 2, y: deskY + deskH, width: 4, height: h * 0.14)),
+                with: .color(Color(red: 0.09, green: 0.07, blue: 0.04))
+            )
         }
+
+        // Candle body on desk
+        let candleX = w * 0.5
+        let candleBaseY = deskY
+        let stickW: Double = 4
+        let stickH: Double = 16
+
+        // Candle stick
+        ctx.fill(
+            Path(CGRect(x: candleX - stickW / 2, y: candleBaseY - stickH, width: stickW, height: stickH)),
+            with: .color(Color(red: 0.8, green: 0.75, blue: 0.65).opacity(0.5))
+        )
+
+        // Flame — slow breathing
+        let flicker = sin(t * 1.2) * 0.08 + sin(t * 0.7) * 0.04 + 0.88
+        let flameH = 5.0 + flicker * 2.0
+        let flameW = 2.5 + flicker * 0.5
+        let flameY = candleBaseY - stickH - flameH
+        ctx.fill(
+            Ellipse().path(in: CGRect(x: candleX - flameW, y: flameY, width: flameW * 2, height: flameH)),
+            with: .color(Color(red: 1.4 * flicker, green: 0.85 * flicker, blue: 0.25).opacity(0.9))
+        )
     }
 
-    private func drawCandles(ctx: inout GraphicsContext, size: CGSize, t: Double) {
+    private func drawCandleGlow(ctx: inout GraphicsContext, size: CGSize, t: Double) {
         let w = size.width, h = size.height
 
-        // Shared glow layer
+        // Large warm glow from all candles — one blurred layer
         ctx.drawLayer { glowLayer in
-            glowLayer.addFilter(.blur(radius: 35))
+            glowLayer.addFilter(.blur(radius: 50))
             for candle in candles {
-                let flicker = sin(t * candle.flickerRate + candle.flickerPhase) * 0.12 +
-                              sin(t * candle.flickerRate * 1.7 + candle.flickerPhase) * 0.06 + 0.82
+                let flicker = sin(t * candle.flickerRate + candle.flickerPhase) * 0.06 +
+                              sin(t * candle.flickerRate * 0.6 + candle.flickerPhase) * 0.03 + 0.91
                 let cx = candle.x * w
                 let cy = candle.y * h
-                let r = 60.0 * candle.brightness
+                let r = 90.0 * candle.brightness
                 let rect = CGRect(x: cx - r, y: cy - r, width: r * 2, height: r * 2)
                 glowLayer.fill(
                     Ellipse().path(in: rect),
-                    with: .color(Color(red: 1.0, green: 0.65, blue: 0.2).opacity(0.08 * candle.brightness * flicker))
+                    with: .color(Color(red: 1.0, green: 0.7, blue: 0.25).opacity(0.14 * candle.brightness * flicker))
                 )
             }
         }
 
-        // Candle bodies and flames
-        for candle in candles {
-            let flicker = sin(t * candle.flickerRate + candle.flickerPhase) * 0.12 +
-                          sin(t * candle.flickerRate * 1.7 + candle.flickerPhase) * 0.06 + 0.82
+        // Distant candle flames (the two background ones)
+        for candle in candles where candle.brightness < 1.0 {
+            let flicker = sin(t * candle.flickerRate + candle.flickerPhase) * 0.06 + 0.9
             let cx = candle.x * w
             let cy = candle.y * h
+            let stickW = 2.0
+            let stickH = 8.0
 
-            // Candle stick
-            let stickW = 3.0 * candle.brightness + 1
-            let stickH = 12.0 * candle.brightness + 3
             ctx.fill(
                 Path(CGRect(x: cx - stickW / 2, y: cy - stickH, width: stickW, height: stickH)),
-                with: .color(Color(red: 0.8, green: 0.75, blue: 0.65).opacity(0.4 * candle.brightness))
+                with: .color(Color(red: 0.75, green: 0.7, blue: 0.6).opacity(0.25))
             )
 
-            // Flame
-            let flameH = (4.0 + flicker * 2.0) * candle.brightness
-            let flameW = (2.0 + flicker) * candle.brightness
-            let flameY = cy - stickH - flameH
-            let flamePath = CGRect(x: cx - flameW, y: flameY, width: flameW * 2, height: flameH)
+            let flameH = 3.0 * flicker
+            let flameW = 1.5
             ctx.fill(
-                Ellipse().path(in: flamePath),
-                with: .color(Color(red: 1.5 * flicker, green: 0.9 * flicker, blue: 0.3).opacity(0.9 * candle.brightness))
+                Ellipse().path(in: CGRect(x: cx - flameW, y: cy - stickH - flameH, width: flameW * 2, height: flameH)),
+                with: .color(Color(red: 1.3 * flicker, green: 0.8 * flicker, blue: 0.25).opacity(0.7))
             )
         }
     }
@@ -440,41 +424,40 @@ struct ForgottenLibraryScene: View {
     private func drawGlyphCommon(ctx: inout GraphicsContext, size: CGSize, t: Double, glyph: FloatingGlyph, ambient: Bool) {
         let w = size.width, h = size.height
         let age = t - glyph.birth
-        let cycleDuration: Double = ambient ? 25.0 : 8.0
-        let effectiveAge = ambient ? fmod(age + 50, cycleDuration) : age
+        let cycleDuration: Double = ambient ? 30.0 : 10.0
+        let effectiveAge = ambient ? fmod(age + 60, cycleDuration) : age
         guard effectiveAge > 0, effectiveAge < cycleDuration else { return }
         let progress = effectiveAge / cycleDuration
 
-        let rise = progress * 0.3
-        let x = (glyph.x + sin(effectiveAge * 0.5 + glyph.rotation) * glyph.driftX * 10) * w
+        let rise = progress * 0.25
+        let x = (glyph.x + sin(effectiveAge * 0.3 + glyph.rotation) * glyph.driftX * 8) * w
         let y = (glyph.y - rise) * h
         guard y > 0, y < h else { return }
 
-        var alpha: Double = 0.5
-        if progress < 0.1 { alpha = progress / 0.1 * 0.5 }
-        if progress > 0.7 { alpha = (1.0 - progress) / 0.3 * 0.5 }
-        alpha = max(0, alpha) * (ambient ? 0.4 : 0.7)
+        var alpha: Double = 0.4
+        if progress < 0.15 { alpha = progress / 0.15 * 0.4 }
+        if progress > 0.65 { alpha = (1.0 - progress) / 0.35 * 0.4 }
+        alpha = max(0, alpha) * (ambient ? 0.35 : 0.6)
 
         let fontSize = glyph.size
-        let rot = sin(effectiveAge * 0.3 + glyph.rotation) * 0.2
+        let rot = sin(effectiveAge * 0.2 + glyph.rotation) * 0.15
 
-        // Glow behind glyph
+        // Soft glow behind glyph
         ctx.drawLayer { layer in
-            layer.addFilter(.blur(radius: 8))
-            let gr = fontSize * 1.2
+            layer.addFilter(.blur(radius: 10))
+            let gr = fontSize * 1.3
             layer.fill(
                 Circle().path(in: CGRect(x: x - gr / 2, y: y - gr / 2, width: gr, height: gr)),
-                with: .color(Color(red: 1.0, green: 0.8, blue: 0.3).opacity(alpha * 0.3))
+                with: .color(Color(red: 1.0, green: 0.8, blue: 0.35).opacity(alpha * 0.25))
             )
         }
 
-        // The glyph itself
         var textCtx = ctx
         textCtx.translateBy(x: x, y: y)
         textCtx.rotate(by: Angle(radians: rot))
         let text = Text(glyph.char)
             .font(.system(size: fontSize, weight: .light, design: .serif))
-            .foregroundColor(Color(red: 1.0, green: 0.85, blue: 0.4).opacity(alpha))
+            .foregroundColor(Color(red: 1.0, green: 0.85, blue: 0.45).opacity(alpha))
         textCtx.draw(text, at: .zero)
     }
 
@@ -496,13 +479,13 @@ struct ForgottenLibraryScene: View {
         for mote in dust {
             let x = fmod(mote.x + mote.driftX * t + 1.0, 1.0) * w
             let y = fmod(mote.y + mote.driftY * t + 2.0, 1.0) * h
-            let shimmer = sin(t * 1.5 + mote.phase) * 0.3 + 0.7
-            let alpha = mote.brightness * shimmer * 0.25
+            let shimmer = sin(t * 0.8 + mote.phase) * 0.2 + 0.8
+            let alpha = mote.brightness * shimmer * 0.18
             let r = mote.size
 
             ctx.fill(
                 Circle().path(in: CGRect(x: x - r, y: y - r, width: r * 2, height: r * 2)),
-                with: .color(Color(red: 1.0, green: 0.9, blue: 0.6).opacity(alpha))
+                with: .color(Color(red: 1.0, green: 0.9, blue: 0.65).opacity(alpha))
             )
         }
     }
@@ -510,30 +493,30 @@ struct ForgottenLibraryScene: View {
     private func drawFogOverlay(ctx: inout GraphicsContext, size: CGSize, t: Double) {
         let w = size.width, h = size.height
 
-        // Atmospheric fog — thicker at the back (top) and sides
+        // Warm fog — thicker at top (depth) and sides
         ctx.drawLayer { layer in
             layer.addFilter(.blur(radius: 80))
 
-            // Top fog (representing depth — far shelves fade)
-            let topRect = CGRect(x: 0, y: 0, width: w, height: h * 0.35)
+            // Top fog — warm dark, representing depth
+            let topRect = CGRect(x: 0, y: 0, width: w, height: h * 0.3)
             layer.fill(
                 Path(topRect),
                 with: .linearGradient(
                     Gradient(colors: [
-                        Color(red: 0.04, green: 0.03, blue: 0.05).opacity(0.7),
+                        Color(red: 0.05, green: 0.04, blue: 0.03).opacity(0.6),
                         Color.clear,
                     ]),
                     startPoint: CGPoint(x: 0, y: 0),
-                    endPoint: CGPoint(x: 0, y: h * 0.35)
+                    endPoint: CGPoint(x: 0, y: h * 0.3)
                 )
             )
 
-            // Side fog wisps that drift
-            let driftOffset = sin(t * 0.05) * 30
-            let fogRect = CGRect(x: -40 + driftOffset, y: h * 0.2, width: w * 0.3, height: h * 0.6)
+            // Gentle side wisp — slow drift
+            let driftOffset = sin(t * 0.03) * 20
+            let fogRect = CGRect(x: -30 + driftOffset, y: h * 0.25, width: w * 0.25, height: h * 0.5)
             layer.fill(
                 Ellipse().path(in: fogRect),
-                with: .color(Color(red: 0.05, green: 0.04, blue: 0.06).opacity(0.15))
+                with: .color(Color(red: 0.06, green: 0.05, blue: 0.03).opacity(0.1))
             )
         }
     }

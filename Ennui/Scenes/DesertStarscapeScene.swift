@@ -45,11 +45,15 @@ struct DesertStarscapeScene: View {
     }
 
     private func setup() {
+        var rng = SplitMix64(seed: 0xDE5E47)
         stars = (0..<380).map { _ in
-            Star(x: .random(in: 0...1), y: .random(in: 0...0.68),
-                 brightness: .random(in: 0.05...1.0), size: .random(in: 0.2...3.0),
-                 rate: .random(in: 0.3...1.6), offset: .random(in: 0...(.pi * 2)),
-                 warmth: .random(in: 0...1))
+            Star(x: Double.random(in: 0...1, using: &rng),
+                 y: Double.random(in: 0...0.68, using: &rng),
+                 brightness: Double.random(in: 0.05...1.0, using: &rng),
+                 size: Double.random(in: 0.2...3.0, using: &rng),
+                 rate: Double.random(in: 0.3...1.6, using: &rng),
+                 offset: Double.random(in: 0...(.pi * 2), using: &rng),
+                 warmth: Double.random(in: 0...1, using: &rng))
         }
         ready = true
     }

@@ -35,6 +35,7 @@ actor HaikuGenerator {
             .minnesotaSmallTown: "a calm summer evening in a tiny Minnesota prairie town, an enormous pink and gold sky over Main Street, a white church steeple, a water tower, a grain elevator, a diner with a flickering neon sign, street lamps coming on, fireflies over the flat quiet land, nothing happens and that is the whole point",
             .shimizuEvening: "a quiet rainy evening in a small Japanese residential neighbourhood in Shizuoka, warm yellow windows glowing behind a concrete block wall, rain falling on a street with puddles, a corner shop with a striped awning, utility poles and wires, rounded bushes, the gentle sound of rain on everything, a feeling of being safely home while the world is soft and wet outside",
             .mystify: "glowing coloured lines bouncing gently across a dark CRT screen, leaving fading phosphor trails, the hypnotic comfort of a Windows 95 screensaver running late at night in a quiet house, warmth in geometry, nostalgia in every pixel",
+            .midnightMotel: "a quiet motel room somewhere in America in 1968, wood-paneled walls, a neon vacancy sign bleeding pink light through thin curtains, a warm table lamp, a rotary phone on the nightstand, a patterned bedspread, headlights from the highway sweeping across the ceiling, dust motes floating in the lamplight, the gentle solitude of being safely nowhere",
         ]
         let theme = themes[scene] ?? "a peaceful calming moment"
 
@@ -206,6 +207,11 @@ struct HaikuOverlayView: View {
             "Lines trace the dark glass\nPhosphor trails fade to nothing\nThe screen dreams for us",
             "Cyan meets amber\nBouncing through the quiet night\nNinety-five glows on",
             "Colours never rest\nThey wander the CRT\nWarm geometry",
+        ],
+        .midnightMotel: [
+            "Neon bleeds through lace\nThe highway hums a lullaby\nDust floats in the light",
+            "Wood walls hold the dark\nA rotary phone waits still\nHeadlights cross the room",
+            "Vacancy sign glows\nSomeone rests between two towns\nThe lamp breathes for them",
         ],
     ]
 

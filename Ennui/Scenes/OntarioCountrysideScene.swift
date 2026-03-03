@@ -408,7 +408,7 @@ struct OntarioCountrysideScene: View {
             // Wind from gusts
             var windOffset = sin(t * 0.8 + fx * 12 + fy * 5) * 2.0
             for gust in windGusts {
-                let gustAge = Date().timeIntervalSince(startDate) - gust.startTime
+                let gustAge = t - gust.startTime
                 if gustAge > 0 && gustAge < 3.0 {
                     let dist = abs(fx - gust.originX)
                     let wave = max(0, 1.0 - dist * 3.0) * sin(gustAge * 4.0 - dist * 8.0)

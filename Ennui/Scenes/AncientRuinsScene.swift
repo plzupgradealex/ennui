@@ -43,10 +43,14 @@ struct AncientRuinsScene: View {
     }
 
     private func setup() {
+        var rng = SplitMix64(seed: 0xAE72C1)
         fireflies = (0..<50).map { _ in
-            Firefly(bx: .random(in: 0.05...0.95), by: .random(in: 0.3...0.85),
-                    wander: .random(in: 0.02...0.07), speed: .random(in: 0.2...0.6),
-                    phase: .random(in: 0...(.pi * 2)), brightness: .random(in: 0.4...1.0))
+            Firefly(bx: Double.random(in: 0.05...0.95, using: &rng),
+                    by: Double.random(in: 0.3...0.85, using: &rng),
+                    wander: Double.random(in: 0.02...0.07, using: &rng),
+                    speed: Double.random(in: 0.2...0.6, using: &rng),
+                    phase: Double.random(in: 0...(.pi * 2), using: &rng),
+                    brightness: Double.random(in: 0.4...1.0, using: &rng))
         }
         ready = true
     }

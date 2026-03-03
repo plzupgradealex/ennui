@@ -279,7 +279,7 @@ struct LushRuinsScene: View {
 
     private func drawVines(ctx: inout GraphicsContext, size: CGSize, t: Double) {
         var rng = SplitMix64(seed: 0x71AE5B1)
-        let gustEffect = currentGustAt(t: Date().timeIntervalSince(startDate))
+        let gustEffect = currentGustAt(t: t)
 
         for _ in 0..<12 {
             let topX = nextDouble(&rng) * size.width
@@ -483,7 +483,7 @@ struct LushRuinsScene: View {
     // MARK: - Leaf gusts on tap
 
     private func drawLeafGusts(ctx: inout GraphicsContext, size: CGSize, t: Double) {
-        let currentT = Date().timeIntervalSince(startDate)
+        let currentT = t
         for gust in gusts {
             let age = currentT - gust.birth
             guard age < 5.5 else { continue }

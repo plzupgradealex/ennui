@@ -43,6 +43,7 @@
 		EE0000000000000000000008 /* MinnesotaSmallTownScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE0000000000000000000007 /* MinnesotaSmallTownScene.swift */; };
 		EE000000000000000000000A /* ShimizuEveningScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE0000000000000000000009 /* ShimizuEveningScene.swift */; };
 		EE000000000000000000000E /* MystifyScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE000000000000000000000D /* MystifyScene.swift */; };
+		EE0000000000000000000010 /* MidnightMotelScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE000000000000000000000F /* MidnightMotelScene.swift */; };
 		DD0000000000000000000004 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = DD0000000000000000000003 /* PrivacyInfo.xcprivacy */; };
 		EE000000000000000000000C /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = EE000000000000000000000B /* Assets.xcassets */; };
 		BB0000000000000000000001 /* EnnuiUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0000000000000000000010 /* EnnuiUITests.swift */; };
@@ -84,6 +85,7 @@
 		EE0000000000000000000007 /* MinnesotaSmallTownScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MinnesotaSmallTownScene.swift; sourceTree = "<group>"; };
 		EE0000000000000000000009 /* ShimizuEveningScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShimizuEveningScene.swift; sourceTree = "<group>"; };
 		EE000000000000000000000D /* MystifyScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MystifyScene.swift; sourceTree = "<group>"; };
+		EE000000000000000000000F /* MidnightMotelScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MidnightMotelScene.swift; sourceTree = "<group>"; };
 		AA0000000000000000000018 /* MultipeerManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MultipeerManager.swift; sourceTree = "<group>"; };
 		AA000000000000000000001B /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		AA000000000000000000001A /* Ennui.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Ennui.entitlements; sourceTree = "<group>"; };
@@ -190,6 +192,7 @@
 				EE0000000000000000000007 /* MinnesotaSmallTownScene.swift */,
 				EE0000000000000000000009 /* ShimizuEveningScene.swift */,
 				EE000000000000000000000D /* MystifyScene.swift */,
+				EE000000000000000000000F /* MidnightMotelScene.swift */,
 			);
 			path = Scenes;
 			sourceTree = "<group>";
@@ -346,6 +349,7 @@
 				EE0000000000000000000008 /* MinnesotaSmallTownScene.swift in Sources */,
 				EE000000000000000000000A /* ShimizuEveningScene.swift in Sources */,
 				EE000000000000000000000E /* MystifyScene.swift in Sources */,
+				EE0000000000000000000010 /* MidnightMotelScene.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

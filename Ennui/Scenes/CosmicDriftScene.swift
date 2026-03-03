@@ -50,8 +50,8 @@ struct CosmicDriftScene: View {
         .onAppear(perform: setup)
         .drawingGroup(opaque: false, colorMode: .extendedLinear)
         .allowedDynamicRange(.high)
-        .onChange(of: interaction.tapLocation) { _, loc in
-            guard let loc = loc else { return }
+        .onChange(of: interaction.tapCount) { _, _ in
+            guard let loc = interaction.tapLocation else { return }
             let r = RippleData(x: loc.x, y: loc.y, birthTime: Date().timeIntervalSince(startDate))
             ripples.append(r)
             if ripples.count > 8 { ripples.removeFirst() }

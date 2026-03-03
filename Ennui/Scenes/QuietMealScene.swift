@@ -61,7 +61,7 @@ struct QuietMealScene: View {
                 drawExteriorForeground(ctx: &ctx, size: size, t: t)
             }
         }
-        .background(Color(red: 0.12, green: 0.14, blue: 0.2))
+        .background(Color(red: 0.1, green: 0.12, blue: 0.2))
         .onAppear(perform: setup)
         .drawingGroup(opaque: false, colorMode: .extendedLinear)
         .allowedDynamicRange(.high)
@@ -155,11 +155,11 @@ struct QuietMealScene: View {
         ctx.fill(Rectangle().path(in: CGRect(x: 0, y: sideY, width: size.width, height: size.height - sideY)),
                  with: .color(Color(red: 0.18, green: 0.17, blue: 0.2)))
 
-        // Wet sidewalk reflection
-        let reflAlpha = sin(t * 0.3) * 0.01 + 0.04
+        // Wet sidewalk reflection — cool with a hint of interior warmth
+        let reflAlpha = sin(t * 0.3) * 0.01 + 0.03
         ctx.fill(Rectangle().path(in: CGRect(x: snap(size.width * 0.2), y: snap(sideY + px),
                                               width: snap(size.width * 0.6), height: snap(size.height * 0.06))),
-                 with: .color(Color(red: 0.6, green: 0.55, blue: 0.4).opacity(reflAlpha)))
+                 with: .color(Color(red: 0.45, green: 0.45, blue: 0.4).opacity(reflAlpha)))
     }
 
     private func drawRainBackground(ctx: inout GraphicsContext, size: CGSize, t: Double) {
@@ -175,24 +175,24 @@ struct QuietMealScene: View {
     }
 
     private func drawWindow(ctx: inout GraphicsContext, size: CGSize, t: Double) {
-        // Window opening — warm interior base
+        // Window opening — muted interior base, warmth comes from the light
         let wr = windowRect(size: size)
         ctx.fill(Rectangle().path(in: wr),
-                 with: .color(Color(red: 0.85, green: 0.72, blue: 0.5).opacity(0.35)))
+                 with: .color(Color(red: 0.55, green: 0.52, blue: 0.45).opacity(0.3)))
     }
 
     private func drawInterior(ctx: inout GraphicsContext, size: CGSize, t: Double) {
         let wr = windowRect(size: size)
 
-        // Back wall
+        // Back wall — muted cream, not yellow
         ctx.fill(Rectangle().path(in: CGRect(x: wr.minX, y: wr.minY,
                                               width: wr.width, height: wr.height * 0.45)),
-                 with: .color(Color(red: 0.82, green: 0.72, blue: 0.55).opacity(0.2)))
+                 with: .color(Color(red: 0.55, green: 0.52, blue: 0.48).opacity(0.18)))
 
-        // Floor
+        // Floor — cool dark tone
         ctx.fill(Rectangle().path(in: CGRect(x: wr.minX, y: wr.minY + wr.height * 0.65,
                                               width: wr.width, height: wr.height * 0.35)),
-                 with: .color(Color(red: 0.45, green: 0.35, blue: 0.25).opacity(0.2)))
+                 with: .color(Color(red: 0.25, green: 0.22, blue: 0.22).opacity(0.25)))
 
         // Fluorescent light fixture on ceiling — warm hum
         let lightW = snap(wr.width * 0.35)
@@ -201,16 +201,16 @@ struct QuietMealScene: View {
         let lightY = snap(wr.minY + px * 4)
         let flicker = sin(t * 8) > -0.95 ? 1.0 : 0.85
         ctx.fill(Rectangle().path(in: CGRect(x: lightX, y: lightY, width: lightW, height: lightH)),
-                 with: .color(Color(red: 0.95, green: 0.9, blue: 0.75).opacity(0.5 * flicker)))
+                 with: .color(Color(red: 0.92, green: 0.88, blue: 0.78).opacity(0.4 * flicker)))
 
-        // Light cone downward
+        // Light cone downward — subtle, warmth is focused
         var cone = Path()
         cone.move(to: CGPoint(x: lightX, y: lightY + lightH))
-        cone.addLine(to: CGPoint(x: lightX - wr.width * 0.1, y: wr.minY + wr.height * 0.65))
-        cone.addLine(to: CGPoint(x: lightX + lightW + wr.width * 0.1, y: wr.minY + wr.height * 0.65))
+        cone.addLine(to: CGPoint(x: lightX - wr.width * 0.08, y: wr.minY + wr.height * 0.65))
+        cone.addLine(to: CGPoint(x: lightX + lightW + wr.width * 0.08, y: wr.minY + wr.height * 0.65))
         cone.addLine(to: CGPoint(x: lightX + lightW, y: lightY + lightH))
         cone.closeSubpath()
-        ctx.fill(cone, with: .color(Color(red: 0.95, green: 0.88, blue: 0.65).opacity(0.04 * flicker)))
+        ctx.fill(cone, with: .color(Color(red: 0.9, green: 0.85, blue: 0.7).opacity(0.025 * flicker)))
     }
 
     private func drawFriendLeft(ctx: inout GraphicsContext, size: CGSize, t: Double) {
@@ -379,10 +379,10 @@ struct QuietMealScene: View {
     }
 
     private func drawWindowGlass(ctx: inout GraphicsContext, size: CGSize, t: Double) {
-        // Glass overlay — slight blue tint, the barrier between you and the warmth
+        // Glass overlay — cool blue tint, the barrier between you and the warmth
         let wr = windowRect(size: size)
         ctx.fill(Rectangle().path(in: wr),
-                 with: .color(Color(red: 0.5, green: 0.6, blue: 0.75).opacity(0.06)))
+                 with: .color(Color(red: 0.4, green: 0.5, blue: 0.7).opacity(0.1)))
 
         // Reflection streak — a diagonal glint
         let streakAngle = 0.2
