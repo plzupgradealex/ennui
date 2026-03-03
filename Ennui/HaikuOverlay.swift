@@ -39,6 +39,8 @@ actor HaikuGenerator {
             .captainStar: "a barren desert planet at the very edge of the universe, yellow and ochre skies stretching forever, floating rocks defying gravity, a lone glass and crystal outpost catching distant starlight, dust motes drifting through warm emptiness, stars visible through the haze, cosmic desolation that is somehow peaceful and beautiful",
             .nonsenseLullabies: "a hand-painted watercolour world like a page from a beloved picture book, soft washes of colour bleeding into warm paper, simple nursery shapes drifting gently — moons, stars, cats, little houses, birds, flowers — paint drips running slowly down the page, the gentle nonsense of lullabies and bedtime stories",
             .gouraudSolarSystem: "an imaginary solar system rendered in retro Gouraud-shaded 3D, a warm star at the centre, smooth-lit planets with specular highlights orbiting in ellipses, ring systems catching the light, tiny moons tracing paths around gas giants, faint scanlines and orbital grid lines giving it the feel of a late-nineties tech demo running at two in the morning",
+            .medievalVillage3D: "a low-poly three-dimensional medieval village diorama viewed from above like a tabletop model, warm amber window lights, moonlit thatched roofs, firefly particles drifting between cottages, a church steeple, fog rolling in, the camera orbiting slowly as if you were an owl circling the sleeping hamlet",
+            .lateNightRerun3D: "a three-dimensional nineties bedroom seen from the perspective of lying in bed, a CRT television casting shifting colored light across purple walls, green glow-in-the-dark stars on the ceiling, a lava lamp pulsing pink on the nightstand, the cozy geometry of a room you fell asleep in a thousand times",
         ]
         let theme = themes[scene] ?? "a peaceful calming moment"
 
@@ -230,6 +232,16 @@ struct HaikuOverlayView: View {
             "Seven worlds orbit\nSmooth light slides across their faces\nThe star hums below",
             "A new moon is born\nGradient and highlight spinning\nPolygons at peace",
             "Rings catch the slow light\nScanlines trace through empty space\nThe GPU dreams on",
+        ],
+        .medievalVillage3D: [
+            "Low-poly hamlet\nWarm light leaks from tiny homes\nThe owl circles slow",
+            "Fog between the roofs\nFirefly dots in three-space drift\nEvery face is flat",
+            "The church stands tallest\nAnd its shadow maps the ground\nVertices at rest",
+        ],
+        .lateNightRerun3D: [
+            "The TV casts blue\nAcross the modelled bedroom\nSleep in polygon",
+            "Green stars on ceiling\nLava lamp pulses in three\nDimensions of home",
+            "Lying here in mesh\nThe channel changes colour\nDepth of memory",
         ],
     ]
 

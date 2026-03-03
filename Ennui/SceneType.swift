@@ -34,6 +34,8 @@ enum SceneKind: String, CaseIterable, Identifiable {
     case captainStar = "captainStar"
     case nonsenseLullabies = "nonsenseLullabies"
     case gouraudSolarSystem = "gouraudSolarSystem"
+    case medievalVillage3D = "medievalVillage3D"
+    case lateNightRerun3D = "lateNightRerun3D"
 
     var id: String { rawValue }
 
@@ -74,6 +76,8 @@ enum SceneKind: String, CaseIterable, Identifiable {
         case .captainStar: return "Captain Star"
         case .nonsenseLullabies: return "Nonsense & Lullabies"
         case .gouraudSolarSystem: return "Solar System"
+        case .medievalVillage3D: return "Medieval Village 3D"
+        case .lateNightRerun3D: return "Late Night Rerun 3D"
         }
     }
 
@@ -114,6 +118,8 @@ enum SceneKind: String, CaseIterable, Identifiable {
         case .captainStar: return "A barren desert planet at the edge of the universe, ochre skies, floating rocks, a lone glass outpost, stars visible through the dust, cosmic desolation made beautiful"
         case .nonsenseLullabies: return "Hand-painted watercolour nursery shapes drifting on warm paper, cats, moons, little houses, gentle paint drips running down"
         case .gouraudSolarSystem: return "A retro-rendered imaginary solar system with Gouraud-shaded planets orbiting a warm star, specular highlights, ring systems, and moons drifting in elliptical orbits"
+        case .medievalVillage3D: return "A low-poly three-dimensional medieval village diorama viewed from above, with warm window lights, moonlit roofs, firefly particles, and a slowly orbiting camera"
+        case .lateNightRerun3D: return "A three-dimensional nineties bedroom seen from bed, CRT television casting colored light across the walls, glow-in-the-dark ceiling stars, a pulsing lava lamp"
         }
     }
 
@@ -154,6 +160,8 @@ enum SceneKind: String, CaseIterable, Identifiable {
         case .captainStar: return "Tap to send a luminous pulse across the desert"
         case .nonsenseLullabies: return "Tap to bloom a watercolour splash"
         case .gouraudSolarSystem: return "Tap to shimmer a planet or add a new moon"
+        case .medievalVillage3D: return "Tap to snuff a window light"
+        case .lateNightRerun3D: return "Tap to change the channel"
         }
     }
 
@@ -192,6 +200,8 @@ enum SceneKind: String, CaseIterable, Identifiable {
         case .captainStar: return "globe.americas"
         case .nonsenseLullabies: return "paintbrush.pointed"
         case .gouraudSolarSystem: return "globe.europe.africa"
+        case .medievalVillage3D: return "cube"
+        case .lateNightRerun3D: return "cube.fill"
         }
     }
 
@@ -230,6 +240,8 @@ enum SceneKind: String, CaseIterable, Identifiable {
         case .captainStar: return Color(red: 0.72, green: 0.52, blue: 0.22)
         case .nonsenseLullabies: return Color(red: 0.75, green: 0.55, blue: 0.70)
         case .gouraudSolarSystem: return Color(red: 0.35, green: 0.25, blue: 0.65)
+        case .medievalVillage3D: return Color(red: 0.60, green: 0.45, blue: 0.25)
+        case .lateNightRerun3D: return Color(red: 0.25, green: 0.20, blue: 0.50)
         }
     }
 
@@ -239,7 +251,7 @@ enum SceneKind: String, CaseIterable, Identifiable {
         switch self {
         // Amber comfort — home, warmth, safety
         case .saltLamp, .conservatory, .artDecoLA, .quietMeal,
-             .lateNightRerun, .midnightMotel:
+             .lateNightRerun, .midnightMotel, .lateNightRerun3D:
             return "warm"
         // Rain, ocean, night — cooler, more spacious
         case .deepOcean, .celShadedRainyDay, .shimizuEvening, .jeonjuNight:
@@ -250,7 +262,7 @@ enum SceneKind: String, CaseIterable, Identifiable {
             return "cosmic"
         // Fields, villages, natural world
         case .ontarioCountryside, .minnesotaSmallTown, .medievalVillage,
-             .ancientRuins, .lushRuins:
+             .ancientRuins, .lushRuins, .medievalVillage3D:
             return "earthy"
         // Retro, nostalgia, gentle floating
         case .retroGarden, .retroPS1, .nightTrain, .paperLanternFestival,

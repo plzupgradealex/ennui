@@ -48,7 +48,7 @@ struct GouraudSolarSystemScene: View {
         TimelineView(.animation(minimumInterval: 1.0 / 60.0)) { timeline in
             let t = timeline.date.timeIntervalSince(startDate)
             Canvas { ctx, size in
-                guard ready else { return }
+                guard ready, size.width > 50, size.height > 50 else { return }
                 let center = CGPoint(x: size.width * 0.5, y: size.height * 0.48)
                 drawSpace(ctx: &ctx, size: size, t: t)
                 drawOrbitalGrid(ctx: &ctx, size: size, center: center, t: t)

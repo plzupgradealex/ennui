@@ -58,7 +58,7 @@ struct PaperLanternFestivalScene: View {
         TimelineView(.animation(minimumInterval: 1.0 / 60.0)) { tl in
             let t = tl.date.timeIntervalSince(startDate)
             Canvas { ctx, size in
-                guard ready else { return }
+                guard ready, size.width > 50, size.height > 50 else { return }
                 drawSky(ctx: &ctx, size: size, t: t)
                 drawStars(ctx: &ctx, size: size, t: t)
                 drawMountains(ctx: &ctx, size: size)

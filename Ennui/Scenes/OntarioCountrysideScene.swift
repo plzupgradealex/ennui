@@ -82,7 +82,7 @@ struct OntarioCountrysideScene: View {
         TimelineView(.animation(minimumInterval: 1.0 / 60.0)) { timeline in
             let now = timeline.date.timeIntervalSince(startDate)
             Canvas { ctx, size in
-                guard ready else { return }
+                guard ready, size.width > 50, size.height > 50 else { return }
                 let w = size.width
                 let h = size.height
                 drawSky(ctx: ctx, w: w, h: h, t: now)

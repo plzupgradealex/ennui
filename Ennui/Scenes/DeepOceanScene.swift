@@ -35,7 +35,7 @@ struct DeepOceanScene: View {
         TimelineView(.animation(minimumInterval: 1.0 / 60.0)) { tl in
             let t = tl.date.timeIntervalSince(startDate)
             Canvas { ctx, size in
-                guard ready else { return }
+                guard ready, size.width > 50, size.height > 50 else { return }
                 drawBG(ctx: &ctx, size: size, t: t)
                 drawRays(ctx: &ctx, size: size, t: t)
                 drawSeafloor(ctx: &ctx, size: size, t: t)

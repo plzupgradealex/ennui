@@ -287,6 +287,8 @@ struct ContentView: View {
         case .captainStar: CaptainStarScene(interaction: interaction)
         case .nonsenseLullabies: NonsenseLullabiesScene(interaction: interaction)
         case .gouraudSolarSystem: GouraudSolarSystemScene(interaction: interaction)
+        case .medievalVillage3D: MedievalVillage3DScene(interaction: interaction)
+        case .lateNightRerun3D: LateNightRerun3DScene(interaction: interaction)
         }
     }
 

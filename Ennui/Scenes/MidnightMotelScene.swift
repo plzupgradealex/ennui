@@ -23,7 +23,7 @@ struct MidnightMotelScene: View {
         TimelineView(.animation(minimumInterval: 1.0 / 60.0)) { tl in
             let t = tl.date.timeIntervalSince(startDate)
             Canvas { ctx, size in
-                guard ready else { return }
+                guard ready, size.width > 50, size.height > 50 else { return }
                 let w = size.width
                 let h = size.height
 
@@ -125,8 +125,8 @@ struct MidnightMotelScene: View {
         // A few stars visible
         var rng = SplitMix64(seed: 0x1968_57A4)
         for _ in 0..<12 {
-            let sx = wx + Double.random(in: 5...(ww - 5), using: &rng)
-            let sy = wy + Double.random(in: 5...(wh * 0.4), using: &rng)
+            let sx = wx + Double.random(in: 5...max(6, ww - 5), using: &rng)
+            let sy = wy + Double.random(in: 5...max(6, wh * 0.4), using: &rng)
             let sb = Double.random(in: 0.15...0.5, using: &rng)
             let ss = Double.random(in: 0.5...1.2, using: &rng)
             let twink = sin(t * Double.random(in: 0.5...2.0, using: &rng) + Double.random(in: 0...6.28, using: &rng)) * 0.15 + 0.85

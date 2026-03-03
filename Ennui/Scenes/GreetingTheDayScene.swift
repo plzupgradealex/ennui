@@ -40,7 +40,7 @@ struct GreetingTheDayScene: View {
         TimelineView(.animation(minimumInterval: 1.0 / 60.0)) { timeline in
             let t = timeline.date.timeIntervalSince(startDate)
             Canvas { ctx, size in
-                guard ready else { return }
+                guard ready, size.width > 50, size.height > 50 else { return }
                 let sunProgress = min(t / 120.0, 1.0) // Sun rises over 2 minutes
                 drawSky(ctx: &ctx, size: size, t: t, sunProgress: sunProgress)
                 drawSun(ctx: &ctx, size: size, t: t, sunProgress: sunProgress)

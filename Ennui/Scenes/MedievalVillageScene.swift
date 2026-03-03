@@ -60,7 +60,7 @@ struct MedievalVillageScene: View {
             let t = tl.date.timeIntervalSince(startDate)
             let progress = totalLights > 0 ? Double(extinguished.count) / Double(totalLights) : 0
             Canvas { ctx, size in
-                guard ready else { return }
+                guard ready, size.width > 50, size.height > 50 else { return }
                 drawSky(ctx: &ctx, size: size, t: t, progress: progress)
                 drawMoon(ctx: &ctx, size: size, t: t, progress: progress)
                 drawStars(ctx: &ctx, size: size, t: t, progress: progress)

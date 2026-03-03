@@ -49,7 +49,7 @@ struct NightTrainScene: View {
         TimelineView(.animation(minimumInterval: 1.0 / 60.0)) { timeline in
             let t = timeline.date.timeIntervalSince(startDate)
             Canvas { ctx, size in
-                guard ready else { return }
+                guard ready, size.width > 50, size.height > 50 else { return }
                 let phase = weatherPhase(t)
                 drawSky(ctx: &ctx, size: size, t: t, phase: phase)
                 drawLandscape(ctx: &ctx, size: size, t: t, phase: phase)
