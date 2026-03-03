@@ -78,34 +78,35 @@ struct VoyagerNebulaScene: View {
     private func generate() {
         var rng = SplitMix64(seed: 4747)
 
-        // Muted, desaturated palette — more natural gas cloud colours
+        // Rich palette inspired by emission nebulae — luminous oranges,
+        // deep teals, golden cores, with dark dust lanes between
         let palette: [(Double, Double, Double)] = [
-            (0.20, 0.45, 0.55),   // muted teal
-            (0.55, 0.22, 0.42),   // dusty mauve
-            (0.60, 0.40, 0.18),   // amber haze
-            (0.35, 0.22, 0.50),   // dim violet
-            (0.50, 0.30, 0.35),   // muted rose
-            (0.22, 0.38, 0.55),   // slate blue
-            (0.45, 0.42, 0.22),   // faded gold
-            (0.25, 0.48, 0.38),   // seafoam grey
+            (0.82, 0.42, 0.10),   // deep amber
+            (0.70, 0.28, 0.06),   // burnt orange
+            (0.12, 0.52, 0.68),   // vibrant teal
+            (0.08, 0.40, 0.60),   // deep cyan
+            (0.88, 0.52, 0.14),   // bright gold
+            (0.60, 0.22, 0.08),   // rust
+            (0.10, 0.45, 0.52),   // ocean teal
+            (0.75, 0.55, 0.18),   // warm gold
         ]
 
-        // Fewer clouds, more irregular shapes, lower opacity
-        gasClouds = (0..<16).map { i in
+        // Fewer clouds, more irregular shapes, richer opacity
+        gasClouds = (0..<18).map { i in
             let (cr, cg, cb) = palette[i % palette.count]
-            let depth = i < 5 ? 0 : (i < 11 ? 1 : 2)
+            let depth = i < 6 ? 0 : (i < 13 ? 1 : 2)
             return GasCloudData(
                 cx: Double.random(in: -0.15...1.15, using: &rng),
                 cy: Double.random(in: -0.15...1.15, using: &rng),
-                radiusX: Double.random(in: 0.10...0.35, using: &rng),
-                radiusY: Double.random(in: 0.06...0.25, using: &rng),
+                radiusX: Double.random(in: 0.14...0.45, using: &rng),
+                radiusY: Double.random(in: 0.08...0.32, using: &rng),
                 r: cr + Double.random(in: -0.08...0.08, using: &rng),
                 g: cg + Double.random(in: -0.08...0.08, using: &rng),
                 b: cb + Double.random(in: -0.08...0.08, using: &rng),
                 driftX: Double.random(in: -0.0015...0.0015, using: &rng),
                 driftY: Double.random(in: -0.001...0.001, using: &rng),
                 phase: Double.random(in: 0...(.pi * 2), using: &rng),
-                opacity: Double.random(in: 0.06...0.18, using: &rng),
+                opacity: Double.random(in: 0.15...0.40, using: &rng),
                 depth: depth
             )
         }
@@ -123,18 +124,18 @@ struct VoyagerNebulaScene: View {
             )
         }
 
-        // Just 3 subtle cores — small, gentle glow
-        cores = (0..<3).map { _ in
+        // 5 luminous stellar cores with strong HDR glow
+        cores = (0..<5).map { _ in
             let (cr, cg, cb) = palette[Int.random(in: 0..<palette.count, using: &rng)]
             return CoreData(
                 cx: Double.random(in: 0.15...0.85, using: &rng),
                 cy: Double.random(in: 0.15...0.85, using: &rng),
-                r: min(cr + 0.25, 1.0),
-                g: min(cg + 0.25, 1.0),
-                b: min(cb + 0.25, 1.0),
+                r: min(cr + 0.35, 1.2),
+                g: min(cg + 0.35, 1.0),
+                b: min(cb + 0.35, 1.1),
                 pulseRate: Double.random(in: 0.08...0.18, using: &rng),
                 pulsePhase: Double.random(in: 0...(.pi * 2), using: &rng),
-                size: Double.random(in: 0.005...0.012, using: &rng)
+                size: Double.random(in: 0.006...0.015, using: &rng)
             )
         }
 
@@ -145,17 +146,17 @@ struct VoyagerNebulaScene: View {
 
     private func drawBackground(ctx: inout GraphicsContext, size: CGSize, t: Double) {
         let cycle = sin(t * 0.015) * 0.5 + 0.5
-        let r1 = 0.012 + cycle * 0.015
-        let g1 = 0.006 + (1 - cycle) * 0.01
-        let b1 = 0.025 + cycle * 0.015
+        let r1 = 0.02 + cycle * 0.025
+        let g1 = 0.008 + (1 - cycle) * 0.012
+        let b1 = 0.04 + cycle * 0.03
 
         ctx.fill(
             Rectangle().path(in: CGRect(origin: .zero, size: size)),
             with: .linearGradient(
                 Gradient(colors: [
                     Color(red: r1, green: g1, blue: b1),
-                    Color(red: r1 * 0.7, green: g1 * 1.2, blue: b1 * 1.3),
-                    Color(red: r1 * 1.3, green: g1 * 0.7, blue: b1 * 0.8),
+                    Color(red: r1 * 0.6, green: g1 * 1.5, blue: b1 * 1.5),
+                    Color(red: r1 * 1.8, green: g1 * 0.6, blue: b1 * 0.7),
                 ]),
                 startPoint: CGPoint(x: size.width * (0.3 + sin(t * 0.006) * 0.2), y: 0),
                 endPoint: CGPoint(x: size.width * (0.7 + cos(t * 0.008) * 0.2), y: size.height)
@@ -190,8 +191,9 @@ struct VoyagerNebulaScene: View {
         let clouds = gasClouds.filter { $0.depth == depth }
         guard !clouds.isEmpty else { return }
 
+        let blurScale: Double = depth == 0 ? 0.14 : (depth == 1 ? 0.08 : 0.04)
         ctx.drawLayer { layerCtx in
-            layerCtx.addFilter(.blur(radius: size.width * 0.10))
+            layerCtx.addFilter(.blur(radius: size.width * blurScale))
 
             for cloud in clouds {
                 let x = (cloud.cx + sin(t * 0.03 + cloud.phase) * 0.02
@@ -199,9 +201,9 @@ struct VoyagerNebulaScene: View {
                 let y = (cloud.cy + cos(t * 0.025 + cloud.phase) * 0.015
                          + t * cloud.driftY) * size.height
 
-                let breathe = sin(t * 0.06 + cloud.phase) * 0.04 + 1.0
-                let rx = cloud.radiusX * size.width * breathe
-                let ry = cloud.radiusY * size.height * breathe
+                let breathe = sin(t * 0.06 + cloud.phase) * 0.05 + 1.0
+                let rx = cloud.radiusX * size.width * breathe * 1.15
+                let ry = cloud.radiusY * size.height * breathe * 1.15
                 let color = Color(red: cloud.r, green: cloud.g, blue: cloud.b)
 
                 // One large soft ellipse per cloud — no sub-ellipse loops
@@ -224,32 +226,32 @@ struct VoyagerNebulaScene: View {
         }
     }
 
-    // MARK: - Stellar cores — small gentle glowing points, no spikes
+    // MARK: - Stellar cores — luminous glowing points with HDR bloom
 
     private func drawCores(ctx: inout GraphicsContext, size: CGSize, t: Double) {
         // Soft halo layer
         ctx.drawLayer { layerCtx in
-            layerCtx.addFilter(.blur(radius: size.width * 0.025))
+            layerCtx.addFilter(.blur(radius: size.width * 0.035))
             for core in cores {
-                let pulse = sin(t * core.pulseRate + core.pulsePhase) * 0.12 + 1.0
+                let pulse = sin(t * core.pulseRate + core.pulsePhase) * 0.15 + 1.0
                 let x = core.cx * size.width
                 let y = core.cy * size.height
                 let coreR = core.size * max(size.width, size.height) * pulse
-                let bright = 1.1 * pulse
+                let bright = 1.2 * pulse
                 let coreColor = Color(red: core.r * bright,
                                       green: core.g * bright,
                                       blue: core.b * bright)
 
-                // Outer halo
-                let haloR = coreR * 5
+                // Outer halo — large and luminous
+                let haloR = coreR * 7
                 let haloRect = CGRect(x: x - haloR, y: y - haloR,
                                       width: haloR * 2, height: haloR * 2)
                 layerCtx.fill(
                     Ellipse().path(in: haloRect),
                     with: .radialGradient(
                         Gradient(colors: [
-                            coreColor.opacity(0.18),
-                            coreColor.opacity(0.04),
+                            coreColor.opacity(0.28),
+                            coreColor.opacity(0.08),
                             .clear
                         ]),
                         center: CGPoint(x: x, y: y),

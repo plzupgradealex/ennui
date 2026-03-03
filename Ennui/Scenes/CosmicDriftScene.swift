@@ -78,14 +78,29 @@ struct CosmicDriftScene: View {
             )
         }
 
-        nebulae = (0..<14).map { _ in
-            NebulaData(
+        // Rich palette inspired by emission nebulae — deep oranges,
+        // luminous teals, warm ambers, with dark voids between
+        let palette: [(Double, Double, Double)] = [
+            (0.85, 0.45, 0.12),   // deep amber
+            (0.75, 0.30, 0.08),   // burnt orange
+            (0.15, 0.55, 0.70),   // rich teal
+            (0.10, 0.42, 0.62),   // deep cyan
+            (0.90, 0.55, 0.15),   // golden
+            (0.65, 0.25, 0.10),   // rust
+            (0.12, 0.48, 0.55),   // ocean teal
+            (0.80, 0.60, 0.20),   // warm gold
+            (0.20, 0.35, 0.58),   // slate blue
+            (0.70, 0.35, 0.12),   // sienna
+        ]
+        nebulae = (0..<18).map { i in
+            let (pr, pg, pb) = palette[i % palette.count]
+            return NebulaData(
                 cx: Double.random(in: -0.2...1.2, using: &rng),
                 cy: Double.random(in: -0.2...1.2, using: &rng),
-                radius: Double.random(in: 0.12...0.45, using: &rng),
-                r: Double.random(in: 0.15...0.85, using: &rng),
-                g: Double.random(in: 0.08...0.45, using: &rng),
-                b: Double.random(in: 0.15...0.65, using: &rng),
+                radius: Double.random(in: 0.15...0.55, using: &rng),
+                r: pr + Double.random(in: -0.06...0.06, using: &rng),
+                g: pg + Double.random(in: -0.06...0.06, using: &rng),
+                b: pb + Double.random(in: -0.06...0.06, using: &rng),
                 driftX: Double.random(in: -0.002...0.002, using: &rng),
                 driftY: Double.random(in: -0.0015...0.0015, using: &rng),
                 phase: Double.random(in: 0...(.pi * 2), using: &rng)
@@ -107,18 +122,18 @@ struct CosmicDriftScene: View {
     }
 
     private func drawBackground(ctx: inout GraphicsContext, size: CGSize, t: Double) {
-        // Slowly cycling warm/cool background
+        // Deep space with warm/cool cycling — richer than pure black
         let warmCycle = sin(t * 0.02) * 0.5 + 0.5
-        let r1 = 0.02 + warmCycle * 0.04
-        let g1 = 0.008 + warmCycle * 0.01
-        let b1 = 0.06 + (1 - warmCycle) * 0.04
+        let r1 = 0.03 + warmCycle * 0.05
+        let g1 = 0.01 + warmCycle * 0.015
+        let b1 = 0.06 + (1 - warmCycle) * 0.06
         ctx.fill(
             Rectangle().path(in: CGRect(origin: .zero, size: size)),
             with: .linearGradient(
                 Gradient(colors: [
                     Color(red: r1, green: g1, blue: b1),
-                    Color(red: r1 * 1.5, green: g1 * 1.2, blue: b1 * 0.8),
-                    Color(red: r1 * 0.8, green: g1 * 1.5, blue: b1 * 1.2),
+                    Color(red: r1 * 1.8, green: g1 * 1.3, blue: b1 * 0.6),
+                    Color(red: r1 * 0.6, green: g1 * 1.8, blue: b1 * 1.5),
                 ]),
                 startPoint: CGPoint(x: size.width * 0.5 + sin(t * 0.03) * size.width * 0.3, y: 0),
                 endPoint: CGPoint(x: size.width * 0.5 + cos(t * 0.02) * size.width * 0.3, y: size.height)
@@ -131,20 +146,23 @@ struct CosmicDriftScene: View {
     private func drawDustLane(ctx: inout GraphicsContext, size: CGSize, t: Double) {
         ctx.drawLayer { l in
             l.addFilter(.blur(radius: max(size.width, size.height) * 0.15))
-            let breathe = sin(t * 0.025) * 0.008 + 0.035
-            // Diagonal translucent band of warm cosmic gas
-            let bandW = max(size.width, size.height) * 0.25
-            for i in 0..<6 {
-                let frac = Double(i) / 5.0
+            let breathe = sin(t * 0.025) * 0.01 + 0.055
+            // Diagonal band of rich cosmic gas — warm ambers bleeding into cool teals
+            let bandW = max(size.width, size.height) * 0.28
+            for i in 0..<8 {
+                let frac = Double(i) / 7.0
                 let x = frac * size.width * 1.4 - size.width * 0.2
                 let y = (1.0 - frac) * size.height * 1.2 - size.height * 0.1
-                let drift = sin(t * 0.01 + frac * 2) * 20
+                let drift = sin(t * 0.01 + frac * 2) * 25
                 let r = bandW * (0.6 + sin(frac * .pi) * 0.4)
-                let warmth = 0.5 + sin(frac * .pi * 2) * 0.3
+                // Warm on one side, cool on the other
+                let warmth = frac
+                let cr = 0.20 + warmth * 0.50
+                let cg = 0.15 + (1.0 - warmth) * 0.25
+                let cb = 0.15 + (1.0 - warmth) * 0.35
                 l.fill(Ellipse().path(in: CGRect(x: x + drift - r, y: y - r * 0.4,
                                                   width: r * 2, height: r * 0.8)),
-                    with: .color(Color(red: 0.3 + warmth * 0.15, green: 0.15 + warmth * 0.08,
-                                       blue: 0.25).opacity(breathe)))
+                    with: .color(Color(red: cr, green: cg, blue: cb).opacity(breathe)))
             }
         }
     }
@@ -165,15 +183,14 @@ struct CosmicDriftScene: View {
     }
 
     private func drawNebulae(ctx: inout GraphicsContext, size: CGSize, t: Double) {
-        // Single shared blur layer for all 14 nebulae (was 14 separate layers)
+        // Deep layer — large soft clouds, high blur
         ctx.drawLayer { layerCtx in
-            layerCtx.addFilter(.blur(radius: size.width * 0.08))
-            layerCtx.opacity = 0.3
-            for n in nebulae {
+            layerCtx.addFilter(.blur(radius: size.width * 0.12))
+            for (i, n) in nebulae.enumerated() where i < 8 {
                 let x = (n.cx + sin(t * n.driftX * 8 + n.phase) * 0.06) * size.width
                 let y = (n.cy + cos(t * n.driftY * 8 + n.phase) * 0.06) * size.height
-                let baseR = n.radius * max(size.width, size.height)
-                let breathe = sin(t * 0.15 + n.phase) * 0.08 + 1.0
+                let baseR = n.radius * max(size.width, size.height) * 1.2
+                let breathe = sin(t * 0.12 + n.phase) * 0.06 + 1.0
                 let r = baseR * breathe
                 let color = Color(red: n.r, green: n.g, blue: n.b)
 
@@ -181,7 +198,69 @@ struct CosmicDriftScene: View {
                 layerCtx.fill(
                     Ellipse().path(in: rect),
                     with: .radialGradient(
-                        Gradient(colors: [color.opacity(0.7), color.opacity(0.2), color.opacity(0)]),
+                        Gradient(colors: [
+                            color.opacity(0.55),
+                            color.opacity(0.28),
+                            color.opacity(0.08),
+                            .clear
+                        ]),
+                        center: CGPoint(x: x, y: y),
+                        startRadius: 0,
+                        endRadius: r
+                    )
+                )
+            }
+        }
+
+        // Mid layer — medium clouds, sharper edges
+        ctx.drawLayer { layerCtx in
+            layerCtx.addFilter(.blur(radius: size.width * 0.06))
+            for (i, n) in nebulae.enumerated() where i >= 8 && i < 14 {
+                let x = (n.cx + sin(t * n.driftX * 10 + n.phase) * 0.04) * size.width
+                let y = (n.cy + cos(t * n.driftY * 10 + n.phase) * 0.04) * size.height
+                let baseR = n.radius * max(size.width, size.height) * 0.8
+                let breathe = sin(t * 0.18 + n.phase) * 0.05 + 1.0
+                let r = baseR * breathe
+                let color = Color(red: n.r, green: n.g, blue: n.b)
+
+                let rect = CGRect(x: x - r, y: y - r, width: r * 2, height: r * 2)
+                layerCtx.fill(
+                    Ellipse().path(in: rect),
+                    with: .radialGradient(
+                        Gradient(colors: [
+                            color.opacity(0.45),
+                            color.opacity(0.18),
+                            color.opacity(0.04),
+                            .clear
+                        ]),
+                        center: CGPoint(x: x, y: y),
+                        startRadius: 0,
+                        endRadius: r
+                    )
+                )
+            }
+        }
+
+        // Near layer — small bright wisps
+        ctx.drawLayer { layerCtx in
+            layerCtx.addFilter(.blur(radius: size.width * 0.03))
+            for (i, n) in nebulae.enumerated() where i >= 14 {
+                let x = (n.cx + sin(t * n.driftX * 12 + n.phase) * 0.03) * size.width
+                let y = (n.cy + cos(t * n.driftY * 12 + n.phase) * 0.03) * size.height
+                let baseR = n.radius * max(size.width, size.height) * 0.5
+                let breathe = sin(t * 0.22 + n.phase) * 0.06 + 1.0
+                let r = baseR * breathe
+                let color = Color(red: n.r, green: n.g, blue: n.b)
+
+                let rect = CGRect(x: x - r, y: y - r, width: r * 2, height: r * 2)
+                layerCtx.fill(
+                    Ellipse().path(in: rect),
+                    with: .radialGradient(
+                        Gradient(colors: [
+                            color.opacity(0.35),
+                            color.opacity(0.10),
+                            .clear
+                        ]),
                         center: CGPoint(x: x, y: y),
                         startRadius: 0,
                         endRadius: r

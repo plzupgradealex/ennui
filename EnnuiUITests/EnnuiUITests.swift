@@ -1,5 +1,8 @@
 import XCTest
 
+// Total scene count — update when adding scenes
+private let kSceneCount = 36
+
 final class EnnuiUITests: XCTestCase {
     let app = XCUIApplication()
 
@@ -8,75 +11,115 @@ final class EnnuiUITests: XCTestCase {
         app.launch()
     }
 
+    /// Wait for the intro breathing animation to finish and scenes to be ready.
+    private func waitForIntro() {
+        sleep(8)
+    }
+
     // MARK: - Launch & Intro
 
     func testAppLaunches() throws {
-        // The app should launch and display a window
         XCTAssertTrue(app.windows.count > 0, "App should have at least one window")
     }
 
     func testIntroFadesAndSceneAppears() throws {
-        // After ~6s the intro breathing light should dissolve and a scene must be visible
-        // We wait for the picker to auto-show (it shows at ~5s for 6s)
         let picker = app.buttons.firstMatch
         let exists = picker.waitForExistence(timeout: 12)
-        // Picker buttons appear after intro fades — their existence implies scenes loaded
         XCTAssertTrue(exists, "Scene picker should auto-appear after intro")
     }
 
     // MARK: - Scene Picker
 
     func testPickerAppearsOnSpacebar() throws {
-        // Wait for intro to finish
-        sleep(7)
-        // Dismiss any auto-shown picker by waiting
+        waitForIntro()
+        // Wait for auto-shown picker to dismiss
         sleep(6)
-        // Press space to show picker
         app.typeKey(" ", modifierFlags: [])
         sleep(1)
-        // Should have at least 7 buttons (one per scene)
-        let buttons = app.buttons
-        XCTAssertGreaterThanOrEqual(buttons.count, 7, "Picker should show 7 scene orbs")
+        XCTAssertGreaterThanOrEqual(app.buttons.count, kSceneCount,
+            "Picker should show \(kSceneCount) scene orbs")
     }
 
     func testPickerAppearsOnDoubleTap() throws {
-        sleep(7)
-        let window = app.windows.firstMatch
-        window.doubleTap()
+        waitForIntro()
+        app.windows.firstMatch.doubleTap()
         sleep(1)
-        let buttons = app.buttons
-        XCTAssertGreaterThanOrEqual(buttons.count, 1, "Picker should appear on double-tap")
+        XCTAssertGreaterThanOrEqual(app.buttons.count, 1, "Picker should appear on double-tap")
     }
 
-    // MARK: - Scene Switching
+    // MARK: - Full Scene Cycle (the main crash-catcher)
 
-    func testArrowKeySwitchesScene() throws {
-        // Wait for full startup
-        sleep(8)
-        // Press right arrow to go to next scene
-        app.typeKey(.rightArrow, modifierFlags: [])
-        sleep(3)  // Wait for crossfade
-        // Press right again
-        app.typeKey(.rightArrow, modifierFlags: [])
-        sleep(3)
-        // App should still be running and responsive
-        XCTAssertTrue(app.windows.firstMatch.exists, "App should remain stable after scene switching")
-    }
-
+    /// Cycle through ALL scenes one by one via right-arrow.
+    /// Each scene renders for 3 seconds — enough to trigger generate(),
+    /// Canvas drawing, and Metal compositing. Catches crashes, range errors,
+    /// and infinite-loop @State mutations.
     func testCycleThroughAllScenes() throws {
-        sleep(8)
-        // Cycle through all 7 scenes via right arrow
-        for i in 0..<7 {
+        waitForIntro()
+        for i in 0..<kSceneCount {
             app.typeKey(.rightArrow, modifierFlags: [])
-            // Allow crossfade transition
+            // 3s = crossfade (2s) + 1s render at full size
             sleep(3)
-            XCTAssertTrue(app.windows.firstMatch.exists, "App should remain stable on scene \(i + 1)")
+            XCTAssertTrue(app.windows.firstMatch.exists,
+                "App crashed on scene \(i + 1) of \(kSceneCount)")
         }
     }
 
+    /// Cycle all scenes in reverse via left-arrow.
+    func testCycleAllScenesReverse() throws {
+        waitForIntro()
+        for i in 0..<kSceneCount {
+            app.typeKey(.leftArrow, modifierFlags: [])
+            sleep(3)
+            XCTAssertTrue(app.windows.firstMatch.exists,
+                "App crashed on reverse scene \(i + 1) of \(kSceneCount)")
+        }
+    }
+
+    /// Cycle every scene and tap once in each to test interaction handlers.
+    func testCycleAllScenesWithTap() throws {
+        waitForIntro()
+        let window = app.windows.firstMatch
+        for i in 0..<kSceneCount {
+            app.typeKey(.rightArrow, modifierFlags: [])
+            sleep(3)
+            window.tap()
+            sleep(1)
+            XCTAssertTrue(window.exists,
+                "App crashed after tap on scene \(i + 1) of \(kSceneCount)")
+        }
+    }
+
+    /// Cycle every scene and toggle haiku in each to exercise HaikuOverlay
+    /// fallback lookup for all scene types.
+    func testCycleAllScenesWithHaiku() throws {
+        waitForIntro()
+        for i in 0..<kSceneCount {
+            app.typeKey(.rightArrow, modifierFlags: [])
+            sleep(3)
+            // Toggle haiku on
+            app.typeKey("h", modifierFlags: [])
+            sleep(1)
+            // Toggle haiku off
+            app.typeKey("h", modifierFlags: [])
+            sleep(1)
+            XCTAssertTrue(app.windows.firstMatch.exists,
+                "App crashed with haiku on scene \(i + 1) of \(kSceneCount)")
+        }
+    }
+
+    // MARK: - Navigation Edge Cases
+
+    func testArrowKeySwitchesScene() throws {
+        waitForIntro()
+        app.typeKey(.rightArrow, modifierFlags: [])
+        sleep(3)
+        app.typeKey(.rightArrow, modifierFlags: [])
+        sleep(3)
+        XCTAssertTrue(app.windows.firstMatch.exists, "App should remain stable after scene switching")
+    }
+
     func testLeftArrowNavigation() throws {
-        sleep(8)
-        // Go right twice, then left once
+        waitForIntro()
         app.typeKey(.rightArrow, modifierFlags: [])
         sleep(3)
         app.typeKey(.rightArrow, modifierFlags: [])
@@ -86,14 +129,34 @@ final class EnnuiUITests: XCTestCase {
         XCTAssertTrue(app.windows.firstMatch.exists, "Left arrow navigation should work")
     }
 
+    func testWrapAroundForward() throws {
+        waitForIntro()
+        // Go past the last scene — should wrap to first
+        for _ in 0..<(kSceneCount + 2) {
+            app.typeKey(.rightArrow, modifierFlags: [])
+            usleep(500_000) // 0.5s — fast enough to test wrap
+        }
+        sleep(3)
+        XCTAssertTrue(app.windows.firstMatch.exists, "Wrap-around forward should not crash")
+    }
+
+    func testWrapAroundBackward() throws {
+        waitForIntro()
+        // Go backward past the first scene — should wrap to last
+        for _ in 0..<(kSceneCount + 2) {
+            app.typeKey(.leftArrow, modifierFlags: [])
+            usleep(500_000)
+        }
+        sleep(3)
+        XCTAssertTrue(app.windows.firstMatch.exists, "Wrap-around backward should not crash")
+    }
+
     // MARK: - Haiku Overlay
 
     func testHaikuToggleViaKeyboard() throws {
-        sleep(8)
-        // Press H to show haiku
+        waitForIntro()
         app.typeKey("h", modifierFlags: [])
         sleep(2)
-        // Press H again to hide
         app.typeKey("h", modifierFlags: [])
         sleep(2)
         XCTAssertTrue(app.windows.firstMatch.exists, "Haiku toggle should not crash")
@@ -102,40 +165,54 @@ final class EnnuiUITests: XCTestCase {
     // MARK: - Interaction
 
     func testSingleTapInteraction() throws {
-        sleep(8)
+        waitForIntro()
         let window = app.windows.firstMatch
         window.tap()
         sleep(1)
         XCTAssertTrue(window.exists, "Single tap should not crash")
     }
 
-    func testPinchGesture() throws {
-        // Pinch/magnify gestures are hardware-triggered on macOS
-        // and can't be simulated via XCUITest. Verify app is stable instead.
-        sleep(8)
+    func testMultipleTapsOnSameScene() throws {
+        waitForIntro()
         let window = app.windows.firstMatch
-        XCTAssertTrue(window.exists, "Window should exist for gesture testing")
-    }
-
-    // MARK: - Stability
-
-    func testRapidSceneSwitching() throws {
-        sleep(8)
-        // Rapid-fire scene switches to test for race conditions
-        for _ in 0..<10 {
-            app.typeKey(.rightArrow, modifierFlags: [])
-            usleep(300_000)  // 300ms between switches
+        for _ in 0..<5 {
+            window.tap()
+            usleep(400_000)
         }
-        sleep(3)
-        XCTAssertTrue(app.windows.firstMatch.exists, "App should survive rapid scene switching")
+        sleep(1)
+        XCTAssertTrue(window.exists, "Rapid taps should not crash")
     }
+
+    // MARK: - Audio
+
+    func testAudioMuteToggle() throws {
+        waitForIntro()
+        // M toggles audio mute
+        app.typeKey("m", modifierFlags: [])
+        sleep(1)
+        app.typeKey("m", modifierFlags: [])
+        sleep(1)
+        XCTAssertTrue(app.windows.firstMatch.exists, "Audio mute toggle should not crash")
+    }
+
+    // MARK: - About Panel
+
+    func testAboutPanelToggle() throws {
+        waitForIntro()
+        // ? toggles about panel
+        app.typeKey("?", modifierFlags: .shift)
+        sleep(2)
+        app.typeKey("?", modifierFlags: .shift)
+        sleep(1)
+        XCTAssertTrue(app.windows.firstMatch.exists, "About panel toggle should not crash")
+    }
+
+    // MARK: - Picker Selection
 
     func testPickerSelectionSwitchesScene() throws {
-        sleep(8)
-        // Show picker
+        waitForIntro()
         app.typeKey(" ", modifierFlags: [])
         sleep(1)
-        // Tap first available button (scene orb)
         let firstButton = app.buttons.firstMatch
         if firstButton.exists {
             firstButton.tap()
@@ -144,13 +221,73 @@ final class EnnuiUITests: XCTestCase {
         XCTAssertTrue(app.windows.firstMatch.exists, "Picker scene selection should work")
     }
 
+    // MARK: - Stress Tests
+
+    func testRapidSceneSwitching() throws {
+        waitForIntro()
+        // Rapid-fire: 20 switches at ~200ms — tests race conditions
+        for _ in 0..<20 {
+            app.typeKey(.rightArrow, modifierFlags: [])
+            usleep(200_000)
+        }
+        sleep(3)
+        XCTAssertTrue(app.windows.firstMatch.exists, "App should survive rapid scene switching")
+    }
+
+    func testRapidBidirectionalSwitching() throws {
+        waitForIntro()
+        // Alternate left/right rapidly
+        for _ in 0..<15 {
+            app.typeKey(.rightArrow, modifierFlags: [])
+            usleep(200_000)
+            app.typeKey(.leftArrow, modifierFlags: [])
+            usleep(200_000)
+        }
+        sleep(3)
+        XCTAssertTrue(app.windows.firstMatch.exists, "Rapid bidirectional switching should not crash")
+    }
+
+    func testSwitchSceneDuringHaiku() throws {
+        waitForIntro()
+        // Show haiku, then switch scenes — tests concurrent overlay + transition
+        app.typeKey("h", modifierFlags: [])
+        sleep(1)
+        for _ in 0..<5 {
+            app.typeKey(.rightArrow, modifierFlags: [])
+            sleep(2)
+        }
+        app.typeKey("h", modifierFlags: [])
+        sleep(1)
+        XCTAssertTrue(app.windows.firstMatch.exists, "Scene switch during haiku should not crash")
+    }
+
     func testExtendedRunStability() throws {
-        // Let the app run for 30 seconds across multiple scenes
-        sleep(8)
-        for i in 0..<5 {
+        // 60 seconds across many scenes
+        waitForIntro()
+        for i in 0..<10 {
             app.typeKey(.rightArrow, modifierFlags: [])
             sleep(5)
-            XCTAssertTrue(app.windows.firstMatch.exists, "App should be stable after \((i + 1) * 5)s")
+            XCTAssertTrue(app.windows.firstMatch.exists,
+                "App should be stable at \((i + 1) * 5)s extended run")
+        }
+    }
+
+    /// Combined stress: cycle all scenes with tap + haiku at max speed
+    func testFullStressCycle() throws {
+        waitForIntro()
+        let window = app.windows.firstMatch
+        for i in 0..<kSceneCount {
+            app.typeKey(.rightArrow, modifierFlags: [])
+            usleep(800_000) // 0.8s — fast but enough for Canvas to render
+            window.tap()
+            usleep(200_000)
+            if i % 5 == 0 {
+                app.typeKey("h", modifierFlags: [])
+                usleep(300_000)
+                app.typeKey("h", modifierFlags: [])
+            }
+            XCTAssertTrue(window.exists,
+                "Full stress cycle crashed on scene \(i + 1)")
         }
     }
 }

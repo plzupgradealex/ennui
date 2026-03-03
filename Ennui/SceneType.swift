@@ -36,6 +36,7 @@ enum SceneKind: String, CaseIterable, Identifiable {
     case gouraudSolarSystem = "gouraudSolarSystem"
     case medievalVillage3D = "medievalVillage3D"
     case lateNightRerun3D = "lateNightRerun3D"
+    case jeonjuNight3D = "jeonjuNight3D"
 
     var id: String { rawValue }
 
@@ -78,6 +79,7 @@ enum SceneKind: String, CaseIterable, Identifiable {
         case .gouraudSolarSystem: return "Solar System"
         case .medievalVillage3D: return "Medieval Village 3D"
         case .lateNightRerun3D: return "Late Night Rerun 3D"
+        case .jeonjuNight3D: return "Jeonju Night 3D"
         }
     }
 
@@ -120,6 +122,7 @@ enum SceneKind: String, CaseIterable, Identifiable {
         case .gouraudSolarSystem: return "A retro-rendered imaginary solar system with Gouraud-shaded planets orbiting a warm star, specular highlights, ring systems, and moons drifting in elliptical orbits"
         case .medievalVillage3D: return "A low-poly three-dimensional medieval village diorama viewed from above, with warm window lights, moonlit roofs, firefly particles, and a slowly orbiting camera"
         case .lateNightRerun3D: return "A three-dimensional nineties bedroom seen from bed, CRT television casting colored light across the walls, glow-in-the-dark ceiling stars, a pulsing lava lamp"
+        case .jeonjuNight3D: return "A three-dimensional quiet Korean neighbourhood at night, hanok houses with warm windows, a sodium-lit street lamp casting orange light, moths, a cat on a wall, telephone wires against the night sky"
         }
     }
 
@@ -162,6 +165,7 @@ enum SceneKind: String, CaseIterable, Identifiable {
         case .gouraudSolarSystem: return "Tap to shimmer a planet or add a new moon"
         case .medievalVillage3D: return "Tap to snuff a window light"
         case .lateNightRerun3D: return "Tap to change the channel"
+        case .jeonjuNight3D: return "Tap to toggle a window light"
         }
     }
 
@@ -202,6 +206,7 @@ enum SceneKind: String, CaseIterable, Identifiable {
         case .gouraudSolarSystem: return "globe.europe.africa"
         case .medievalVillage3D: return "cube"
         case .lateNightRerun3D: return "cube.fill"
+        case .jeonjuNight3D: return "cube.transparent"
         }
     }
 
@@ -242,6 +247,7 @@ enum SceneKind: String, CaseIterable, Identifiable {
         case .gouraudSolarSystem: return Color(red: 0.35, green: 0.25, blue: 0.65)
         case .medievalVillage3D: return Color(red: 0.60, green: 0.45, blue: 0.25)
         case .lateNightRerun3D: return Color(red: 0.25, green: 0.20, blue: 0.50)
+        case .jeonjuNight3D: return Color(red: 0.85, green: 0.60, blue: 0.22)
         }
     }
 
@@ -254,7 +260,8 @@ enum SceneKind: String, CaseIterable, Identifiable {
              .lateNightRerun, .midnightMotel, .lateNightRerun3D:
             return "warm"
         // Rain, ocean, night — cooler, more spacious
-        case .deepOcean, .celShadedRainyDay, .shimizuEvening, .jeonjuNight:
+        case .deepOcean, .celShadedRainyDay, .shimizuEvening, .jeonjuNight,
+             .jeonjuNight3D:
             return "cool"
         // Stars, nebulae, vast emptiness
         case .cosmicDrift, .voyagerNebula, .desertStarscape,

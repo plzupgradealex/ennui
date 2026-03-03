@@ -40,57 +40,57 @@ final class AmbientAudioEngine: ObservableObject {
     static let moods: [String: Mood] = [
         // Amber comfort — home, warmth, safety
         "warm": Mood(
-            name: "warm", rootMidi: 60,
-            intervals: [0, 2, 4, 7, 9],          // C major pentatonic
-            octaves: [-1, 0, 0, 1],
+            name: "warm", rootMidi: 55,
+            intervals: [0, 2, 4, 7, 9],          // G major pentatonic
+            octaves: [-2, -1, -1, 0],
             noteSpacing: 3.5...9.0,
             attackTime: 1.2, releaseTime: 5.0,
-            brightness: 0.25, reverbWet: 75, masterVolume: 0.14
+            brightness: 0.20, reverbWet: 75, masterVolume: 0.14
         ),
         // Rain, ocean, night — cooler, more spacious
         "cool": Mood(
-            name: "cool", rootMidi: 62,
-            intervals: [0, 3, 5, 7, 10],         // D minor pentatonic
-            octaves: [-1, 0, 0, 1],
+            name: "cool", rootMidi: 55,
+            intervals: [0, 3, 5, 7, 10],         // G minor pentatonic
+            octaves: [-2, -1, -1, 0],
             noteSpacing: 4.5...13.0,
             attackTime: 1.8, releaseTime: 7.0,
-            brightness: 0.12, reverbWet: 88, masterVolume: 0.11
+            brightness: 0.10, reverbWet: 88, masterVolume: 0.11
         ),
         // Stars, nebulae, vast emptiness
         "cosmic": Mood(
-            name: "cosmic", rootMidi: 63,
-            intervals: [0, 2, 4, 7, 9],          // Eb major pentatonic
-            octaves: [-1, 0, 1, 1],
+            name: "cosmic", rootMidi: 50,
+            intervals: [0, 2, 4, 7, 9],          // D major pentatonic
+            octaves: [-2, -1, -1, 0],
             noteSpacing: 5.0...16.0,
             attackTime: 2.5, releaseTime: 9.0,
-            brightness: 0.08, reverbWet: 92, masterVolume: 0.09
+            brightness: 0.06, reverbWet: 92, masterVolume: 0.09
         ),
         // Fields, villages, natural world
         "earthy": Mood(
-            name: "earthy", rootMidi: 55,
-            intervals: [0, 2, 4, 7, 9],          // G major pentatonic
-            octaves: [0, 0, 1],
+            name: "earthy", rootMidi: 50,
+            intervals: [0, 2, 4, 7, 9],          // D major pentatonic
+            octaves: [-1, -1, 0, 0],
             noteSpacing: 3.0...8.0,
             attackTime: 1.0, releaseTime: 4.0,
-            brightness: 0.30, reverbWet: 65, masterVolume: 0.13
+            brightness: 0.22, reverbWet: 65, masterVolume: 0.13
         ),
         // Retro, nostalgia, gentle floating
         "dreamy": Mood(
-            name: "dreamy", rootMidi: 65,
+            name: "dreamy", rootMidi: 53,
             intervals: [0, 2, 4, 7, 9],          // F major pentatonic
-            octaves: [-1, 0, 0, 1],
+            octaves: [-2, -1, -1, 0],
             noteSpacing: 4.0...11.0,
             attackTime: 1.5, releaseTime: 6.0,
-            brightness: 0.18, reverbWet: 80, masterVolume: 0.12
+            brightness: 0.14, reverbWet: 80, masterVolume: 0.12
         ),
         // Libraries, scrolls, ancient knowledge
         "mystical": Mood(
-            name: "mystical", rootMidi: 59,
-            intervals: [0, 3, 5, 7, 10],         // B minor pentatonic
-            octaves: [-1, 0, 0, 1],
+            name: "mystical", rootMidi: 52,
+            intervals: [0, 3, 5, 7, 10],         // E minor pentatonic
+            octaves: [-2, -1, -1, 0],
             noteSpacing: 6.0...15.0,
             attackTime: 2.0, releaseTime: 8.0,
-            brightness: 0.10, reverbWet: 90, masterVolume: 0.10
+            brightness: 0.08, reverbWet: 90, masterVolume: 0.10
         ),
     ]
 

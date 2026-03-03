@@ -41,6 +41,7 @@ actor HaikuGenerator {
             .gouraudSolarSystem: "an imaginary solar system rendered in retro Gouraud-shaded 3D, a warm star at the centre, smooth-lit planets with specular highlights orbiting in ellipses, ring systems catching the light, tiny moons tracing paths around gas giants, faint scanlines and orbital grid lines giving it the feel of a late-nineties tech demo running at two in the morning",
             .medievalVillage3D: "a low-poly three-dimensional medieval village diorama viewed from above like a tabletop model, warm amber window lights, moonlit thatched roofs, firefly particles drifting between cottages, a church steeple, fog rolling in, the camera orbiting slowly as if you were an owl circling the sleeping hamlet",
             .lateNightRerun3D: "a three-dimensional nineties bedroom seen from the perspective of lying in bed, a CRT television casting shifting colored light across purple walls, green glow-in-the-dark stars on the ceiling, a lava lamp pulsing pink on the nightstand, the cozy geometry of a room you fell asleep in a thousand times",
+            .jeonjuNight3D: "a three-dimensional quiet Korean neighbourhood at night, hanok houses with warm lit windows, a sodium vapour street lamp casting warm orange light onto the road, moths orbiting the lamp, a cat sitting on a wall with green eyes, telephone wires against the deep blue sky, the crescent moon",
         ]
         let theme = themes[scene] ?? "a peaceful calming moment"
 
@@ -242,6 +243,11 @@ struct HaikuOverlayView: View {
             "The TV casts blue\nAcross the modelled bedroom\nSleep in polygon",
             "Green stars on ceiling\nLava lamp pulses in three\nDimensions of home",
             "Lying here in mesh\nThe channel changes colour\nDepth of memory",
+        ],
+        .jeonjuNight3D: [
+            "Sodium light pools\nOn the three-dimensional road\nMoth wings catch the glow",
+            "Cat's green eyes in space\nHanok roofs in polygon\nWarm windows float near",
+            "Wire sags in vertices\nBetween the modelled houses\nNight hums in three-D",
         ],
     ]
 
