@@ -21,6 +21,7 @@ struct ContentView: View {
     @State private var isActive = true  // battery: false when window not focused
     @State private var warmingScenes: Set<SceneKind> = []  // preload on hover / adjacency
     @StateObject private var interaction = InteractionState()
+    @StateObject private var audioEngine = AmbientAudioEngine()
     @EnvironmentObject var multipeerManager: MultipeerManager
 
     var body: some View {
@@ -204,7 +205,13 @@ struct ContentView: View {
             }
             return .handled
         }
+        .onKeyPress(characters: CharacterSet(charactersIn: "mM")) { _ in
+            audioEngine.isMuted.toggle()
+            return .handled
+        }
         .onAppear {
+            // Start generative ambient audio with the current scene's mood
+            audioEngine.start(mood: currentScene.audioMood)
             // Breathing light for 2.5s, then slowly reveal scene over 3.5s
             DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) {
                 withAnimation(.easeInOut(duration: 3.5)) { launched = true }
@@ -578,6 +585,7 @@ struct ContentView: View {
         crossfade = 0.0
         currentScene = scene
         warmingScenes.remove(scene) // no longer needs warming
+        audioEngine.changeMood(scene.audioMood)
         withAnimation(.easeInOut(duration: 2.0)) { crossfade = 1.0 }
         // Clean up previous after transition
         DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) {

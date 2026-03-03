@@ -232,4 +232,34 @@ enum SceneKind: String, CaseIterable, Identifiable {
         case .gouraudSolarSystem: return Color(red: 0.35, green: 0.25, blue: 0.65)
         }
     }
+
+    // MARK: - Ambient audio mood (maps each scene to a generative tone palette)
+
+    var audioMood: String {
+        switch self {
+        // Amber comfort — home, warmth, safety
+        case .saltLamp, .conservatory, .artDecoLA, .quietMeal,
+             .lateNightRerun, .midnightMotel:
+            return "warm"
+        // Rain, ocean, night — cooler, more spacious
+        case .deepOcean, .celShadedRainyDay, .shimizuEvening, .jeonjuNight:
+            return "cool"
+        // Stars, nebulae, vast emptiness
+        case .cosmicDrift, .voyagerNebula, .desertStarscape,
+             .gouraudSolarSystem, .captainStar:
+            return "cosmic"
+        // Fields, villages, natural world
+        case .ontarioCountryside, .minnesotaSmallTown, .medievalVillage,
+             .ancientRuins, .lushRuins:
+            return "earthy"
+        // Retro, nostalgia, gentle floating
+        case .retroGarden, .retroPS1, .nightTrain, .paperLanternFestival,
+             .mystify, .nonsenseLullabies, .floatingKingdom, .greetingTheDay:
+            return "dreamy"
+        // Libraries, scrolls, ancient knowledge
+        case .forgottenLibrary, .enchantedArchives, .celestialScrollHall,
+             .auroraBorealis, .urbanDreamscape:
+            return "mystical"
+        }
+    }
 }
