@@ -12,6 +12,7 @@ Ethereal, mysterious, innocent and kind. Willing to trade usability for beauty a
 5. **Ancient Ruins** - 7 columns (some broken) with fluting, lintels, scattered stones, 5-band aurora, 150 stars, mountain silhouettes, 50 fireflies with glow halos, tap-burst firebug effect, golden floating dust, volumetric mist
 6. **Salt Lamp** - organic Himalayan salt lamp body, 18 internal lava blobs, ambient glow, specular highlight
 7. **Conservatory** - Victorian greenhouse with rain on glass, steam plants, condensation
+   8. **Old Car** - Inside a 1950s land-yacht bench-seat car at night in a snowstorm: incandescent dash glow, chrome radio knobs and AM/FM tuner, wiper blades sweeping, utility poles and barns in the dark. Also available as **Old Car 3D** (SceneKit).
 
 ## UX Philosophy
 - **Dreamy intro**: 2.5s breathing light orb on black, then 3.5s slow dissolve into first scene
