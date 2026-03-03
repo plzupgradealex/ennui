@@ -93,5 +93,4 @@ MIT
 
 ---
 
-*Made by Alex Ruppel — ennui@humanapp.ca*
 *[ennui-help.humanapp.ca](https://ennui-help.humanapp.ca)*

@@ -15,7 +15,7 @@ struct LateNightRerunScene: View {
     // TV channel state
     @State private var channel: Int = 0
     @State private var channelChangeTime: Double = -10
-    private let channelCount = 4
+    private let channelCount = 9
 
     // MARK: - Data types
 
@@ -123,16 +123,32 @@ struct LateNightRerunScene: View {
 
     private func tvColor(t: Double) -> (r: Double, g: Double, b: Double, brightness: Double) {
         switch channel {
-        case 0: // Late show — warm shifting amber/teal
-            let shift = sin(t * 0.3) * 0.5 + 0.5
-            return (0.3 + shift * 0.35, 0.22 + shift * 0.12, 0.12 + (1 - shift) * 0.15, 0.7)
-        case 1: // Colour bars
-            return (0.5, 0.45, 0.4, 0.55)
+        case 0: // Late Show — warm amber
+            let shift = sin(t * 0.25) * 0.3 + 0.5
+            return (0.35 + shift * 0.08, 0.22 + shift * 0.04, 0.10, 0.50)
+        case 1: // Color Bars — shifting white
+            let pulse = sin(t * 0.3) * 0.08 + 0.92
+            return (0.30 * pulse, 0.30 * pulse, 0.30 * pulse, 0.38)
         case 2: // Static
             return (0.32, 0.32, 0.35, 0.45 + sin(t * 20) * 0.12)
-        case 3: // DVD screensaver — deep blue with accent
-            let hue = fmod(t * 0.08, 1.0)
-            return (0.08 + hue * 0.15, 0.08 + (1 - hue) * 0.15, 0.4, 0.5)
+        case 3: // DVD Screensaver — shifting colour
+            let hueShift = fmod(t * 0.1, 1.0)
+            return (0.15 + sin(hueShift * 6.28) * 0.1, 0.12, 0.25 + cos(hueShift * 6.28) * 0.1, 0.30)
+        case 4: // X-Files — cold green-blue
+            let pulse = sin(t * 0.5) * 0.15 + 0.85
+            return (0.08, 0.22 * pulse, 0.12, 0.45)
+        case 5: // Outer Limits — pale grey-white
+            let pulse = sin(t * 0.8) * 0.1 + 0.9
+            return (0.28 * pulse, 0.28 * pulse, 0.30 * pulse, 0.40)
+        case 6: // Poirot — warm gold/amber
+            let shift = sin(t * 0.25) * 0.3 + 0.5
+            return (0.35 + shift * 0.1, 0.25 + shift * 0.05, 0.10, 0.50)
+        case 7: // Infomercial — bright white-blue
+            let flash = sin(t * 1.5) * 0.08 + 0.92
+            return (0.38 * flash, 0.36 * flash, 0.32, 0.55)
+        case 8: // Game Console — deep blue-purple
+            let pulse = sin(t * 0.6) * 0.1 + 0.9
+            return (0.12, 0.10, 0.28 * pulse, 0.35)
         default:
             return (0.3, 0.3, 0.35, 0.5)
         }
@@ -407,6 +423,11 @@ struct LateNightRerunScene: View {
             case 1: drawChannel_ColorBars(ctx: &l, rect: screenRect, t: t)
             case 2: drawChannel_Static(ctx: &l, rect: screenRect, t: t)
             case 3: drawChannel_Screensaver(ctx: &l, rect: screenRect, t: t)
+            case 4: drawChannel_XFiles(ctx: &l, rect: screenRect, t: t)
+            case 5: drawChannel_OuterLimits(ctx: &l, rect: screenRect, t: t)
+            case 6: drawChannel_Poirot(ctx: &l, rect: screenRect, t: t)
+            case 7: drawChannel_Infomercial(ctx: &l, rect: screenRect, t: t)
+            case 8: drawChannel_GameConsole(ctx: &l, rect: screenRect, t: t)
             default: break
             }
 
@@ -707,6 +728,283 @@ struct LateNightRerunScene: View {
                                         width: logoW - 12, height: 1)),
             with: .color(Color.white.opacity(0.2))
         )
+    }
+
+    // MARK: - Channel: X-Files (eerie green flashlight in dark woods)
+
+    private func drawChannel_XFiles(ctx: inout GraphicsContext, rect: CGRect, t: Double) {
+        // Dark forest background
+        ctx.fill(Rectangle().path(in: rect),
+                 with: .linearGradient(
+                    Gradient(colors: [
+                        Color(red: 0.01, green: 0.02, blue: 0.03),
+                        Color(red: 0.02, green: 0.04, blue: 0.03),
+                    ]),
+                    startPoint: CGPoint(x: rect.midX, y: rect.minY),
+                    endPoint: CGPoint(x: rect.midX, y: rect.maxY)
+                 ))
+
+        // Distant tree silhouettes
+        var treeRng = SplitMix64(seed: 4451)
+        for _ in 0..<8 {
+            let tx = rect.minX + nextDouble(&treeRng) * rect.width
+            let w = 3 + nextDouble(&treeRng) * 6
+            let h = rect.height * (0.4 + nextDouble(&treeRng) * 0.5)
+            ctx.fill(Rectangle().path(in: CGRect(x: tx - w / 2, y: rect.maxY - h, width: w, height: h)),
+                     with: .color(Color(red: 0.015, green: 0.025, blue: 0.02).opacity(0.8)))
+            // Branches
+            let branchY = rect.maxY - h * 0.6
+            ctx.fill(Ellipse().path(in: CGRect(x: tx - w * 1.5, y: branchY - 4, width: w * 3, height: 8)),
+                     with: .color(Color(red: 0.015, green: 0.02, blue: 0.02).opacity(0.5)))
+        }
+
+        // Sweeping flashlight cone
+        let beamAngle = sin(t * 0.3) * 0.35
+        let beamCx = rect.midX + beamAngle * rect.width * 0.3
+        let beamY = rect.maxY - rect.height * 0.15
+
+        ctx.drawLayer { l in
+            l.addFilter(.blur(radius: 18))
+            var cone = Path()
+            cone.move(to: CGPoint(x: beamCx, y: beamY))
+            cone.addLine(to: CGPoint(x: beamCx - 30 + beamAngle * 15, y: rect.minY + 5))
+            cone.addLine(to: CGPoint(x: beamCx + 30 + beamAngle * 15, y: rect.minY + 5))
+            cone.closeSubpath()
+            l.fill(cone, with: .color(Color(red: 0.15, green: 0.35, blue: 0.18).opacity(0.12)))
+        }
+
+        // Green-blue phosphor glow — "the truth is out there" feeling
+        let pulse = sin(t * 1.2) * 0.04 + 0.96
+        ctx.drawLayer { l in
+            l.addFilter(.blur(radius: 30))
+            l.fill(Ellipse().path(in: CGRect(x: beamCx - 40, y: rect.minY + 10, width: 80, height: 40)),
+                   with: .color(Color(red: 0.1 * pulse, green: 0.6 * pulse, blue: 0.3 * pulse).opacity(0.08)))
+        }
+    }
+
+    // MARK: - Channel: Outer Limits (hypnotic black & white patterns)
+
+    private func drawChannel_OuterLimits(ctx: inout GraphicsContext, rect: CGRect, t: Double) {
+        // Black background
+        ctx.fill(Rectangle().path(in: rect), with: .color(Color(red: 0.03, green: 0.03, blue: 0.04)))
+
+        // Rotating concentric rings — hypnotic "do not adjust your set"
+        let cx = rect.midX
+        let cy = rect.midY
+        let maxR = max(rect.width, rect.height) * 0.5
+        let ringCount = 12
+        let rotation = t * 0.3
+
+        for i in 0..<ringCount {
+            let frac = Double(i) / Double(ringCount)
+            let innerR = frac * maxR
+            let outerR = (frac + 0.5 / Double(ringCount)) * maxR
+            let isLight = Int(frac * Double(ringCount) + rotation) % 2 == 0
+            let grey = isLight ? 0.55 : 0.03
+            let warp = sin(t * 0.5 + frac * 4) * 3
+
+            let r = CGRect(x: cx - outerR + warp, y: cy - outerR,
+                          width: outerR * 2, height: outerR * 2)
+            let inner = CGRect(x: cx - innerR + warp, y: cy - innerR,
+                              width: innerR * 2, height: innerR * 2)
+            ctx.fill(Ellipse().path(in: r),
+                     with: .color(Color(white: grey).opacity(0.7)))
+            ctx.fill(Ellipse().path(in: inner),
+                     with: .color(Color(red: 0.03, green: 0.03, blue: 0.04)))
+        }
+
+        // Central eye
+        let eyePulse = sin(t * 0.8) * 0.15 + 0.85
+        let eyeR: Double = 8
+        ctx.fill(Ellipse().path(in: CGRect(x: cx - eyeR, y: cy - eyeR, width: eyeR * 2, height: eyeR * 2)),
+                 with: .color(Color.white.opacity(0.7 * eyePulse)))
+        ctx.fill(Ellipse().path(in: CGRect(x: cx - 3, y: cy - 3, width: 6, height: 6)),
+                 with: .color(Color(red: 0.02, green: 0.02, blue: 0.03)))
+
+        // Occasional white flash (TV signal distortion)
+        let flashCycle = fmod(t * 0.04, 1.0)
+        if flashCycle > 0.96 {
+            ctx.fill(Rectangle().path(in: rect), with: .color(Color.white.opacity(0.12)))
+        }
+    }
+
+    // MARK: - Channel: Poirot (warm art deco parlour, silhouette in chair)
+
+    private func drawChannel_Poirot(ctx: inout GraphicsContext, rect: CGRect, t: Double) {
+        // Warm amber/burgundy parlour background
+        let warmShift = sin(t * 0.2) * 0.04
+        ctx.fill(Rectangle().path(in: rect),
+                 with: .linearGradient(
+                    Gradient(colors: [
+                        Color(red: 0.28 + warmShift, green: 0.18, blue: 0.10),
+                        Color(red: 0.22 + warmShift, green: 0.14, blue: 0.08),
+                    ]),
+                    startPoint: CGPoint(x: rect.minX, y: rect.minY),
+                    endPoint: CGPoint(x: rect.maxX, y: rect.maxY)
+                 ))
+
+        // Art deco wallpaper pattern (thin vertical gold lines)
+        let stripeSpacing: Double = 12
+        for i in 0..<Int(rect.width / stripeSpacing) {
+            let sx = rect.minX + Double(i) * stripeSpacing + 3
+            let shimmer = sin(t * 0.15 + Double(i) * 0.4) * 0.01
+            ctx.fill(Rectangle().path(in: CGRect(x: sx, y: rect.minY, width: 0.5, height: rect.height)),
+                     with: .color(Color(red: 0.45 + shimmer, green: 0.35 + shimmer, blue: 0.18).opacity(0.12)))
+        }
+
+        // Fireplace glow (bottom right)
+        ctx.drawLayer { l in
+            l.addFilter(.blur(radius: 14))
+            let flicker = sin(t * 2.3) * 0.04 + sin(t * 3.7) * 0.02 + 0.94
+            l.fill(Ellipse().path(in: CGRect(x: rect.maxX - 35, y: rect.maxY - 20, width: 32, height: 16)),
+                   with: .color(Color(red: 0.6 * flicker, green: 0.25 * flicker, blue: 0.05).opacity(0.3)))
+        }
+
+        // Silhouette of figure in wing chair (side profile, very Poirot)
+        let chairX = rect.minX + rect.width * 0.35
+        let chairY = rect.maxY - rect.height * 0.08
+        let silColor = Color(red: 0.08, green: 0.05, blue: 0.04).opacity(0.55)
+
+        // Chair back
+        ctx.fill(RoundedRectangle(cornerRadius: 5).path(in: CGRect(
+            x: chairX - 12, y: chairY - rect.height * 0.5, width: 20, height: rect.height * 0.45)),
+                 with: .color(silColor))
+        // Head (round)
+        ctx.fill(Ellipse().path(in: CGRect(x: chairX - 5, y: chairY - rect.height * 0.55, width: 12, height: 12)),
+                 with: .color(silColor))
+        // Mustache suggestion (tiny horizontal line)
+        ctx.fill(Rectangle().path(in: CGRect(x: chairX, y: chairY - rect.height * 0.48, width: 8, height: 1)),
+                 with: .color(Color(red: 0.06, green: 0.04, blue: 0.03).opacity(0.4)))
+
+        // Lamp glow (warm circle, top-left)
+        ctx.drawLayer { l in
+            l.addFilter(.blur(radius: 10))
+            let pulse = sin(t * 0.4) * 0.06 + 0.94
+            l.fill(Ellipse().path(in: CGRect(x: rect.minX + 8, y: rect.minY + 8, width: 22, height: 22)),
+                   with: .color(Color(red: 0.7 * pulse, green: 0.5 * pulse, blue: 0.2).opacity(0.2)))
+        }
+    }
+
+    // MARK: - Channel: Infomercial (bright, flashy, "But wait there's more!")
+
+    private func drawChannel_Infomercial(ctx: inout GraphicsContext, rect: CGRect, t: Double) {
+        // Rotating background colour (garish, oversaturated)
+        let phase = fmod(t * 0.15, 1.0)
+        let bgR = 0.15 + sin(phase * 6.28) * 0.08
+        let bgG = 0.12 + sin(phase * 6.28 + 2.1) * 0.06
+        let bgB = 0.20 + sin(phase * 6.28 + 4.2) * 0.08
+        ctx.fill(Rectangle().path(in: rect),
+                 with: .color(Color(red: bgR, green: bgG, blue: bgB)))
+
+        // "Product" — a slowly rotating shiny object (abstract rounded rect)
+        let productCx = rect.midX
+        let productCy = rect.midY - 5
+        let spin = t * 0.5
+        let bobble = sin(t * 1.2) * 3
+        let pw: Double = 24, ph: Double = 18
+        let shine = sin(spin * 2) * 0.15 + 0.85
+
+        let productRect = CGRect(x: productCx - pw / 2, y: productCy - ph / 2 + bobble, width: pw, height: ph)
+        ctx.fill(RoundedRectangle(cornerRadius: 4).path(in: productRect),
+                 with: .color(Color(red: 0.6 * shine, green: 0.55 * shine, blue: 0.5 * shine).opacity(0.7)))
+
+        // Shiny highlight sweeping across
+        let highlightX = productCx - pw / 2 + fmod(t * 15, pw + 10) - 5
+        ctx.fill(Rectangle().path(in: CGRect(x: highlightX, y: productCy - ph / 2 + bobble, width: 3, height: ph)),
+                 with: .color(Color.white.opacity(0.25 * shine)))
+
+        // Starburst flashes (\"NEW!\", \"WOW!\")
+        let burstCycle = fmod(t * 0.7, 3.0)
+        if burstCycle < 0.6 {
+            let burstScale = burstCycle / 0.6
+            let burstR = 12 + burstScale * 8
+            let burstAlpha = (1.0 - burstScale) * 0.3
+            for ray in 0..<6 {
+                let angle = Double(ray) / 6.0 * .pi * 2 + t * 0.4
+                var rayPath = Path()
+                rayPath.move(to: CGPoint(x: rect.maxX - 18, y: rect.minY + 14))
+                rayPath.addLine(to: CGPoint(x: rect.maxX - 18 + cos(angle) * burstR,
+                                           y: rect.minY + 14 + sin(angle) * burstR))
+                ctx.stroke(rayPath, with: .color(Color(red: 0.9, green: 0.8, blue: 0.2).opacity(burstAlpha)), lineWidth: 1.5)
+            }
+        }
+
+        // "Price" text suggestion — horizontal lines at bottom
+        let stripe1 = sin(t * 0.3) * 0.015
+        ctx.fill(Rectangle().path(in: CGRect(x: rect.minX + 5, y: rect.maxY - 12, width: rect.width * 0.5, height: 2)),
+                 with: .color(Color(red: 0.8 + stripe1, green: 0.7, blue: 0.15).opacity(0.35)))
+        ctx.fill(Rectangle().path(in: CGRect(x: rect.minX + 5, y: rect.maxY - 8, width: rect.width * 0.35, height: 1.5)),
+                 with: .color(Color.white.opacity(0.2)))
+
+        // Occasional brightness flash (scene cut)
+        let cutCycle = fmod(t * 0.08, 1.0)
+        if cutCycle > 0.94 {
+            ctx.fill(Rectangle().path(in: rect), with: .color(Color.white.opacity(0.08)))
+        }
+    }
+
+    // MARK: - Channel: Game Console (PS1/N64 era boot or idle screen)
+
+    private func drawChannel_GameConsole(ctx: inout GraphicsContext, rect: CGRect, t: Double) {
+        // Deep blue-purple background (console boot screen)
+        ctx.fill(Rectangle().path(in: rect),
+                 with: .linearGradient(
+                    Gradient(colors: [
+                        Color(red: 0.02, green: 0.015, blue: 0.12),
+                        Color(red: 0.05, green: 0.02, blue: 0.08),
+                    ]),
+                    startPoint: CGPoint(x: rect.midX, y: rect.minY),
+                    endPoint: CGPoint(x: rect.midX, y: rect.maxY)
+                 ))
+
+        // Drifting particles (like PS2 boot towers/columns)
+        var pRng = SplitMix64(seed: 6464)
+        for _ in 0..<20 {
+            let bx = rect.minX + nextDouble(&pRng) * rect.width
+            let speed = 0.05 + nextDouble(&pRng) * 0.08
+            let ph = nextDouble(&pRng)
+            let by = rect.maxY - fmod(ph + t * speed, 1.2) * (rect.height + 10)
+            let bSize = 1 + nextDouble(&pRng) * 3
+            let brightness = 0.3 + nextDouble(&pRng) * 0.4
+            ctx.fill(Rectangle().path(in: CGRect(x: bx, y: by, width: bSize, height: bSize * 3)),
+                     with: .color(Color(red: 0.2 * brightness, green: 0.3 * brightness, blue: 0.9 * brightness).opacity(0.4)))
+        }
+
+        // Central logo shape (abstract — glowing diamond)
+        let logoCx = rect.midX
+        let logoCy = rect.midY
+        let logoPulse = sin(t * 0.5) * 0.15 + 0.85
+        let logoSize: Double = 12
+
+        ctx.drawLayer { l in
+            l.addFilter(.blur(radius: 8))
+            var diamond = Path()
+            diamond.move(to: CGPoint(x: logoCx, y: logoCy - logoSize))
+            diamond.addLine(to: CGPoint(x: logoCx + logoSize * 0.7, y: logoCy))
+            diamond.addLine(to: CGPoint(x: logoCx, y: logoCy + logoSize))
+            diamond.addLine(to: CGPoint(x: logoCx - logoSize * 0.7, y: logoCy))
+            diamond.closeSubpath()
+            l.fill(diamond, with: .color(Color(red: 0.4 * logoPulse, green: 0.35 * logoPulse, blue: 0.9 * logoPulse).opacity(0.35)))
+        }
+
+        // "Memory card" indicator blink
+        let memBlink = sin(t * 2.5) > 0.3
+        if memBlink {
+            ctx.fill(Rectangle().path(in: CGRect(x: rect.maxX - 10, y: rect.maxY - 6, width: 4, height: 3)),
+                     with: .color(Color(red: 0.9, green: 0.4, blue: 0.1).opacity(0.45)))
+        }
+
+        // Loading dots at bottom
+        let dotCount = 3
+        let dotPhase = fmod(t * 0.8, 1.0)
+        for d in 0..<dotCount {
+            let dFrac = Double(d) / Double(dotCount)
+            let active = fmod(dotPhase + dFrac, 1.0) < 0.4
+            let dx = rect.midX - 8 + Double(d) * 8
+            let dy = rect.maxY - 10
+            ctx.fill(Circle().path(in: CGRect(x: dx - 1.5, y: dy - 1.5, width: 3, height: 3)),
+                     with: .color(Color.white.opacity(active ? 0.4 : 0.08)))
+        }
     }
 
     // MARK: - Lava Lamp (on nightstand, left side)

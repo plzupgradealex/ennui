@@ -1,4 +1,5 @@
 import SwiftUI
+import Combine
 
 struct GreetingTheDayScene: View {
     @ObservedObject var interaction: InteractionState
@@ -58,7 +59,11 @@ struct GreetingTheDayScene: View {
         .drawingGroup(opaque: false, colorMode: .extendedLinear)
         .allowedDynamicRange(.high)
         .onChange(of: interaction.tapCount) { _, _ in
-            guard buildings.count < 40 else { return }
+            guard buildings.count < 80 else { return }
+            addBuilding()
+        }
+        .onReceive(Timer.publish(every: 3.5, on: .main, in: .common).autoconnect()) { _ in
+            guard ready, buildings.count < 80 else { return }
             addBuilding()
         }
     }
@@ -85,8 +90,8 @@ struct GreetingTheDayScene: View {
             )
         }
 
-        // Start with a few buildings
-        for _ in 0..<3 {
+        // Start with a cluster of buildings
+        for _ in 0..<8 {
             addBuildingInternal(rng: &rng)
         }
 
@@ -472,10 +477,15 @@ struct GreetingTheDayScene: View {
         ))
     }
 
-    // MARK: - Commuter train (appears after 5+ buildings)
+    // MARK: - Trains (commuter, elevated, express)
 
     private func drawCommuterTrain(ctx: inout GraphicsContext, size: CGSize, t: Double, sunProgress: Double) {
-        guard buildings.count >= 5 else { return }
+        guard buildings.count >= 3 else { return }
+
+        // Draw elevated train first (appears after 15 buildings)
+        if buildings.count >= 15 {
+            drawElevatedTrain(ctx: &ctx, size: size, t: t, sunProgress: sunProgress)
+        }
 
         let trackY = size.height * 0.92
 
@@ -488,7 +498,7 @@ struct GreetingTheDayScene: View {
         }
 
         // Sleepers
-        let sleeperScroll = (t * 45).truncatingRemainder(dividingBy: 18.0)
+        let sleeperScroll = (t * 40).truncatingRemainder(dividingBy: 18.0)
         var sx = -sleeperScroll
         while sx < size.width + 18 {
             ctx.fill(Rectangle().path(in: CGRect(x: sx - 5, y: trackY - 1, width: 10, height: 8)),
@@ -496,15 +506,27 @@ struct GreetingTheDayScene: View {
             sx += 18
         }
 
-        // Train body
-        let carW: Double = 48, carH: Double = 16, carCount = 4
+        // Multiple trains: frequency increases with city size
+        let trainCount = min(1 + buildings.count / 12, 4)
+        for trainIdx in 0..<trainCount {
+            drawSingleTrain(ctx: &ctx, size: size, t: t, sunProgress: sunProgress,
+                           trackY: trackY, trainIndex: trainIdx)
+        }
+    }
+
+    private func drawSingleTrain(ctx: inout GraphicsContext, size: CGSize, t: Double, sunProgress: Double, trackY: Double, trainIndex: Int) {
+        let carW: Double = 48, carH: Double = 16, carCount = 3 + trainIndex % 3
         let locoW = carW * 0.55
         let totalLen = Double(carCount) * (carW + 3) + locoW
         let cycle = size.width + totalLen + 80
-        let tx = (t * 45).truncatingRemainder(dividingBy: cycle) - totalLen
+        let speed: Double = 40 + Double(trainIndex) * 12
+        let offset: Double = Double(trainIndex) * cycle * 0.35
+        let tx = (t * speed + offset).truncatingRemainder(dividingBy: cycle) - totalLen
 
         let bright = 0.2 + sunProgress * 0.25
-        let trainCol = Color(red: bright + 0.05, green: bright, blue: bright + 0.1)
+        // Slightly different colours per train
+        let hueShift = Double(trainIndex) * 0.04
+        let trainCol = Color(red: bright + 0.05 + hueShift, green: bright, blue: bright + 0.1 - hueShift)
 
         // Locomotive
         let locoX = tx + Double(carCount) * (carW + 3)
@@ -530,7 +552,7 @@ struct GreetingTheDayScene: View {
             let wSpace = (carW - 8) / 5
             for w in 0..<5 {
                 let wx = cx + 4 + Double(w) * wSpace
-                let warmth = sin(t * 0.4 + Double(w + i * 5)) * 0.1 + 0.9
+                let warmth = sin(t * 0.4 + Double(w + i * 5 + trainIndex * 17)) * 0.1 + 0.9
                 ctx.fill(Rectangle().path(in: CGRect(x: wx, y: trackY - carH * 0.75, width: 4, height: 4)),
                          with: .color(Color(red: 1.15 * warmth, green: 0.88 * warmth, blue: 0.45).opacity(0.7)))
             }
@@ -539,6 +561,54 @@ struct GreetingTheDayScene: View {
                 let wheelX = cx + Double(wi + 1) * carW / 4
                 ctx.fill(Ellipse().path(in: CGRect(x: wheelX - 2, y: trackY, width: 4, height: 4)),
                          with: .color(Color(red: 0.1, green: 0.08, blue: 0.06)))
+            }
+        }
+    }
+
+    // MARK: - Elevated Train (appears above the skyline)
+
+    private func drawElevatedTrain(ctx: inout GraphicsContext, size: CGSize, t: Double, sunProgress: Double) {
+        let elevY = size.height * 0.55
+
+        // Elevated track pillars
+        let pillarSpacing: Double = 60
+        let pillarScroll = (t * 35).truncatingRemainder(dividingBy: pillarSpacing)
+        var px = -pillarScroll
+        while px < size.width + pillarSpacing {
+            let pillarRect = CGRect(x: px - 2, y: elevY, width: 4, height: size.height * 0.2)
+            ctx.fill(Rectangle().path(in: pillarRect),
+                     with: .color(Color(red: 0.15, green: 0.14, blue: 0.16).opacity(0.25)))
+            px += pillarSpacing
+        }
+
+        // Track beam
+        ctx.fill(Rectangle().path(in: CGRect(x: 0, y: elevY - 2, width: size.width, height: 3)),
+                 with: .color(Color(red: 0.15, green: 0.14, blue: 0.16).opacity(0.3)))
+
+        // Elevated train (sleek, goes opposite direction)
+        let eCarW: Double = 36, eCarH: Double = 12, eCarCount = 5
+        let eTotalLen = Double(eCarCount) * (eCarW + 2)
+        let eCycle = size.width + eTotalLen + 60
+        let eSpeed: Double = 55
+        // Goes right to left
+        let ePos = size.width - (t * eSpeed).truncatingRemainder(dividingBy: eCycle) + eTotalLen
+
+        let eBright = 0.55 + sunProgress * 0.2
+        let eTrainCol = Color(red: eBright - 0.1, green: eBright, blue: eBright + 0.05)
+
+        for i in 0..<eCarCount {
+            let cx = ePos + Double(i) * (eCarW + 2)
+            ctx.fill(RoundedRectangle(cornerRadius: 3)
+                        .path(in: CGRect(x: cx, y: elevY - eCarH - 2, width: eCarW, height: eCarH)),
+                     with: .color(eTrainCol))
+            // Windows — bright warm row
+            let wCount = 6
+            let wSpace = (eCarW - 6) / Double(wCount)
+            for w in 0..<wCount {
+                let wx = cx + 3 + Double(w) * wSpace
+                let glow = sin(t * 0.3 + Double(w + i * 6)) * 0.08 + 0.92
+                ctx.fill(Rectangle().path(in: CGRect(x: wx, y: elevY - eCarH + 2, width: 3, height: 3)),
+                         with: .color(Color(red: 1.1 * glow, green: 0.9 * glow, blue: 0.5).opacity(0.6)))
             }
         }
     }
