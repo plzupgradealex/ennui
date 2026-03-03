@@ -33,6 +33,7 @@ enum SceneKind: String, CaseIterable, Identifiable {
     case midnightMotel = "midnightMotel"
     case captainStar = "captainStar"
     case nonsenseLullabies = "nonsenseLullabies"
+    case gouraudSolarSystem = "gouraudSolarSystem"
 
     var id: String { rawValue }
 
@@ -72,6 +73,7 @@ enum SceneKind: String, CaseIterable, Identifiable {
         case .midnightMotel: return "Midnight Motel"
         case .captainStar: return "Captain Star"
         case .nonsenseLullabies: return "Nonsense & Lullabies"
+        case .gouraudSolarSystem: return "Solar System"
         }
     }
 
@@ -111,6 +113,7 @@ enum SceneKind: String, CaseIterable, Identifiable {
         case .midnightMotel: return "A quiet motel room in 1968 America, neon vacancy sign bleeding through thin curtains, wood paneling, a warm lamp, and headlights sweeping across the ceiling"
         case .captainStar: return "A barren desert planet at the edge of the universe, ochre skies, floating rocks, a lone glass outpost, stars visible through the dust, cosmic desolation made beautiful"
         case .nonsenseLullabies: return "Hand-painted watercolour nursery shapes drifting on warm paper, cats, moons, little houses, gentle paint drips running down"
+        case .gouraudSolarSystem: return "A retro-rendered imaginary solar system with Gouraud-shaded planets orbiting a warm star, specular highlights, ring systems, and moons drifting in elliptical orbits"
         }
     }
 
@@ -150,6 +153,7 @@ enum SceneKind: String, CaseIterable, Identifiable {
         case .midnightMotel: return "Tap to send headlights sweeping across the ceiling"
         case .captainStar: return "Tap to send a luminous pulse across the desert"
         case .nonsenseLullabies: return "Tap to bloom a watercolour splash"
+        case .gouraudSolarSystem: return "Tap to shimmer a planet or add a new moon"
         }
     }
 
@@ -187,6 +191,7 @@ enum SceneKind: String, CaseIterable, Identifiable {
         case .midnightMotel: return "bed.double"
         case .captainStar: return "globe.americas"
         case .nonsenseLullabies: return "paintbrush.pointed"
+        case .gouraudSolarSystem: return "globe.europe.africa"
         }
     }
 
@@ -224,6 +229,7 @@ enum SceneKind: String, CaseIterable, Identifiable {
         case .midnightMotel: return Color(red: 0.85, green: 0.30, blue: 0.35)
         case .captainStar: return Color(red: 0.72, green: 0.52, blue: 0.22)
         case .nonsenseLullabies: return Color(red: 0.75, green: 0.55, blue: 0.70)
+        case .gouraudSolarSystem: return Color(red: 0.35, green: 0.25, blue: 0.65)
         }
     }
 }

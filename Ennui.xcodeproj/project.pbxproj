@@ -46,6 +46,7 @@
 		EE0000000000000000000010 /* MidnightMotelScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE000000000000000000000F /* MidnightMotelScene.swift */; };
 		EE0000000000000000000012 /* CaptainStarScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE0000000000000000000011 /* CaptainStarScene.swift */; };
 		EE0000000000000000000014 /* NonsenseLullabiesScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE0000000000000000000013 /* NonsenseLullabiesScene.swift */; };
+		EE0000000000000000000016 /* GouraudSolarSystemScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE0000000000000000000015 /* GouraudSolarSystemScene.swift */; };
 		DD0000000000000000000004 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = DD0000000000000000000003 /* PrivacyInfo.xcprivacy */; };
 		EE000000000000000000000C /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = EE000000000000000000000B /* Assets.xcassets */; };
 		BB0000000000000000000001 /* EnnuiUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0000000000000000000010 /* EnnuiUITests.swift */; };
@@ -90,6 +91,7 @@
 		EE000000000000000000000F /* MidnightMotelScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MidnightMotelScene.swift; sourceTree = "<group>"; };
 		EE0000000000000000000011 /* CaptainStarScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptainStarScene.swift; sourceTree = "<group>"; };
 		EE0000000000000000000013 /* NonsenseLullabiesScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NonsenseLullabiesScene.swift; sourceTree = "<group>"; };
+		EE0000000000000000000015 /* GouraudSolarSystemScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GouraudSolarSystemScene.swift; sourceTree = "<group>"; };
 		AA0000000000000000000018 /* MultipeerManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MultipeerManager.swift; sourceTree = "<group>"; };
 		AA000000000000000000001B /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		AA000000000000000000001A /* Ennui.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Ennui.entitlements; sourceTree = "<group>"; };
@@ -199,6 +201,7 @@
 				EE000000000000000000000F /* MidnightMotelScene.swift */,
 				EE0000000000000000000011 /* CaptainStarScene.swift */,
 				EE0000000000000000000013 /* NonsenseLullabiesScene.swift */,
+				EE0000000000000000000015 /* GouraudSolarSystemScene.swift */,
 			);
 			path = Scenes;
 			sourceTree = "<group>";
@@ -358,6 +361,7 @@
 				EE0000000000000000000010 /* MidnightMotelScene.swift in Sources */,
 				EE0000000000000000000012 /* CaptainStarScene.swift in Sources */,
 				EE0000000000000000000014 /* NonsenseLullabiesScene.swift in Sources */,
+				EE0000000000000000000016 /* GouraudSolarSystemScene.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

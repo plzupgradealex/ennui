@@ -38,6 +38,7 @@ actor HaikuGenerator {
             .midnightMotel: "a quiet motel room somewhere in America in 1968, wood-paneled walls, a neon vacancy sign bleeding pink light through thin curtains, a warm table lamp, a rotary phone on the nightstand, a patterned bedspread, headlights from the highway sweeping across the ceiling, dust motes floating in the lamplight, the gentle solitude of being safely nowhere",
             .captainStar: "a barren desert planet at the very edge of the universe, yellow and ochre skies stretching forever, floating rocks defying gravity, a lone glass and crystal outpost catching distant starlight, dust motes drifting through warm emptiness, stars visible through the haze, cosmic desolation that is somehow peaceful and beautiful",
             .nonsenseLullabies: "a hand-painted watercolour world like a page from a beloved picture book, soft washes of colour bleeding into warm paper, simple nursery shapes drifting gently — moons, stars, cats, little houses, birds, flowers — paint drips running slowly down the page, the gentle nonsense of lullabies and bedtime stories",
+            .gouraudSolarSystem: "an imaginary solar system rendered in retro Gouraud-shaded 3D, a warm star at the centre, smooth-lit planets with specular highlights orbiting in ellipses, ring systems catching the light, tiny moons tracing paths around gas giants, faint scanlines and orbital grid lines giving it the feel of a late-nineties tech demo running at two in the morning",
         ]
         let theme = themes[scene] ?? "a peaceful calming moment"
 
@@ -224,6 +225,11 @@ struct HaikuOverlayView: View {
             "Paint runs down the page\nA cat sleeps beside the moon\nColours dream of spring",
             "Watercolour stars\nDrip softly onto warm paper\nThe story begins",
             "Little house floats by\nA bird sings in washed-out blue\nNonsense holds us close",
+        ],
+        .gouraudSolarSystem: [
+            "Seven worlds orbit\nSmooth light slides across their faces\nThe star hums below",
+            "A new moon is born\nGradient and highlight spinning\nPolygons at peace",
+            "Rings catch the slow light\nScanlines trace through empty space\nThe GPU dreams on",
         ],
     ]
 
