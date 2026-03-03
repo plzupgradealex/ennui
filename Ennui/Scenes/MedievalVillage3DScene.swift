@@ -22,6 +22,7 @@ private struct MedievalVillage3DRepresentable: NSViewRepresentable {
     final class Coordinator {
         var windowLights: [SCNNode] = []
         var windowGlows: [SCNNode] = []  // emissive planes paired with lights
+        var ambientLight: SCNNode?
         var lastTapCount = 0
         var extinguishedIndex = 0
     }
@@ -92,6 +93,18 @@ private struct MedievalVillage3DRepresentable: NSViewRepresentable {
         }
 
         c.extinguishedIndex += 1
+
+        // Progressively dim ambient light as windows go out
+        let total = c.windowLights.count
+        let remaining = max(0, total - c.extinguishedIndex)
+        let fraction = total > 0 ? Double(remaining) / Double(total) : 0
+        let minAmbient: CGFloat = 3    // intensity when all lights are out
+        let maxAmbient: CGFloat = 10   // intensity when all lights are lit (matches addLighting)
+        let newAmbient = minAmbient + (maxAmbient - minAmbient) * CGFloat(fraction)
+        SCNTransaction.begin()
+        SCNTransaction.animationDuration = 2.0
+        c.ambientLight?.light?.intensity = newAmbient
+        SCNTransaction.commit()
     }
 
     // MARK: - Scene construction
@@ -103,7 +116,7 @@ private struct MedievalVillage3DRepresentable: NSViewRepresentable {
         scene.fogColor = NSColor(red: 0.03, green: 0.03, blue: 0.06, alpha: 1)
         scene.background.contents = NSColor(red: 0.015, green: 0.015, blue: 0.04, alpha: 1)
 
-        addLighting(to: scene)
+        addLighting(to: scene, coord: coord)
         addGround(to: scene)
         addBuildings(to: scene, coord: coord)
         addTrees(to: scene)
@@ -113,20 +126,21 @@ private struct MedievalVillage3DRepresentable: NSViewRepresentable {
 
     // MARK: - Lighting
 
-    private func addLighting(to scene: SCNScene) {
-        // Dim ambient — moonlit night
+    private func addLighting(to scene: SCNScene, coord: Coordinator) {
+        // Very dim ambient — windows are the real light source, not the moon
         let ambient = SCNNode()
         ambient.light = SCNLight()
         ambient.light!.type = .ambient
-        ambient.light!.intensity = 60
+        ambient.light!.intensity = 10
         ambient.light!.color = NSColor(red: 0.12, green: 0.10, blue: 0.22, alpha: 1)
         scene.rootNode.addChildNode(ambient)
+        coord.ambientLight = ambient
 
-        // Moonlight — blue-silver directional (bright enough to bathe the scene)
+        // Moonlight — subtle blue-silver wash, much dimmer than window glow
         let moon = SCNNode()
         moon.light = SCNLight()
         moon.light!.type = .directional
-        moon.light!.intensity = 280
+        moon.light!.intensity = 45
         moon.light!.color = NSColor(red: 0.40, green: 0.45, blue: 0.70, alpha: 1)
         moon.light!.castsShadow = true
         moon.light!.shadowRadius = 3
@@ -198,30 +212,42 @@ private struct MedievalVillage3DRepresentable: NSViewRepresentable {
             roof.castsShadow = true
             scene.rootNode.addChildNode(roof)
 
-            // Window glow (small emissive plane + omni light)
-            let windowW: CGFloat = CGFloat(sw * 0.22)
-            let windowH: CGFloat = CGFloat(sh * 0.2)
-            let winGeo = SCNPlane(width: windowW, height: windowH)
+            // Windows — small panes, multiple per building, warm amber glow
+            let winCols = 2
+            let winRows = spot.isChurch ? 2 : 1
+            let windowW: CGFloat = CGFloat(sw * 0.12)
+            let windowH: CGFloat = CGFloat(sh * 0.13)
             let warmAmber = NSColor(red: 0.95, green: 0.7, blue: 0.3, alpha: 1)
-            winGeo.firstMaterial?.emission.contents = warmAmber
-            winGeo.firstMaterial?.diffuse.contents = NSColor.black
-            winGeo.firstMaterial?.isDoubleSided = true
-            let winNode = SCNNode(geometry: winGeo)
-            winNode.position = SCNVector3(spot.x, sh * 0.4, spot.z + sd / 2 + 0.01)
-            scene.rootNode.addChildNode(winNode)
 
-            // Point light bleeding from window
-            let light = SCNNode()
-            light.light = SCNLight()
-            light.light!.type = .omni
-            light.light!.intensity = 250
-            light.light!.color = warmAmber
-            light.light!.attenuationStartDistance = 0
-            light.light!.attenuationEndDistance = 2.5
-            light.position = SCNVector3(spot.x, sh * 0.4, spot.z + sd / 2 + 0.15)
-            scene.rootNode.addChildNode(light)
-            coord.windowLights.append(light)
-            coord.windowGlows.append(winNode)
+            for row in 0..<winRows {
+                for col in 0..<winCols {
+                    let xFrac = (Double(col) + 1.0) / Double(winCols + 1)
+                    let yFrac = (Double(row) + 1.0) / Double(winRows + 1)
+                    let wx = spot.x + Float(xFrac - 0.5) * sw
+                    let wy = Float(yFrac) * sh
+
+                    let winGeo = SCNPlane(width: windowW, height: windowH)
+                    winGeo.firstMaterial?.emission.contents = warmAmber
+                    winGeo.firstMaterial?.diffuse.contents = NSColor.black
+                    winGeo.firstMaterial?.isDoubleSided = true
+                    let winNode = SCNNode(geometry: winGeo)
+                    winNode.position = SCNVector3(wx, wy, spot.z + sd / 2 + 0.01)
+                    scene.rootNode.addChildNode(winNode)
+
+                    // Point light bleeding from window
+                    let light = SCNNode()
+                    light.light = SCNLight()
+                    light.light!.type = .omni
+                    light.light!.intensity = 200
+                    light.light!.color = warmAmber
+                    light.light!.attenuationStartDistance = 0
+                    light.light!.attenuationEndDistance = 2.5
+                    light.position = SCNVector3(wx, wy, spot.z + sd / 2 + 0.15)
+                    scene.rootNode.addChildNode(light)
+                    coord.windowLights.append(light)
+                    coord.windowGlows.append(winNode)
+                }
+            }
         }
     }
 
