@@ -36,6 +36,8 @@ actor HaikuGenerator {
             .shimizuEvening: "a quiet rainy evening in a small Japanese residential neighbourhood in Shizuoka, warm yellow windows glowing behind a concrete block wall, rain falling on a street with puddles, a corner shop with a striped awning, utility poles and wires, rounded bushes, the gentle sound of rain on everything, a feeling of being safely home while the world is soft and wet outside",
             .mystify: "glowing coloured lines bouncing gently across a dark CRT screen, leaving fading phosphor trails, the hypnotic comfort of a Windows 95 screensaver running late at night in a quiet house, warmth in geometry, nostalgia in every pixel",
             .midnightMotel: "a quiet motel room somewhere in America in 1968, wood-paneled walls, a neon vacancy sign bleeding pink light through thin curtains, a warm table lamp, a rotary phone on the nightstand, a patterned bedspread, headlights from the highway sweeping across the ceiling, dust motes floating in the lamplight, the gentle solitude of being safely nowhere",
+            .captainStar: "a barren desert planet at the very edge of the universe, yellow and ochre skies stretching forever, floating rocks defying gravity, a lone glass and crystal outpost catching distant starlight, dust motes drifting through warm emptiness, stars visible through the haze, cosmic desolation that is somehow peaceful and beautiful",
+            .nonsenseLullabies: "a hand-painted watercolour world like a page from a beloved picture book, soft washes of colour bleeding into warm paper, simple nursery shapes drifting gently — moons, stars, cats, little houses, birds, flowers — paint drips running slowly down the page, the gentle nonsense of lullabies and bedtime stories",
         ]
         let theme = themes[scene] ?? "a peaceful calming moment"
 
@@ -212,6 +214,16 @@ struct HaikuOverlayView: View {
             "Neon bleeds through lace\nThe highway hums a lullaby\nDust floats in the light",
             "Wood walls hold the dark\nA rotary phone waits still\nHeadlights cross the room",
             "Vacancy sign glows\nSomeone rests between two towns\nThe lamp breathes for them",
+        ],
+        .captainStar: [
+            "Ochre sky stretches\nA glass tower catches light\nThe edge holds its breath",
+            "Rocks drift without haste\nStars peer through the dusty veil\nSomeone is still here",
+            "Desert wind carries\nNothing but the warmth of time\nThe outpost still glows",
+        ],
+        .nonsenseLullabies: [
+            "Paint runs down the page\nA cat sleeps beside the moon\nColours dream of spring",
+            "Watercolour stars\nDrip softly onto warm paper\nThe story begins",
+            "Little house floats by\nA bird sings in washed-out blue\nNonsense holds us close",
         ],
     ]
 

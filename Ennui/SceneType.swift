@@ -31,6 +31,8 @@ enum SceneKind: String, CaseIterable, Identifiable {
     case shimizuEvening = "shimizuEvening"
     case mystify = "mystify"
     case midnightMotel = "midnightMotel"
+    case captainStar = "captainStar"
+    case nonsenseLullabies = "nonsenseLullabies"
 
     var id: String { rawValue }
 
@@ -68,6 +70,8 @@ enum SceneKind: String, CaseIterable, Identifiable {
         case .shimizuEvening: return "Shimizu Evening"
         case .mystify: return "Mystify"
         case .midnightMotel: return "Midnight Motel"
+        case .captainStar: return "Captain Star"
+        case .nonsenseLullabies: return "Nonsense & Lullabies"
         }
     }
 
@@ -105,6 +109,8 @@ enum SceneKind: String, CaseIterable, Identifiable {
         case .shimizuEvening: return "A quiet Japanese residential neighbourhood on a rainy evening, with a peaked wooden house, a concrete block wall, a corner shop with a striped awning, utility poles, and warm yellow windows glowing through the rain"
         case .mystify: return "Glowing lines bouncing across a dark screen, leaving phosphor trails like a Windows 95 screensaver dreaming"
         case .midnightMotel: return "A quiet motel room in 1968 America, neon vacancy sign bleeding through thin curtains, wood paneling, a warm lamp, and headlights sweeping across the ceiling"
+        case .captainStar: return "A barren desert planet at the edge of the universe, ochre skies, floating rocks, a lone glass outpost, stars visible through the dust, cosmic desolation made beautiful"
+        case .nonsenseLullabies: return "Hand-painted watercolour nursery shapes drifting on warm paper, cats, moons, little houses, gentle paint drips running down"
         }
     }
 
@@ -142,6 +148,8 @@ enum SceneKind: String, CaseIterable, Identifiable {
         case .shimizuEvening: return "Tap to send a splash rippling through a puddle"
         case .mystify: return "Tap to launch an extra ribbon of light"
         case .midnightMotel: return "Tap to send headlights sweeping across the ceiling"
+        case .captainStar: return "Tap to send a luminous pulse across the desert"
+        case .nonsenseLullabies: return "Tap to bloom a watercolour splash"
         }
     }
 
@@ -177,6 +185,8 @@ enum SceneKind: String, CaseIterable, Identifiable {
         case .shimizuEvening: return "cloud.rain.fill"
         case .mystify: return "display"
         case .midnightMotel: return "bed.double"
+        case .captainStar: return "globe.americas"
+        case .nonsenseLullabies: return "paintbrush.pointed"
         }
     }
 
@@ -212,6 +222,8 @@ enum SceneKind: String, CaseIterable, Identifiable {
         case .shimizuEvening: return Color(red: 0.30, green: 0.38, blue: 0.58)
         case .mystify: return Color(red: 0.20, green: 0.85, blue: 0.90)
         case .midnightMotel: return Color(red: 0.85, green: 0.30, blue: 0.35)
+        case .captainStar: return Color(red: 0.72, green: 0.52, blue: 0.22)
+        case .nonsenseLullabies: return Color(red: 0.75, green: 0.55, blue: 0.70)
         }
     }
 }
