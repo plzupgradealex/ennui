@@ -22,6 +22,7 @@ private struct LateNightRerun3DRepresentable: NSViewRepresentable {
     final class Coordinator {
         var tvLight: SCNNode?
         var tvScreen: SCNNode?
+        var scanlineNode: SCNNode?
         var lastTapCount = 0
         var channel = 0
         let channelColors: [NSColor] = [
@@ -56,11 +57,21 @@ private struct LateNightRerun3DRepresentable: NSViewRepresentable {
         c.channel = (c.channel + 1) % c.channelColors.count
         let color = c.channelColors[c.channel]
 
+        // Brief static burst on channel change
+        let staticColor = NSColor(red: 0.6, green: 0.6, blue: 0.6, alpha: 1)
         SCNTransaction.begin()
-        SCNTransaction.animationDuration = 0.15
-        c.tvLight?.light?.color = color
-        c.tvScreen?.geometry?.firstMaterial?.emission.contents = color
+        SCNTransaction.animationDuration = 0.0
+        c.tvLight?.light?.color = staticColor
+        c.tvScreen?.geometry?.firstMaterial?.emission.contents = staticColor
         SCNTransaction.commit()
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) {
+            SCNTransaction.begin()
+            SCNTransaction.animationDuration = 0.1
+            c.tvLight?.light?.color = color
+            c.tvScreen?.geometry?.firstMaterial?.emission.contents = color
+            SCNTransaction.commit()
+        }
     }
 
     // MARK: - Scene construction
@@ -71,6 +82,7 @@ private struct LateNightRerun3DRepresentable: NSViewRepresentable {
         addRoom(to: scene)
         addTV(to: scene, coord: coord)
         addFurniture(to: scene)
+        addDecorations(to: scene)
         addLavaLamp(to: scene)
         addCeilingStars(to: scene)
         addLighting(to: scene)
@@ -131,6 +143,28 @@ private struct LateNightRerun3DRepresentable: NSViewRepresentable {
         standNode.position = SCNVector3(0, 0.25, -2.6)
         scene.rootNode.addChildNode(standNode)
 
+        // VHS tapes stacked on dresser
+        let tapeColors: [NSColor] = [
+            NSColor(red: 0.10, green: 0.10, blue: 0.12, alpha: 1),
+            NSColor(red: 0.12, green: 0.08, blue: 0.06, alpha: 1),
+            NSColor(red: 0.07, green: 0.07, blue: 0.10, alpha: 1),
+        ]
+        for (i, col) in tapeColors.enumerated() {
+            let tape = SCNBox(width: 0.19, height: 0.03, length: 0.12, chamferRadius: 0.003)
+            tape.firstMaterial?.diffuse.contents = col
+            let tapeNode = SCNNode(geometry: tape)
+            tapeNode.position = SCNVector3(0.42, 0.52 + Float(i) * 0.035, -2.55)
+            tapeNode.eulerAngles = SCNVector3(0, Float(i) * 0.08 - 0.04, 0)
+            scene.rootNode.addChildNode(tapeNode)
+            // Label sticker
+            let label = SCNPlane(width: 0.12, height: 0.02)
+            label.firstMaterial?.emission.contents = NSColor(red: 0.7, green: 0.65, blue: 0.55, alpha: 1)
+            label.firstMaterial?.diffuse.contents = NSColor.black
+            let labelNode = SCNNode(geometry: label)
+            labelNode.position = SCNVector3(0.42, 0.52 + Float(i) * 0.035, -2.49)
+            scene.rootNode.addChildNode(labelNode)
+        }
+
         // CRT body — chunky box with slight chamfer
         let tvBody = SCNBox(width: 0.7, height: 0.55, length: 0.5, chamferRadius: 0.03)
         tvBody.firstMaterial?.diffuse.contents = NSColor(red: 0.08, green: 0.07, blue: 0.07, alpha: 1)
@@ -149,6 +183,29 @@ private struct LateNightRerun3DRepresentable: NSViewRepresentable {
         scene.rootNode.addChildNode(screenNode)
         coord.tvScreen = screenNode
 
+        // Scanline overlay — semi-transparent dark lines over the screen
+        let scanlines = SCNPlane(width: 0.52, height: 0.38)
+        let scanMat = SCNMaterial()
+        scanMat.diffuse.contents = NSColor.clear
+        scanMat.transparent.contents = NSColor(white: 0.0, alpha: 0.12)
+        scanMat.isDoubleSided = true
+        scanlines.firstMaterial = scanMat
+        let scanNode = SCNNode(geometry: scanlines)
+        scanNode.position = SCNVector3(0, 0.78, -2.335)
+        scene.rootNode.addChildNode(scanNode)
+        coord.scanlineNode = scanNode
+
+        // TV content shimmer — subtle brightness variation simulating moving images
+        let contentAnim = SCNAction.repeatForever(.customAction(duration: 2.0) { node, elapsed in
+            let t = Float(elapsed)
+            let r = CGFloat(0.30 + 0.08 * sin(Double(t) * 4.5))
+            let g = CGFloat(0.35 + 0.06 * cos(Double(t) * 3.2))
+            let b = CGFloat(0.80 + 0.10 * sin(Double(t) * 5.8))
+            let shimmer = NSColor(red: r, green: g, blue: b, alpha: 1)
+            node.geometry?.firstMaterial?.emission.contents = shimmer
+        })
+        screenNode.runAction(contentAnim, forKey: "contentShimmer")
+
         // TV light — casts colored light into room
         let tvLight = SCNNode()
         tvLight.light = SCNLight()
@@ -165,12 +222,22 @@ private struct LateNightRerun3DRepresentable: NSViewRepresentable {
         let flicker = SCNAction.repeatForever(.sequence([
             .customAction(duration: 0.08) { node, _ in
                 let base: CGFloat = 220
-                let wobble = CGFloat.random(in: -20...20)
+                let wobble = CGFloat.random(in: -30...30)
                 node.light?.intensity = base + wobble
             },
-            .wait(duration: Double.random(in: 0.05...0.15))
+            .wait(duration: Double.random(in: 0.03...0.1))
         ]))
         tvLight.runAction(flicker)
+
+        // Matching light shimmer on the TV light so the room color matches the screen
+        let lightShimmer = SCNAction.repeatForever(.customAction(duration: 2.0) { node, elapsed in
+            let t = Float(elapsed)
+            let r = CGFloat(0.30 + 0.08 * sin(Double(t) * 4.5))
+            let g = CGFloat(0.35 + 0.06 * cos(Double(t) * 3.2))
+            let b = CGFloat(0.80 + 0.10 * sin(Double(t) * 5.8))
+            node.light?.color = NSColor(red: r, green: g, blue: b, alpha: 1)
+        })
+        tvLight.runAction(lightShimmer, forKey: "lightShimmer")
     }
 
     // MARK: - Furniture
@@ -205,6 +272,102 @@ private struct LateNightRerun3DRepresentable: NSViewRepresentable {
         let nsNode = SCNNode(geometry: nightstand)
         nsNode.position = SCNVector3(1.3, 0.25, 1.2)
         scene.rootNode.addChildNode(nsNode)
+
+        // Alarm clock on nightstand
+        let clockBody = SCNBox(width: 0.1, height: 0.07, length: 0.05, chamferRadius: 0.01)
+        clockBody.firstMaterial?.diffuse.contents = NSColor(red: 0.06, green: 0.06, blue: 0.06, alpha: 1)
+        let clockNode = SCNNode(geometry: clockBody)
+        clockNode.position = SCNVector3(1.25, 0.535, 1.15)
+        scene.rootNode.addChildNode(clockNode)
+        // Clock display glow (red LED digits)
+        let clockFace = SCNPlane(width: 0.07, height: 0.035)
+        clockFace.firstMaterial?.diffuse.contents = NSColor.black
+        clockFace.firstMaterial?.emission.contents = NSColor(red: 0.9, green: 0.15, blue: 0.1, alpha: 1)
+        clockFace.firstMaterial?.isDoubleSided = true
+        let clockFaceNode = SCNNode(geometry: clockFace)
+        clockFaceNode.position = SCNVector3(1.25, 0.535, 1.13)
+        scene.rootNode.addChildNode(clockFaceNode)
+    }
+
+    // MARK: - Room decorations
+
+    private func addDecorations(to scene: SCNScene) {
+        // Poster on left wall — faint rectangle suggesting a movie poster
+        let poster = SCNPlane(width: 0.5, height: 0.7)
+        let posterMat = SCNMaterial()
+        posterMat.diffuse.contents = NSColor(red: 0.14, green: 0.09, blue: 0.08, alpha: 1)
+        posterMat.emission.contents = NSColor(red: 0.06, green: 0.04, blue: 0.07, alpha: 1)
+        posterMat.isDoubleSided = true
+        poster.firstMaterial = posterMat
+        let posterNode = SCNNode(geometry: poster)
+        posterNode.position = SCNVector3(-2.99, 1.6, -0.5)
+        posterNode.eulerAngles = SCNVector3(0, Float.pi / 2, 0)
+        scene.rootNode.addChildNode(posterNode)
+
+        // Second smaller poster on left wall
+        let poster2 = SCNPlane(width: 0.35, height: 0.5)
+        let poster2Mat = SCNMaterial()
+        poster2Mat.diffuse.contents = NSColor(red: 0.10, green: 0.07, blue: 0.12, alpha: 1)
+        poster2Mat.emission.contents = NSColor(red: 0.04, green: 0.03, blue: 0.06, alpha: 1)
+        poster2Mat.isDoubleSided = true
+        poster2.firstMaterial = poster2Mat
+        let poster2Node = SCNNode(geometry: poster2)
+        poster2Node.position = SCNVector3(-2.99, 1.5, 0.8)
+        poster2Node.eulerAngles = SCNVector3(0, Float.pi / 2, 0)
+        scene.rootNode.addChildNode(poster2Node)
+
+        // Bookshelf on right wall — low shelf with a few books
+        let shelf = SCNBox(width: 0.8, height: 0.03, length: 0.2, chamferRadius: 0)
+        shelf.firstMaterial?.diffuse.contents = NSColor(red: 0.14, green: 0.09, blue: 0.06, alpha: 1)
+        let shelfNode = SCNNode(geometry: shelf)
+        shelfNode.position = SCNVector3(2.88, 1.3, 0)
+        scene.rootNode.addChildNode(shelfNode)
+
+        // Books on shelf
+        let bookColors: [NSColor] = [
+            NSColor(red: 0.15, green: 0.08, blue: 0.06, alpha: 1),
+            NSColor(red: 0.08, green: 0.06, blue: 0.14, alpha: 1),
+            NSColor(red: 0.06, green: 0.12, blue: 0.06, alpha: 1),
+            NSColor(red: 0.14, green: 0.10, blue: 0.04, alpha: 1),
+            NSColor(red: 0.10, green: 0.04, blue: 0.04, alpha: 1),
+        ]
+        var bx: Float = 2.88 - 0.3
+        for col in bookColors {
+            let bw = Float.random(in: 0.04...0.08)
+            let bh = Float.random(in: 0.15...0.22)
+            let book = SCNBox(width: CGFloat(bw), height: CGFloat(bh), length: 0.12, chamferRadius: 0.003)
+            book.firstMaterial?.diffuse.contents = col
+            let bookNode = SCNNode(geometry: book)
+            bookNode.position = SCNVector3(bx + bw / 2, 1.3 + 0.015 + bh / 2, 0)
+            scene.rootNode.addChildNode(bookNode)
+            bx += bw + 0.01
+        }
+
+        // Rug on floor — dark patterned rectangle
+        let rug = SCNBox(width: 1.5, height: 0.005, length: 1.0, chamferRadius: 0.01)
+        rug.firstMaterial?.diffuse.contents = NSColor(red: 0.18, green: 0.08, blue: 0.08, alpha: 1)
+        let rugNode = SCNNode(geometry: rug)
+        rugNode.position = SCNVector3(0, 0.003, -0.5)
+        scene.rootNode.addChildNode(rugNode)
+
+        // Window on right wall with curtain — faint moonlight creeping in
+        let windowFrame = SCNPlane(width: 0.6, height: 0.8)
+        windowFrame.firstMaterial?.diffuse.contents = NSColor(red: 0.04, green: 0.04, blue: 0.08, alpha: 1)
+        windowFrame.firstMaterial?.emission.contents = NSColor(red: 0.02, green: 0.02, blue: 0.05, alpha: 1)
+        windowFrame.firstMaterial?.isDoubleSided = true
+        let windowNode = SCNNode(geometry: windowFrame)
+        windowNode.position = SCNVector3(2.99, 1.5, -1.5)
+        windowNode.eulerAngles = SCNVector3(0, -Float.pi / 2, 0)
+        scene.rootNode.addChildNode(windowNode)
+
+        // Curtain — hangs slightly over the window
+        let curtain = SCNPlane(width: 0.35, height: 0.85)
+        curtain.firstMaterial?.diffuse.contents = NSColor(red: 0.12, green: 0.06, blue: 0.08, alpha: 1)
+        curtain.firstMaterial?.isDoubleSided = true
+        let curtainNode = SCNNode(geometry: curtain)
+        curtainNode.position = SCNVector3(2.98, 1.5, -1.7)
+        curtainNode.eulerAngles = SCNVector3(0, -Float.pi / 2, 0)
+        scene.rootNode.addChildNode(curtainNode)
     }
 
     // MARK: - Lava lamp

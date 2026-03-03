@@ -21,6 +21,7 @@ private struct MedievalVillage3DRepresentable: NSViewRepresentable {
 
     final class Coordinator {
         var windowLights: [SCNNode] = []
+        var windowGlows: [SCNNode] = []  // emissive planes paired with lights
         var lastTapCount = 0
         var extinguishedIndex = 0
     }
@@ -48,10 +49,48 @@ private struct MedievalVillage3DRepresentable: NSViewRepresentable {
         guard c.extinguishedIndex < c.windowLights.count else { return }
 
         let light = c.windowLights[c.extinguishedIndex]
+        let glow = c.extinguishedIndex < c.windowGlows.count ? c.windowGlows[c.extinguishedIndex] : nil
+
+        // Dim the light over 2 seconds
         SCNTransaction.begin()
         SCNTransaction.animationDuration = 2.0
         light.light?.intensity = 0
+        glow?.geometry?.firstMaterial?.emission.contents = NSColor.black
         SCNTransaction.commit()
+
+        // After the dim, spawn a small smoke puff
+        let smokePos = light.position
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.8) {
+            guard let scene = nsView.scene else { return }
+            let smoke = SCNParticleSystem()
+            smoke.birthRate = 40
+            smoke.particleLifeSpan = 1.5
+            smoke.particleSize = 0.04
+            smoke.particleSizeVariation = 0.02
+            smoke.particleColor = NSColor(white: 0.5, alpha: 0.5)
+            smoke.particleColorVariation = SCNVector4(0, 0, 0, 0.2)
+            smoke.blendMode = .alpha
+            smoke.spreadingAngle = 30
+            smoke.emittingDirection = SCNVector3(0, 1, 0)
+            smoke.particleVelocity = 0.15
+            smoke.particleVelocityVariation = 0.05
+            smoke.emitterShape = SCNSphere(radius: 0.02)
+            smoke.birthRateVariation = 10
+            smoke.loops = false
+            smoke.emissionDuration = 0.4
+            smoke.particleAngularVelocity = 0.5
+
+            let smokeNode = SCNNode()
+            smokeNode.position = SCNVector3(smokePos.x, smokePos.y + 0.15, smokePos.z)
+            smokeNode.addParticleSystem(smoke)
+            scene.rootNode.addChildNode(smokeNode)
+
+            // Clean up the smoke node after particles expire
+            DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
+                smokeNode.removeFromParentNode()
+            }
+        }
+
         c.extinguishedIndex += 1
     }
 
@@ -83,12 +122,12 @@ private struct MedievalVillage3DRepresentable: NSViewRepresentable {
         ambient.light!.color = NSColor(red: 0.12, green: 0.10, blue: 0.22, alpha: 1)
         scene.rootNode.addChildNode(ambient)
 
-        // Moonlight — blue-silver directional
+        // Moonlight — blue-silver directional (bright enough to bathe the scene)
         let moon = SCNNode()
         moon.light = SCNLight()
         moon.light!.type = .directional
-        moon.light!.intensity = 120
-        moon.light!.color = NSColor(red: 0.35, green: 0.38, blue: 0.55, alpha: 1)
+        moon.light!.intensity = 280
+        moon.light!.color = NSColor(red: 0.40, green: 0.45, blue: 0.70, alpha: 1)
         moon.light!.castsShadow = true
         moon.light!.shadowRadius = 3
         moon.light!.shadowSampleCount = 4
@@ -182,6 +221,7 @@ private struct MedievalVillage3DRepresentable: NSViewRepresentable {
             light.position = SCNVector3(spot.x, sh * 0.4, spot.z + sd / 2 + 0.15)
             scene.rootNode.addChildNode(light)
             coord.windowLights.append(light)
+            coord.windowGlows.append(winNode)
         }
     }
 

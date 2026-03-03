@@ -16,7 +16,7 @@ import SwiftUI
 struct ShimizuEveningScene: View {
     @ObservedObject var interaction: InteractionState
 
-    private let startDate = Date()
+    @State private var startDate = Date()
 
     @State private var stars: [StarData] = []
     @State private var raindrops: [RaindropData] = []

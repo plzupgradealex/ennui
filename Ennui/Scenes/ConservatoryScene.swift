@@ -2,7 +2,7 @@ import SwiftUI
 
 struct ConservatoryScene: View {
     @ObservedObject var interaction: InteractionState
-    private let startDate = Date()
+    @State private var startDate = Date()
 
     struct PalmData {
         let x, height, curve, phase: Double

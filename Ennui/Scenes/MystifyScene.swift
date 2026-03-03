@@ -5,7 +5,7 @@ import SwiftUI
 
 struct MystifyScene: View {
     @ObservedObject var interaction: InteractionState
-    private let startDate = Date()
+    @State private var startDate = Date()
 
     // MARK: - State
 

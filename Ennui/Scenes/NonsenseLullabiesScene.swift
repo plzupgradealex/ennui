@@ -2,7 +2,7 @@ import SwiftUI
 
 struct NonsenseLullabiesScene: View {
     @ObservedObject var interaction: InteractionState
-    private let startDate = Date()
+    @State private var startDate = Date()
 
     struct WashBlob {
         let x, y, size, hue, saturation: Double

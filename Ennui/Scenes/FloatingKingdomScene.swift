@@ -18,7 +18,7 @@ import SwiftUI
 struct FloatingKingdomScene: View {
     @ObservedObject var interaction: InteractionState
 
-    private let startDate = Date()
+    @State private var startDate = Date()
     private let px: Double = 2.0
 
     // Procedural data

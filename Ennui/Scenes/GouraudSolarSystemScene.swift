@@ -2,7 +2,7 @@ import SwiftUI
 
 struct GouraudSolarSystemScene: View {
     @ObservedObject var interaction: InteractionState
-    private let startDate = Date()
+    @State private var startDate = Date()
 
     struct PlanetData: Identifiable {
         let id: Int
