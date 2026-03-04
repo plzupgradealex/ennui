@@ -73,6 +73,7 @@ enum SceneKind: String, CaseIterable, Identifiable {
     case potterGarden3D = "potterGarden3D"
     case innerLight3D = "innerLight3D"
     case wireframeCity3D = "wireframeCity3D"
+    case lastAndFirstMen3D = "lastAndFirstMen3D"
 
     var id: String { rawValue }
 
@@ -152,6 +153,7 @@ enum SceneKind: String, CaseIterable, Identifiable {
         case .potterGarden3D: return "Potter Garden 3D"
         case .innerLight3D: return "Inner Light 3D"
         case .wireframeCity3D: return "Wireframe City 3D"
+        case .lastAndFirstMen3D: return "Last and First Men 3D"
         }
     }
 
@@ -231,6 +233,7 @@ enum SceneKind: String, CaseIterable, Identifiable {
         case .potterGarden3D: return "Three-dimensional Beatrix Potter cottage garden diorama with rows of cabbages, a stone wall, a wooden gate, butterflies, and warm afternoon light"
         case .innerLight3D: return "Warm glowing geometric forms floating in deep indigo space, connected by luminous filaments, tiny motes rising like thoughts forming"
         case .wireframeCity3D: return "Green phosphor wireframe cityscape on black, a slow flyover of glowing vector buildings, grid floor scrolling beneath, nineteen-eighties vector terminal aesthetic"
+        case .lastAndFirstMen3D: return "Abstract art deco retelling of Olaf Stapledon's Last and First Men: eighteen human species across two billion years, migrating from Earth to Venus to Neptune, ascending through the Kardashev scale from a single world to the stars"
         }
     }
 
@@ -310,6 +313,7 @@ enum SceneKind: String, CaseIterable, Identifiable {
         case .potterGarden3D: return "Tap to release a butterfly"
         case .innerLight3D: return "Tap to send a brightness pulse through the connections"
         case .wireframeCity3D: return "Tap to sweep a radar pulse across the grid"
+        case .lastAndFirstMen3D: return "Tap to awaken the next human species in the chain of becoming"
         }
     }
 
@@ -387,6 +391,7 @@ enum SceneKind: String, CaseIterable, Identifiable {
         case .potterGarden3D: return "cube"
         case .innerLight3D: return "cube"
         case .wireframeCity3D: return "cube"
+        case .lastAndFirstMen3D: return "cube"
         }
     }
 
@@ -464,6 +469,7 @@ enum SceneKind: String, CaseIterable, Identifiable {
         case .potterGarden3D: return Color(red: 0.35, green: 0.52, blue: 0.30)
         case .innerLight3D: return Color(red: 0.85, green: 0.65, blue: 0.30)
         case .wireframeCity3D: return Color(red: 0.15, green: 0.90, blue: 0.35)
+        case .lastAndFirstMen3D: return Color(red: 0.88, green: 0.70, blue: 0.25)
         }
     }
 
@@ -487,7 +493,7 @@ enum SceneKind: String, CaseIterable, Identifiable {
         case .cosmicDrift, .voyagerNebula, .desertStarscape,
              .gouraudSolarSystem, .captainStar,
              .cosmicDrift3D, .voyagerNebula3D, .desertStarscape3D,
-             .gouraudSolarSystem3D, .captainStar3D:
+             .gouraudSolarSystem3D, .captainStar3D, .lastAndFirstMen3D:
             return "cosmic"
         // Fields, villages, natural world
         case .ontarioCountryside, .minnesotaSmallTown, .medievalVillage,

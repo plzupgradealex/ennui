@@ -339,6 +339,7 @@ struct ContentView: View {
         case .potterGarden3D: PotterGarden3DScene(interaction: interaction)
         case .innerLight3D: InnerLight3DScene(interaction: interaction)
         case .wireframeCity3D: WireframeCity3DScene(interaction: interaction)
+        case .lastAndFirstMen3D: LastAndFirstMen3DScene(interaction: interaction)
         }
     }
 
