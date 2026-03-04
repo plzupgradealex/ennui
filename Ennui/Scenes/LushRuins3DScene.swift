@@ -1,201 +1,319 @@
+// LushRuins3DScene — Moss-covered tropical ruins rendered in Metal (MTKView).
+// Tap to release a burst of colorful butterflies.
+// No SceneKit — geometry built via Metal3DHelpers, animated each frame.
+
 import SwiftUI
-import SceneKit
+import MetalKit
 
 struct LushRuins3DScene: View {
     @ObservedObject var interaction: InteractionState
-    var body: some View { LushRuins3DRepresentable(interaction: interaction) }
+    var body: some View {
+        LushRuins3DRepresentable(interaction: interaction)
+    }
 }
+
+// MARK: - NSViewRepresentable
 
 private struct LushRuins3DRepresentable: NSViewRepresentable {
     @ObservedObject var interaction: InteractionState
 
-    final class Coordinator {
+    final class Coordinator: NSObject, MTKViewDelegate {
+
+        let device:           MTLDevice
+        let commandQueue:     MTLCommandQueue
+        var opaquePipeline:   MTLRenderPipelineState?
+        var glowPipeline:     MTLRenderPipelineState?
+        var particlePipeline: MTLRenderPipelineState?
+        var depthState:       MTLDepthStencilState?
+        var depthROState:     MTLDepthStencilState?
+
+        struct DrawCall {
+            var buffer:      MTLBuffer
+            var count:       Int
+            var model:       simd_float4x4
+            var emissiveCol: SIMD3<Float>
+            var emissiveMix: Float
+            var opacity:     Float = 1
+        }
+
+        var opaqueCalls:      [DrawCall] = []
+        var transparentCalls: [DrawCall] = []
+
+        // Butterfly data (pre-computed)
+        var butterflyPos:   [SIMD3<Float>] = []
+        var butterflyPhase: [Float]        = []
+        var butterflyColor: [SIMD4<Float>] = []
+
+        // Steam data (pre-computed)
+        var steamPos:   [SIMD3<Float>] = []
+        var steamPhase: [Float]        = []
+
+        // Tap interaction
+        var butterflyBoostT: Float = -100
         var lastTapCount = 0
-        var scene: SCNScene?
-        var butterflies: [SCNNode] = []
+
+        var startTime: CFTimeInterval = CACurrentMediaTime()
+        var aspect: Float = 1
+
+        override init() {
+            device       = MTLCreateSystemDefaultDevice()!
+            commandQueue = device.makeCommandQueue()!
+            super.init()
+            do {
+                opaquePipeline   = try makeOpaquePipeline(device: device)
+                glowPipeline     = try makeAlphaBlendPipeline(device: device)
+                particlePipeline = try makeParticlePipeline(device: device)
+            } catch {
+                print("LushRuins3D pipeline error: \(error)")
+            }
+            depthState   = makeDepthState(device: device)
+            depthROState = makeDepthReadOnlyState(device: device)
+            buildScene()
+        }
+
+        private func addOpaque(_ v: [Vertex3D], model: simd_float4x4,
+                               emissive: SIMD3<Float> = .zero, mix: Float = 0) {
+            guard let buf = makeVertexBuffer(v, device: device) else { return }
+            opaqueCalls.append(DrawCall(buffer: buf, count: v.count,
+                                        model: model, emissiveCol: emissive, emissiveMix: mix))
+        }
+
+        private func addTransparent(_ v: [Vertex3D], model: simd_float4x4,
+                                    emissive: SIMD3<Float>, mix: Float, opacity: Float) {
+            guard let buf = makeVertexBuffer(v, device: device) else { return }
+            transparentCalls.append(DrawCall(buffer: buf, count: v.count,
+                                              model: model, emissiveCol: emissive,
+                                              emissiveMix: mix, opacity: opacity))
+        }
+
+        private func buildScene() {
+            // Sky/canopy sphere
+            addOpaque(buildSphere(radius: 40, rings: 6, segments: 12,
+                                  color: [0.01, 0.03, 0.01, 1]),
+                      model: matrix_identity_float4x4)
+
+            // Ground
+            addOpaque(buildPlane(w: 24, d: 24, color: [0.06, 0.07, 0.04, 1]),
+                      model: matrix_identity_float4x4)
+
+            // Borobudur-style stepped pyramid (5 levels + stupa)
+            let stoneCol: SIMD4<Float> = [0.09, 0.10, 0.08, 1]
+            struct PyramidLevel { let w: Float; let y: Float }
+            let levels: [PyramidLevel] = [
+                PyramidLevel(w: 9.0, y: 0.4),
+                PyramidLevel(w: 7.0, y: 1.2),
+                PyramidLevel(w: 5.5, y: 2.0),
+                PyramidLevel(w: 4.0, y: 2.8),
+                PyramidLevel(w: 2.5, y: 3.6)
+            ]
+            for lvl in levels {
+                addOpaque(buildBox(w: lvl.w, h: 0.8, d: lvl.w, color: stoneCol),
+                          model: m4Translation(0, lvl.y, 0))
+            }
+            addOpaque(buildCylinder(radius: 0.6, height: 1.2, segments: 10,
+                                    color: [0.12, 0.13, 0.10, 1]),
+                      model: m4Translation(0, 4.8, 0))
+
+            // Moss overlays on pyramid top faces
+            let mossE: SIMD3<Float> = [0.05, 0.22, 0.04]
+            struct MossInfo { let w: Float; let y: Float }
+            let mossLayers: [MossInfo] = [
+                MossInfo(w: 8.8, y: 0.81),
+                MossInfo(w: 6.8, y: 1.61),
+                MossInfo(w: 5.3, y: 2.41),
+                MossInfo(w: 3.8, y: 3.21),
+                MossInfo(w: 2.3, y: 4.01)
+            ]
+            for ml in mossLayers {
+                addTransparent(buildPlane(w: ml.w, d: ml.w, color: [0.05, 0.22, 0.04, 0.55]),
+                                model: m4Translation(0, ml.y, 0),
+                                emissive: mossE, mix: 0.3, opacity: 0.55)
+            }
+
+            // 4 large trees: trunk cylinder + sphere canopy
+            let trunkCol:  SIMD4<Float> = [0.08, 0.07, 0.04, 1]
+            let canopyCol: SIMD4<Float> = [0.04, 0.14, 0.03, 1]
+            struct TreeSpot { let x: Float; let z: Float }
+            let treeSpots: [TreeSpot] = [
+                TreeSpot(x: -7, z: -6), TreeSpot(x: 8, z: -8),
+                TreeSpot(x: -6, z:  6), TreeSpot(x: 9, z:  5)
+            ]
+            for sp in treeSpots {
+                addOpaque(buildCylinder(radius: 0.3, height: 4, segments: 8, color: trunkCol),
+                          model: m4Translation(sp.x, 2.0, sp.z))
+                addOpaque(buildSphere(radius: 2.5, rings: 5, segments: 10, color: canopyCol),
+                          model: m4Translation(sp.x, 5.5, sp.z))
+            }
+
+            // God rays — translucent pale-yellow quads slanting from upper-left
+            let rayE: SIMD3<Float> = [0.78, 0.70, 0.40]
+            struct RayInfo { let x: Float; let y: Float; let z: Float; let rz: Float }
+            let rays: [RayInfo] = [
+                RayInfo(x: -2, y: 8.0, z: -5, rz:  0.25),
+                RayInfo(x:  0, y: 9.0, z: -6, rz:  0.18),
+                RayInfo(x:  2, y: 8.5, z: -4, rz: -0.20)
+            ]
+            for ray in rays {
+                addTransparent(buildQuad(w: 2.5, h: 10, color: [0.78, 0.70, 0.40, 0.07]),
+                                model: m4Translation(ray.x, ray.y, ray.z) * m4RotZ(ray.rz),
+                                emissive: rayE, mix: 0.7, opacity: 0.07)
+            }
+
+            // Pre-compute butterfly data (30 butterflies)
+            var rng = SplitMix64(seed: 7100)
+            let palette: [SIMD4<Float>] = [
+                [1.0, 0.45, 0.10, 1], [1.0, 0.80, 0.10, 1],
+                [0.25, 0.55, 1.0,  1], [0.90, 0.20, 0.70, 1],
+                [0.20, 0.90, 0.50, 1]
+            ]
+            for i in 0..<30 {
+                let x = Float(Double.random(in: -8...8,   using: &rng))
+                let y = Float(Double.random(in:  1.0...6, using: &rng))
+                let z = Float(Double.random(in: -8...8,   using: &rng))
+                butterflyPos.append([x, y, z])
+                butterflyPhase.append(Float(Double.random(in: 0...6.28, using: &rng)))
+                butterflyColor.append(palette[i % palette.count])
+            }
+
+            // Pre-compute steam particles (20)
+            var rng2 = SplitMix64(seed: 7101)
+            for _ in 0..<20 {
+                let x = Float(Double.random(in: -5...5, using: &rng2))
+                let z = Float(Double.random(in: -5...5, using: &rng2))
+                steamPos.append([x, 0.1, z])
+                steamPhase.append(Float(Double.random(in: 0...6.28, using: &rng2)))
+            }
+        }
+
+        func handleTap() {
+            butterflyBoostT = Float(CACurrentMediaTime() - startTime)
+        }
+
+        func mtkView(_ view: MTKView, drawableSizeWillChange size: CGSize) {
+            aspect = size.width > 0 ? Float(size.width / size.height) : 1
+        }
+
+        func draw(in view: MTKView) {
+            guard let pipeline = opaquePipeline,
+                  let drawable = view.currentDrawable,
+                  let rpDesc   = view.currentRenderPassDescriptor,
+                  let cmdBuf   = commandQueue.makeCommandBuffer(),
+                  let encoder  = cmdBuf.makeRenderCommandEncoder(descriptor: rpDesc)
+            else { return }
+
+            let t = Float(CACurrentMediaTime() - startTime)
+
+            // Slow orbit — 140 s/rev
+            let orbitAngle = t * (2 * Float.pi / 140.0)
+            let eye: SIMD3<Float> = [16 * sin(orbitAngle), 8, 16 * cos(orbitAngle)]
+            let center: SIMD3<Float> = [0, 2, 0]
+            let view4 = m4LookAt(eye: eye, center: center, up: [0, 1, 0])
+            let proj4 = m4Perspective(fovyRad: 50 * .pi / 180, aspect: aspect, near: 0.1, far: 90)
+            let vp    = proj4 * view4
+
+            let sunDir: SIMD3<Float> = simd_normalize([-0.4, -0.7, -0.5])
+            let sunCol: SIMD3<Float> = [0.60, 0.70, 0.35]
+            let ambCol: SIMD3<Float> = [0.06, 0.10, 0.04]
+
+            var su = SceneUniforms3D(
+                viewProjection: vp,
+                sunDirection:   SIMD4<Float>(sunDir, 0),
+                sunColor:       SIMD4<Float>(sunCol, 0),
+                ambientColor:   SIMD4<Float>(ambCol, t),
+                fogParams:      SIMD4<Float>(18, 55, 0, 0),
+                fogColor:       SIMD4<Float>(0.01, 0.04, 0.01, 0),
+                cameraWorldPos: SIMD4<Float>(eye, 0)
+            )
+
+            encoder.setRenderPipelineState(pipeline)
+            encoder.setDepthStencilState(depthState)
+            encoder.setCullMode(.back)
+            encoder.setVertexBytes(&su, length: MemoryLayout<SceneUniforms3D>.size, index: 1)
+            encoder.setFragmentBytes(&su, length: MemoryLayout<SceneUniforms3D>.size, index: 1)
+
+            for call in opaqueCalls {
+                encodeDraw(encoder: encoder,
+                           vertexBuffer: call.buffer, vertexCount: call.count,
+                           model: call.model,
+                           emissiveColor: call.emissiveCol, emissiveMix: call.emissiveMix)
+            }
+
+            if let glow = glowPipeline {
+                encoder.setRenderPipelineState(glow)
+                encoder.setDepthStencilState(depthROState)
+                for call in transparentCalls {
+                    encodeDraw(encoder: encoder,
+                               vertexBuffer: call.buffer, vertexCount: call.count,
+                               model: call.model,
+                               emissiveColor: call.emissiveCol, emissiveMix: call.emissiveMix,
+                               opacity: call.opacity)
+                }
+            }
+
+            if let ppipe = particlePipeline {
+                var particles: [ParticleVertex3D] = []
+
+                // Steam
+                for i in steamPos.indices {
+                    let ph   = steamPhase[i]
+                    let rise = (t * 0.4 + ph).truncatingRemainder(dividingBy: 2.5)
+                    let alpha = Float(rise < 2.0 ? rise * 0.5 : (2.5 - rise) * 2.0)
+                    let p = steamPos[i]
+                    let col: SIMD4<Float> = [0.55, 0.68, 0.50, max(0, alpha) * 0.4]
+                    particles.append(ParticleVertex3D(
+                        position: [p.x + 0.2 * sin(t * 0.5 + ph), rise, p.z],
+                        color: col, size: 10))
+                }
+
+                // Butterflies
+                let boost = max(0, 1 - (t - butterflyBoostT) / 5.0)
+                for i in butterflyPos.indices {
+                    let ph   = butterflyPhase[i]
+                    let base = butterflyPos[i]
+                    let wx   = base.x + 1.5 * sin(t * 0.6 + ph)
+                    let wy   = base.y + 0.5 * sin(t * 1.3 + ph * 1.2)
+                    let wz   = base.z + 1.5 * cos(t * 0.5 + ph * 0.8)
+                    let flutter  = max(0.1, abs(sin(t * 4.0 + ph)))
+                    let baseAlpha = 0.15 + 0.85 * boost
+                    var col = butterflyColor[i]
+                    col.w = baseAlpha * flutter
+                    let sz: Float = 5 + 8 * boost
+                    particles.append(ParticleVertex3D(position: [wx, wy, wz], color: col, size: sz))
+                }
+
+                if !particles.isEmpty,
+                   let pbuf = makeParticleBuffer(particles, device: device) {
+                    encoder.setRenderPipelineState(ppipe)
+                    encoder.setDepthStencilState(depthROState)
+                    encoder.setVertexBuffer(pbuf, offset: 0, index: 0)
+                    encoder.setVertexBytes(&su, length: MemoryLayout<SceneUniforms3D>.size, index: 1)
+                    encoder.drawPrimitives(type: .point, vertexStart: 0, vertexCount: particles.count)
+                }
+            }
+
+            encoder.endEncoding()
+            cmdBuf.present(drawable)
+            cmdBuf.commit()
+        }
     }
+
     func makeCoordinator() -> Coordinator { Coordinator() }
 
-    func makeNSView(context: Context) -> SCNView {
-        let view = SCNView()
-        let scene = SCNScene()
-        context.coordinator.scene = scene
-        view.scene = scene
-        view.backgroundColor = NSColor(red: 0.01, green: 0.04, blue: 0.02, alpha: 1)
-        view.antialiasingMode = .multisampling4X
-        view.isPlaying = true
+    func makeNSView(context: Context) -> MTKView {
+        let view = MTKView(frame: .zero, device: context.coordinator.device)
+        view.delegate                 = context.coordinator
+        view.colorPixelFormat         = .bgra8Unorm
+        view.depthStencilPixelFormat  = .depth32Float
+        view.clearColor               = MTLClearColor(red: 0.01, green: 0.03, blue: 0.01, alpha: 1)
         view.preferredFramesPerSecond = 60
-        view.allowsCameraControl = true
-        buildScene(scene, coord: context.coordinator)
+        view.autoResizeDrawable       = true
         return view
     }
 
-    func updateNSView(_ nsView: SCNView, context: Context) {
+    func updateNSView(_ nsView: MTKView, context: Context) {
         let c = context.coordinator
         guard interaction.tapCount != c.lastTapCount else { return }
         c.lastTapCount = interaction.tapCount
-        // Butterfly particle burst on tap
-        guard let scene = c.scene else { return }
-        let burstNode = SCNNode()
-        let tapPos = interaction.tapLocation ?? CGPoint(x: 0.5, y: 0.5)
-        burstNode.position = SCNVector3(
-            Float(tapPos.x - 0.5) * 4,
-            1.5,
-            Float(0.5 - tapPos.y) * 4
-        )
-        scene.rootNode.addChildNode(burstNode)
-        let burst = SCNParticleSystem()
-        burst.birthRate = 80
-        burst.particleLifeSpan = 1.5
-        burst.particleSize = 0.06
-        burst.emissionDuration = 0.3
-        burst.spreadingAngle = 160
-        burst.particleVelocity = 2.5
-        burst.particleColor = NSColor.systemPink
-        burst.isAffectedByGravity = true
-        burst.loops = false
-        burstNode.addParticleSystem(burst)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
-            burstNode.removeFromParentNode()
-        }
-    }
-
-    private func buildScene(_ scene: SCNScene, coord: Coordinator) {
-        // Floor
-        let floor = SCNFloor()
-        floor.reflectivity = 0.05
-        floor.firstMaterial?.diffuse.contents = NSColor(red: 0.05, green: 0.15, blue: 0.05, alpha: 1)
-        let floorNode = SCNNode(geometry: floor)
-        scene.rootNode.addChildNode(floorNode)
-
-        // Temple pyramid: 4 stacked slabs
-        let slabSizes: [(Float, Float, Float)] = [(4, 0.3, 4), (3, 0.3, 3), (2, 0.3, 2), (1, 0.3, 1)]
-        let slabYPositions: [Float] = [0.15, 0.45, 0.75, 1.05]
-        let stoneColor = NSColor(red: 0.35, green: 0.32, blue: 0.25, alpha: 1)
-        for (i, size) in slabSizes.enumerated() {
-            let box = SCNBox(width: CGFloat(size.0), height: CGFloat(size.1), length: CGFloat(size.2), chamferRadius: 0.02)
-            box.firstMaterial?.diffuse.contents = stoneColor
-            box.firstMaterial?.roughness.contents = 0.85
-            let node = SCNNode(geometry: box)
-            node.position = SCNVector3(0, slabYPositions[i], 0)
-            scene.rootNode.addChildNode(node)
-        }
-
-        // 8 tropical trees using SplitMix64(seed:5001)
-        var rng = SplitMix64(seed: 5001)
-        let trunkColor = NSColor(red: 0.28, green: 0.18, blue: 0.08, alpha: 1)
-        let canopyColor = NSColor(red: 0.05, green: 0.28, blue: 0.07, alpha: 1)
-        for _ in 0..<8 {
-            let x = Float(rng.nextDouble()) * 12 - 6
-            let z = Float(rng.nextDouble()) * 6 - 2
-
-            let trunk = SCNCylinder(radius: 0.12, height: 2.5)
-            trunk.firstMaterial?.diffuse.contents = trunkColor
-            let trunkNode = SCNNode(geometry: trunk)
-            trunkNode.position = SCNVector3(x, 1.25, z)
-            scene.rootNode.addChildNode(trunkNode)
-
-            let canopy = SCNSphere(radius: 0.9)
-            canopy.firstMaterial?.diffuse.contents = canopyColor
-            let canopyNode = SCNNode(geometry: canopy)
-            canopyNode.position = SCNVector3(x, 2.85, z)
-            scene.rootNode.addChildNode(canopyNode)
-        }
-
-        // Waterfall plane
-        let waterfall = SCNPlane(width: 0.6, height: 3)
-        waterfall.firstMaterial?.diffuse.contents = NSColor.white
-        waterfall.firstMaterial?.transparency = 0.7
-        waterfall.firstMaterial?.isDoubleSided = true
-        let waterfallNode = SCNNode(geometry: waterfall)
-        waterfallNode.position = SCNVector3(-5, 1.5, -3)
-        scene.rootNode.addChildNode(waterfallNode)
-
-        // Waterfall falling particles
-        let waterParticles = SCNParticleSystem()
-        waterParticles.birthRate = 120
-        waterParticles.particleLifeSpan = 1.2
-        waterParticles.particleSize = 0.03
-        waterParticles.particleVelocity = 3.0
-        waterParticles.particleVelocityVariation = 0.3
-        waterParticles.particleColor = NSColor.white
-        waterParticles.emittingDirection = SCNVector3(0, -1, 0)
-        waterParticles.spreadingAngle = 8
-        waterParticles.isAffectedByGravity = false
-        waterParticles.loops = true
-        waterfallNode.addParticleSystem(waterParticles)
-
-        // 6 butterflies with circular orbit
-        let butterflyColors: [NSColor] = [
-            NSColor.systemPink, NSColor.orange, NSColor.systemBlue,
-            NSColor.yellow, NSColor.purple, NSColor.green
-        ]
-        for (i, color) in butterflyColors.enumerated() {
-            let wing = SCNBox(width: 0.15, height: 0.1, length: 0.01, chamferRadius: 0)
-            wing.firstMaterial?.diffuse.contents = color
-            wing.firstMaterial?.emission.contents = color.withAlphaComponent(0.6)
-            let butterflyNode = SCNNode(geometry: wing)
-            let angle = CGFloat(i) * CGFloat.pi * 2 / 6
-            let radius: CGFloat = 2.5
-            butterflyNode.position = SCNVector3(
-                cos(angle) * radius,
-                1.5 + CGFloat(i) * 0.15,
-                sin(angle) * radius
-            )
-            scene.rootNode.addChildNode(butterflyNode)
-            coord.butterflies.append(butterflyNode)
-
-            let orbitDuration = Double(7 + i) * 0.8
-            let orbit = SCNAction.repeatForever(
-                SCNAction.customAction(duration: orbitDuration) { node, elapsed in
-                    let t = CGFloat(elapsed / orbitDuration) * CGFloat.pi * 2
-                    let cx = cos(t + angle) * radius
-                    let cy: CGFloat = 1.5 + sin(t * 2) * 0.3 + CGFloat(i) * 0.15
-                    let cz = sin(t + angle) * radius
-                    node.position = SCNVector3(cx, cy, cz)
-                    node.eulerAngles.y = -(t + angle)
-                }
-            )
-            butterflyNode.runAction(orbit)
-        }
-
-        // Ambient light (warm tropical)
-        let ambientLight = SCNLight()
-        ambientLight.type = .ambient
-        ambientLight.color = NSColor(red: 0.2, green: 0.28, blue: 0.15, alpha: 1)
-        ambientLight.intensity = 400
-        let ambientNode = SCNNode()
-        ambientNode.light = ambientLight
-        scene.rootNode.addChildNode(ambientNode)
-
-        // Directional warm light from above
-        let dirLight = SCNLight()
-        dirLight.type = .directional
-        dirLight.color = NSColor(red: 0.9, green: 0.8, blue: 0.5, alpha: 1)
-        dirLight.intensity = 800
-        let dirNode = SCNNode()
-        dirNode.light = dirLight
-        dirNode.eulerAngles = SCNVector3(-Float.pi / 3, Float.pi / 4, 0)
-        scene.rootNode.addChildNode(dirNode)
-
-        // Camera orbiting
-        let cameraNode = SCNNode()
-        cameraNode.camera = SCNCamera()
-        cameraNode.camera?.zFar = 100
-        cameraNode.position = SCNVector3(8, 4, 8)
-        scene.rootNode.addChildNode(cameraNode)
-
-        let lookAt = SCNLookAtConstraint(target: floorNode)
-        lookAt.isGimbalLockEnabled = true
-        cameraNode.constraints = [lookAt]
-
-        let orbit = SCNAction.repeatForever(
-            SCNAction.customAction(duration: 100) { node, elapsed in
-                let angle = Float(elapsed / 100) * Float.pi * 2
-                let r: Float = 10
-                node.position = SCNVector3(cos(angle) * r, 4, sin(angle) * r)
-            }
-        )
-        cameraNode.runAction(orbit)
+        c.handleTap()
     }
 }
