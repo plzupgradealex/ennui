@@ -354,83 +354,95 @@ struct ContentView: View {
     private var etherealPicker: some View {
         TimelineView(.animation(minimumInterval: 1.0 / 60.0)) { timeline in
             let t = timeline.date.timeIntervalSinceReferenceDate
+            let scenes2D = SceneKind.allCases.filter { !$0.rawValue.hasSuffix("3D") }
+            let scenes3D = SceneKind.allCases.filter { $0.rawValue.hasSuffix("3D") }
             VStack {
+                // 3D orbs at the top
+                orbRow(scenes: scenes3D, allCases: SceneKind.allCases, t: t)
+                    .padding(.top, 28)
                 Spacer()
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 10) {
-                        ForEach(Array(SceneKind.allCases.enumerated()), id: \.element.id) { idx, scene in
-                            let isActive = scene == currentScene
-                            let float = sin(t * 0.6 + Double(idx) * 1.1) * 3
-                            let glow = sin(t * 0.8 + Double(idx) * 0.7) * 0.15 + 0.85
-
-                            Button {
-                                transitionToScene(scene)
-                            } label: {
-                                ZStack {
-                                    // Outer glow ring
-                                    Circle()
-                                        .fill(
-                                            RadialGradient(
-                                                colors: [
-                                                    scene.tint.opacity(isActive ? 0.5 * glow : 0.1),
-                                                    scene.tint.opacity(isActive ? 0.15 : 0.0),
-                                                    .clear
-                                                ],
-                                                center: .center,
-                                                startRadius: 4,
-                                                endRadius: isActive ? 22 : 15
-                                            )
-                                        )
-                                        .frame(width: isActive ? 40 : 30, height: isActive ? 40 : 30)
-
-                                    // Inner orb
-                                    Circle()
-                                        .fill(
-                                            RadialGradient(
-                                                colors: [
-                                                    scene.tint.opacity(isActive ? 0.95 : 0.35),
-                                                    scene.tint.opacity(isActive ? 0.6 : 0.15),
-                                                    .clear
-                                                ],
-                                                center: .center,
-                                                startRadius: 0,
-                                                endRadius: isActive ? 10 : 7
-                                            )
-                                        )
-                                        .frame(width: isActive ? 20 : 14, height: isActive ? 20 : 14)
-
-                                    // Bright core
-                                    Circle()
-                                        .fill(scene.tint.opacity(isActive ? 0.9 * glow : 0.3))
-                                        .frame(width: isActive ? 6 : 3, height: isActive ? 6 : 3)
-                                        .blur(radius: isActive ? 1.5 : 0.5)
-                                }
-                                .offset(y: float)
-                                .animation(.easeInOut(duration: 0.6), value: isActive)
-                            }
-                            .buttonStyle(.plain)
-                            .onHover { hovering in
-                                if hovering && scene != currentScene {
-                                    warmingScenes.insert(scene)
-                                }
-                            }
-                            .accessibilityLabel(scene.displayName)
-                            .accessibilityHint(isActive ? "Currently viewing" : "Switch to \(scene.displayName)")
-                            .accessibilityAddTraits(isActive ? .isSelected : [])
-                        }
-                    }
-                    .padding(.horizontal, 24)
-                }
-                .frame(maxWidth: 700)
-                .padding(.vertical, 14)
-                .background(
-                    Capsule()
-                        .fill(.black.opacity(0.25))
-                        .blur(radius: 20)
-                )
-                .padding(.bottom, 28)
+                // 2D orbs at the bottom
+                orbRow(scenes: scenes2D, allCases: SceneKind.allCases, t: t)
+                    .padding(.bottom, 28)
             }
         }
+    }
+
+    @ViewBuilder
+    private func orbRow(scenes: [SceneKind], allCases: [SceneKind], t: Double) -> some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 10) {
+                ForEach(Array(scenes.enumerated()), id: \.element.id) { idx, scene in
+                    let globalIdx = allCases.firstIndex(of: scene) ?? idx
+                    let isActive = scene == currentScene
+                    let float = sin(t * 0.6 + Double(globalIdx) * 1.1) * 3
+                    let glow = sin(t * 0.8 + Double(globalIdx) * 0.7) * 0.15 + 0.85
+
+                    Button {
+                        transitionToScene(scene)
+                    } label: {
+                        ZStack {
+                            // Outer glow ring
+                            Circle()
+                                .fill(
+                                    RadialGradient(
+                                        colors: [
+                                            scene.tint.opacity(isActive ? 0.5 * glow : 0.1),
+                                            scene.tint.opacity(isActive ? 0.15 : 0.0),
+                                            .clear
+                                        ],
+                                        center: .center,
+                                        startRadius: 4,
+                                        endRadius: isActive ? 22 : 15
+                                    )
+                                )
+                                .frame(width: isActive ? 40 : 30, height: isActive ? 40 : 30)
+
+                            // Inner orb
+                            Circle()
+                                .fill(
+                                    RadialGradient(
+                                        colors: [
+                                            scene.tint.opacity(isActive ? 0.95 : 0.35),
+                                            scene.tint.opacity(isActive ? 0.6 : 0.15),
+                                            .clear
+                                        ],
+                                        center: .center,
+                                        startRadius: 0,
+                                        endRadius: isActive ? 10 : 7
+                                    )
+                                )
+                                .frame(width: isActive ? 20 : 14, height: isActive ? 20 : 14)
+
+                            // Bright core
+                            Circle()
+                                .fill(scene.tint.opacity(isActive ? 0.9 * glow : 0.3))
+                                .frame(width: isActive ? 6 : 3, height: isActive ? 6 : 3)
+                                .blur(radius: isActive ? 1.5 : 0.5)
+                        }
+                        .offset(y: float)
+                        .animation(.easeInOut(duration: 0.6), value: isActive)
+                    }
+                    .buttonStyle(.plain)
+                    .onHover { hovering in
+                        if hovering && scene != currentScene {
+                            warmingScenes.insert(scene)
+                        }
+                    }
+                    .accessibilityLabel(scene.displayName)
+                    .accessibilityHint(isActive ? "Currently viewing" : "Switch to \(scene.displayName)")
+                    .accessibilityAddTraits(isActive ? .isSelected : [])
+                }
+            }
+            .padding(.horizontal, 24)
+        }
+        .frame(maxWidth: 700)
+        .padding(.vertical, 14)
+        .background(
+            Capsule()
+                .fill(.black.opacity(0.25))
+                .blur(radius: 20)
+        )
     }
 
     // MARK: - Peer dots

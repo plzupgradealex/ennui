@@ -288,6 +288,8 @@ enum SceneKind: String, CaseIterable, Identifiable {
         case .gouraudSolarSystem3D: return "Tap to shimmer a planet or add a new moon"
         }
     }
+
+    var icon: String {
         switch self {
         case .cosmicDrift: return "sparkles"
         case .retroGarden: return "leaf"
@@ -357,6 +359,8 @@ enum SceneKind: String, CaseIterable, Identifiable {
         case .gouraudSolarSystem3D: return "globe.europe.africa.fill"
         }
     }
+
+    var tint: Color {
         switch self {
         case .cosmicDrift: return Color(red: 0.5, green: 0.3, blue: 0.9)
         case .retroGarden: return Color(red: 0.3, green: 0.7, blue: 0.3)
