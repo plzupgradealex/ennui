@@ -307,10 +307,10 @@ struct ContentView: View {
         case .shimizuEvening3D: ShimizuEvening3DScene(interaction: interaction)
         case .ontarioCountryside3D: OntarioCountryside3DScene(interaction: interaction)
         case .minnesotaSmallTown3D: MinnesotaSmallTown3DScene(interaction: interaction)
-        case .forgottenLibrary3D: ForgottenLibraryScene(interaction: interaction)
-        case .enchantedArchives3D: EnchantedArchivesScene(interaction: interaction)
-        case .celestialScrollHall3D: CelestialScrollHallScene(interaction: interaction)
-        case .floatingKingdom3D: FloatingKingdomScene(interaction: interaction)
+        case .forgottenLibrary3D: ForgottenLibrary3DScene(interaction: interaction)
+        case .enchantedArchives3D: EnchantedArchives3DScene(interaction: interaction)
+        case .celestialScrollHall3D: CelestialScrollHall3DScene(interaction: interaction)
+        case .floatingKingdom3D: FloatingKingdom3DScene(interaction: interaction)
         case .paperLanternFestival3D: PaperLanternFestival3DScene(interaction: interaction)
         case .retroGarden3D: RetroGardenScene(interaction: interaction)
         case .celShadedRainyDay3D: CelShadedRainyDayScene(interaction: interaction)
@@ -318,8 +318,8 @@ struct ContentView: View {
         case .greetingTheDay3D: GreetingTheDayScene(interaction: interaction)
         case .mystify3D: MystifyScene(interaction: interaction)
         case .nonsenseLullabies3D: NonsenseLullabiesScene(interaction: interaction)
-        case .captainStar3D: CaptainStarScene(interaction: interaction)
-        case .gouraudSolarSystem3D: GouraudSolarSystemScene(interaction: interaction)
+        case .captainStar3D: CaptainStar3DScene(interaction: interaction)
+        case .gouraudSolarSystem3D: GouraudSolarSystem3DScene(interaction: interaction)
         }
     }
 
