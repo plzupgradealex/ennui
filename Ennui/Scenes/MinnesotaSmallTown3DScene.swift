@@ -1,222 +1,305 @@
-// MinnesotaSmallTown3DScene — SceneKit Minnesota prairie town.
-// Church, water tower, grain elevator, diner with neon, fireflies, stars.
+// MinnesotaSmallTown3DScene — Metal 3D Minnesota prairie town on summer evening.
+// Church with steeple, water tower, grain elevator, diner with neon, stars, fireflies.
 // Tap to burst fireflies.
+// Rendered in Metal (MTKView) — no SceneKit.
 
 import SwiftUI
-import SceneKit
+import MetalKit
 
 struct MinnesotaSmallTown3DScene: View {
     @ObservedObject var interaction: InteractionState
     var body: some View {
-        MinnesotaSmallTown3DRepresentable(interaction: interaction)
+        MinnesotaSmallTown3DRepresentable(interaction: interaction, tapCount: interaction.tapCount)
     }
 }
 
 private struct MinnesotaSmallTown3DRepresentable: NSViewRepresentable {
-    @ObservedObject var interaction: InteractionState
+    var interaction: InteractionState
+    var tapCount: Int
 
-    final class Coordinator {
+    final class Coordinator: NSObject, MTKViewDelegate {
+
+        let device:           MTLDevice
+        let commandQueue:     MTLCommandQueue
+        var opaquePipeline:   MTLRenderPipelineState?
+        var glowPipeline:     MTLRenderPipelineState?
+        var particlePipeline: MTLRenderPipelineState?
+        var depthState:       MTLDepthStencilState?
+        var depthROState:     MTLDepthStencilState?
+
+        struct DrawCall {
+            var buffer: MTLBuffer; var count: Int
+            var model: simd_float4x4
+            var emissiveCol: SIMD3<Float>; var emissiveMix: Float; var opacity: Float = 1
+        }
+        var opaqueCalls: [DrawCall] = []
+        var glowCalls:   [DrawCall] = []
+
+        // Stars
+        struct StarPt { var pos: SIMD3<Float>; var brightness: Float; var phase: Float }
+        var stars: [StarPt] = []
+
+        // Fireflies
+        struct Firefly {
+            var pos: SIMD3<Float>; var vel: SIMD3<Float>
+            var phase: Float; var lifespan: Float; var born: Float
+        }
+        var fireflies: [Firefly] = []
+        var fireflyBurstTime: Float = -999
+        var rng = SplitMix64(seed: 9101)
+
         var lastTapCount = 0
-        var fireflySystem: SCNParticleSystem?
+        var startTime: CFTimeInterval = CACurrentMediaTime()
+        var aspect:    Float = 1
+
+        override init() {
+            device       = MTLCreateSystemDefaultDevice()!
+            commandQueue = device.makeCommandQueue()!
+            super.init()
+            do {
+                opaquePipeline   = try makeOpaquePipeline(device: device)
+                glowPipeline     = try makeAlphaBlendPipeline(device: device)
+                particlePipeline = try makeParticlePipeline(device: device)
+            } catch { print("MinnesotaSmallTown3D pipeline error: \(error)") }
+            depthState   = makeDepthState(device: device)
+            depthROState = makeDepthReadOnlyState(device: device)
+            buildScene()
+        }
+
+        private func addOpaque(_ v: [Vertex3D], model: simd_float4x4) {
+            guard let buf = makeVertexBuffer(v, device: device) else { return }
+            opaqueCalls.append(DrawCall(buffer: buf, count: v.count, model: model,
+                                        emissiveCol: .zero, emissiveMix: 0))
+        }
+        private func addGlow(_ v: [Vertex3D], model: simd_float4x4,
+                              emissive: SIMD3<Float>, opacity: Float = 0.9) {
+            guard let buf = makeVertexBuffer(v, device: device) else { return }
+            glowCalls.append(DrawCall(buffer: buf, count: v.count, model: model,
+                                      emissiveCol: emissive, emissiveMix: 1.0, opacity: opacity))
+        }
+
+        private func buildScene() {
+            // Ground
+            addOpaque(buildPlane(w: 40, d: 40, color: [0.28, 0.25, 0.20, 1]),
+                      model: matrix_identity_float4x4)
+
+            // Church body
+            addOpaque(buildBox(w: 2, h: 2.5, d: 2, color: [0.90, 0.89, 0.87, 1]),
+                      model: m4Translation(-6, 1.25, -3))
+            // Steeple
+            addOpaque(buildCylinder(radius: 0.15, height: 3, segments: 8,
+                                    color: [0.88, 0.87, 0.86, 1]),
+                      model: m4Translation(-6, 4.0, -3))
+            addOpaque(buildCone(radius: 0.25, height: 0.8, segments: 8,
+                                color: [0.72, 0.71, 0.70, 1]),
+                      model: m4Translation(-6, 5.85, -3))
+            // Church window
+            addGlow(buildQuad(w: 0.4, h: 0.7, color: [1,1,1,1], normal: [0,0,1]),
+                    model: m4Translation(-6, 1.4, -1.98),
+                    emissive: [1.0, 0.88, 0.50], opacity: 0.85)
+
+            // Water tower tank
+            addOpaque(buildCylinder(radius: 0.8, height: 1.2, segments: 10,
+                                    color: [0.52, 0.50, 0.47, 1]),
+                      model: m4Translation(3, 2.6, -5))
+            // Water tower legs
+            for k in 0..<6 {
+                let ang = Float(k) * Float.pi * 2 / 6
+                addOpaque(buildCylinder(radius: 0.05, height: 2, segments: 6,
+                                        color: [0.38, 0.36, 0.34, 1]),
+                          model: m4Translation(3 + cos(ang)*0.6, 1.0, -5 + sin(ang)*0.6))
+            }
+
+            // Grain elevator
+            addOpaque(buildBox(w: 1.5, h: 5, d: 1.5, color: [0.70, 0.68, 0.65, 1]),
+                      model: m4Translation(6, 2.5, -4))
+            addOpaque(buildPyramid(bw: 1.7, bd: 1.7, h: 0.7, color: [0.48, 0.46, 0.44, 1]),
+                      model: m4Translation(6, 5.35, -4))
+
+            // Diner body
+            addOpaque(buildBox(w: 2.5, h: 1.5, d: 1.5, color: [0.94, 0.91, 0.80, 1]),
+                      model: m4Translation(-2, 0.75, -3))
+            // Diner window
+            addGlow(buildQuad(w: 0.7, h: 0.5, color: [1,1,1,1], normal: [0,0,1]),
+                    model: m4Translation(-2, 0.75, -2.23),
+                    emissive: [1.0, 0.90, 0.60], opacity: 0.8)
+            // Neon sign (flickering handled in draw)
+            addGlow(buildQuad(w: 1.0, h: 0.22, color: [1,1,1,1], normal: [0,0,1]),
+                    model: m4Translation(-2, 1.65, -2.23),
+                    emissive: [1.0, 0.10, 0.10], opacity: 0.9)
+
+            // Stars
+            var srng = SplitMix64(seed: 9001)
+            for _ in 0..<100 {
+                let sx = Float(Double.random(in: -30...30, using: &srng))
+                let sy = Float(Double.random(in: 8...28, using: &srng))
+                let sz = Float(Double.random(in: -35 ... -5, using: &srng))
+                let br = Float(Double.random(in: 0.5...1.0, using: &srng))
+                let ph = Float(Double.random(in: 0...Float.pi*2, using: &srng))
+                stars.append(StarPt(pos: [sx, sy, sz], brightness: br, phase: ph))
+            }
+
+            // Seed initial fireflies
+            for _ in 0..<30 {
+                spawnFirefly(born: Float(Double.random(in: -9...0, using: &rng)))
+            }
+        }
+
+        private func spawnFirefly(born: Float) {
+            let x = Float(Double.random(in: -7...7, using: &rng))
+            let y = Float(Double.random(in: 0.5...2.5, using: &rng))
+            let z = Float(Double.random(in: -8 ... -0.5, using: &rng))
+            let vx = Float(Double.random(in: -0.25...0.25, using: &rng))
+            let vy = Float(Double.random(in: 0.0...0.2, using: &rng))
+            let vz = Float(Double.random(in: -0.1...0.1, using: &rng))
+            let ph = Float(Double.random(in: 0...Float.pi*2, using: &rng))
+            let ls = Float(Double.random(in: 5...12, using: &rng))
+            fireflies.append(Firefly(pos: [x, y, z], vel: [vx, vy, vz],
+                                     phase: ph, lifespan: ls, born: born))
+        }
+
+        func triggerBurst(time: Float) {
+            fireflyBurstTime = time
+        }
+
+        func mtkView(_ view: MTKView, drawableSizeWillChange size: CGSize) {
+            aspect = size.width > 0 ? Float(size.width / size.height) : 1
+        }
+
+        func draw(in view: MTKView) {
+            guard let opPipe  = opaquePipeline,
+                  let drawable = view.currentDrawable,
+                  let rpDesc   = view.currentRenderPassDescriptor,
+                  let cmdBuf   = commandQueue.makeCommandBuffer(),
+                  let encoder  = cmdBuf.makeRenderCommandEncoder(descriptor: rpDesc)
+            else { return }
+
+            let t = Float(CACurrentMediaTime() - startTime)
+
+            // Drift camera down Main Street
+            let camZ = 6.0 - (t.truncatingRemainder(dividingBy: 28.0) / 28.0) * 14.0
+            let eye: SIMD3<Float>    = [0, 2.0, camZ]
+            let center: SIMD3<Float> = [0, 1.6, camZ - 8]
+            let view4 = m4LookAt(eye: eye, center: center, up: [0, 1, 0])
+            let proj4 = m4Perspective(fovyRad: 60 * .pi / 180, aspect: aspect, near: 0.05, far: 80)
+            let vp    = proj4 * view4
+
+            var su = SceneUniforms3D(
+                viewProjection: vp,
+                sunDirection:   SIMD4<Float>(simd_normalize([0.5, 0.7, 0.3]), 0),
+                sunColor:       SIMD4<Float>([0.95, 0.75, 0.45], 0),
+                ambientColor:   SIMD4<Float>([0.05, 0.06, 0.15], t),
+                fogParams:      SIMD4<Float>(30, 70, 0, 0),
+                fogColor:       SIMD4<Float>([0.04, 0.05, 0.10], 0),
+                cameraWorldPos: SIMD4<Float>(eye, 0)
+            )
+
+            encoder.setRenderPipelineState(opPipe)
+            encoder.setDepthStencilState(depthState)
+            encoder.setCullMode(.back)
+            encoder.setVertexBytes(&su, length: MemoryLayout<SceneUniforms3D>.size, index: 1)
+            encoder.setFragmentBytes(&su, length: MemoryLayout<SceneUniforms3D>.size, index: 1)
+
+            for call in opaqueCalls {
+                encodeDraw(encoder: encoder, vertexBuffer: call.buffer, vertexCount: call.count,
+                           model: call.model)
+            }
+
+            // Glow pass
+            if let gp = glowPipeline {
+                encoder.setRenderPipelineState(gp)
+                encoder.setDepthStencilState(depthROState)
+                for (i, call) in glowCalls.enumerated() {
+                    var ecol = call.emissiveCol
+                    // Neon flicker (index 2 = neon sign)
+                    if i == 2 {
+                        let flicker = sin(t * 12) + sin(t * 17)
+                        let on: Float = flicker > 0 ? 1.0 : 0.15
+                        ecol = ecol * on
+                    }
+                    encodeDraw(encoder: encoder, vertexBuffer: call.buffer, vertexCount: call.count,
+                               model: call.model, emissiveColor: ecol,
+                               emissiveMix: call.emissiveMix, opacity: call.opacity)
+                }
+
+                // Stars
+                var starbuf: [ParticleVertex3D] = []
+                for s in stars {
+                    let twinkle = 0.7 + 0.3 * sin(t * 1.5 + s.phase)
+                    let a = s.brightness * twinkle
+                    starbuf.append(ParticleVertex3D(position: s.pos,
+                                                    color: [a, a, a * 0.95, a], size: 3))
+                }
+                if let sbuf = makeParticleBuffer(starbuf, device: device) {
+                    if let ppipe = particlePipeline {
+                        encoder.setRenderPipelineState(ppipe)
+                        encoder.setDepthStencilState(depthROState)
+                        encoder.setVertexBuffer(sbuf, offset: 0, index: 0)
+                        encoder.setVertexBytes(&su, length: MemoryLayout<SceneUniforms3D>.size, index: 1)
+                        encoder.drawPrimitives(type: .point, vertexStart: 0, vertexCount: starbuf.count)
+                    }
+                }
+            }
+
+            // Firefly particles
+            if let ppipe = particlePipeline {
+                let burstActive = t - fireflyBurstTime < 1.5
+                // Spawn extras during burst
+                if burstActive {
+                    for _ in 0..<3 { spawnFirefly(born: t) }
+                } else if Float.random(in: 0...1) < 0.1 {
+                    spawnFirefly(born: t)
+                }
+                // Remove expired
+                fireflies.removeAll { t - $0.born > $0.lifespan }
+
+                var particles: [ParticleVertex3D] = []
+                for ff in fireflies {
+                    let age = t - ff.born
+                    let fade: Float = age < 1.0 ? age : (age > ff.lifespan - 1.5 ? (ff.lifespan - age) / 1.5 : 1.0)
+                    let blink = max(0, sin(t * 3 + ff.phase))
+                    let alpha = fade * blink * 0.9
+                    if alpha > 0.01 {
+                        let px = ff.pos.x + ff.vel.x * age
+                        let py = ff.pos.y + ff.vel.y * age
+                        let pz = ff.pos.z + ff.vel.z * age
+                        particles.append(ParticleVertex3D(position: [px, py, pz],
+                                                          color: [0.8, 1.0, 0.3, alpha], size: 5))
+                    }
+                }
+                if !particles.isEmpty, let pbuf = makeParticleBuffer(particles, device: device) {
+                    encoder.setRenderPipelineState(ppipe)
+                    encoder.setDepthStencilState(depthROState)
+                    encoder.setVertexBuffer(pbuf, offset: 0, index: 0)
+                    encoder.setVertexBytes(&su, length: MemoryLayout<SceneUniforms3D>.size, index: 1)
+                    encoder.drawPrimitives(type: .point, vertexStart: 0, vertexCount: particles.count)
+                }
+            }
+
+            encoder.endEncoding()
+            cmdBuf.present(drawable)
+            cmdBuf.commit()
+        }
     }
 
     func makeCoordinator() -> Coordinator { Coordinator() }
 
-    func makeNSView(context: Context) -> SCNView {
-        let view = SCNView()
-        let scene = SCNScene()
-        view.scene = scene
-        view.backgroundColor = NSColor(red: 0.04, green: 0.05, blue: 0.10, alpha: 1)
-        view.antialiasingMode = .multisampling4X
-        view.isPlaying = true
+    func makeNSView(context: Context) -> MTKView {
+        let view = MTKView(frame: .zero, device: context.coordinator.device)
+        view.delegate                = context.coordinator
+        view.colorPixelFormat        = .bgra8Unorm
+        view.depthStencilPixelFormat = .depth32Float
+        view.clearColor              = MTLClearColor(red: 0.04, green: 0.05, blue: 0.10, alpha: 1)
         view.preferredFramesPerSecond = 60
-        view.allowsCameraControl = true
-        buildScene(scene, coord: context.coordinator)
+        view.autoResizeDrawable      = true
         return view
     }
 
-    func updateNSView(_ nsView: SCNView, context: Context) {
+    func updateNSView(_ nsView: MTKView, context: Context) {
         let c = context.coordinator
-        guard interaction.tapCount != c.lastTapCount else { return }
-        c.lastTapCount = interaction.tapCount
-        if let fs = c.fireflySystem {
-            let orig = fs.birthRate
-            fs.birthRate = 55
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-                fs.birthRate = orig
-            }
-        }
-    }
-
-    private func buildScene(_ scene: SCNScene, coord: Coordinator) {
-        // Warm evening directional
-        let dirNode = SCNNode()
-        let dir = SCNLight(); dir.type = .directional
-        dir.color = NSColor(red: 0.95, green: 0.75, blue: 0.45, alpha: 1)
-        dir.intensity = 600
-        dirNode.light = dir
-        dirNode.eulerAngles = SCNVector3(-Float.pi / 9, Float.pi / 6, 0)
-        scene.rootNode.addChildNode(dirNode)
-
-        // Blue ambient
-        let ambNode = SCNNode()
-        let amb = SCNLight(); amb.type = .ambient
-        amb.color = NSColor(red: 0.05, green: 0.06, blue: 0.15, alpha: 1)
-        ambNode.light = amb
-        scene.rootNode.addChildNode(ambNode)
-
-        // Grey Main Street floor
-        let floor = SCNFloor()
-        floor.reflectivity = 0.03
-        floor.firstMaterial?.diffuse.contents = NSColor(white: 0.32, alpha: 1)
-        scene.rootNode.addChildNode(SCNNode(geometry: floor))
-
-        // Church body
-        let church = SCNBox(width: 2, height: 2.5, length: 2, chamferRadius: 0)
-        church.firstMaterial?.diffuse.contents = NSColor(white: 0.92, alpha: 1)
-        let churchNode = SCNNode(geometry: church)
-        churchNode.position = SCNVector3(-6, 1.25, -3)
-        scene.rootNode.addChildNode(churchNode)
-
-        // Church steeple cylinder
-        let steeple = SCNCylinder(radius: 0.15, height: 3)
-        steeple.firstMaterial?.diffuse.contents = NSColor(white: 0.9, alpha: 1)
-        let steepleNode = SCNNode(geometry: steeple)
-        steepleNode.position = SCNVector3(-6, 4.0, -3)
-        scene.rootNode.addChildNode(steepleNode)
-
-        // Steeple cap
-        let cap = SCNPyramid(width: 0.4, height: 0.5, length: 0.4)
-        cap.firstMaterial?.diffuse.contents = NSColor(white: 0.75, alpha: 1)
-        let capNode = SCNNode(geometry: cap)
-        capNode.position = SCNVector3(-6, 5.75, -3)
-        scene.rootNode.addChildNode(capNode)
-
-        // Church window
-        let cwin = SCNBox(width: 0.4, height: 0.7, length: 0.04, chamferRadius: 0)
-        let cwm = SCNMaterial()
-        cwm.diffuse.contents = NSColor(red: 1.0, green: 0.88, blue: 0.5, alpha: 1)
-        cwm.emission.contents = NSColor(red: 0.7, green: 0.5, blue: 0.1, alpha: 1)
-        cwin.firstMaterial = cwm
-        let cwinNode = SCNNode(geometry: cwin)
-        cwinNode.position = SCNVector3(-6, 1.4, -1.98)
-        scene.rootNode.addChildNode(cwinNode)
-
-        // Water tower tank
-        let tank = SCNCylinder(radius: 0.8, height: 1.2)
-        tank.firstMaterial?.diffuse.contents = NSColor(white: 0.55, alpha: 1)
-        let tankNode = SCNNode(geometry: tank)
-        tankNode.position = SCNVector3(3, 2.6, -5)
-        scene.rootNode.addChildNode(tankNode)
-
-        // Water tower legs (6)
-        for k in 0..<6 {
-            let ang = Float(k) * Float.pi * 2 / 6
-            let leg = SCNCylinder(radius: 0.05, height: 2)
-            leg.firstMaterial?.diffuse.contents = NSColor(white: 0.4, alpha: 1)
-            let lNode = SCNNode(geometry: leg)
-            lNode.position = SCNVector3(3 + cos(ang) * 0.6, 1.0, -5 + sin(ang) * 0.6)
-            scene.rootNode.addChildNode(lNode)
-        }
-
-        // Grain elevator
-        let elevator = SCNBox(width: 1.5, height: 5, length: 1.5, chamferRadius: 0)
-        elevator.firstMaterial?.diffuse.contents = NSColor(white: 0.72, alpha: 1)
-        let elevNode = SCNNode(geometry: elevator)
-        elevNode.position = SCNVector3(6, 2.5, -4)
-        scene.rootNode.addChildNode(elevNode)
-
-        // Elevator roof
-        let elevRoof = SCNPyramid(width: 1.7, height: 0.6, length: 1.7)
-        elevRoof.firstMaterial?.diffuse.contents = NSColor(white: 0.5, alpha: 1)
-        let erNode = SCNNode(geometry: elevRoof)
-        erNode.position = SCNVector3(6, 5.3, -4)
-        scene.rootNode.addChildNode(erNode)
-
-        // Diner body
-        let diner = SCNBox(width: 2.5, height: 1.5, length: 1.5, chamferRadius: 0)
-        diner.firstMaterial?.diffuse.contents = NSColor(red: 0.96, green: 0.93, blue: 0.82, alpha: 1)
-        let dinerNode = SCNNode(geometry: diner)
-        dinerNode.position = SCNVector3(-2, 0.75, -3)
-        scene.rootNode.addChildNode(dinerNode)
-
-        // Diner neon sign with flicker
-        let neon = SCNPlane(width: 1.0, height: 0.25)
-        let nm = SCNMaterial()
-        nm.diffuse.contents = NSColor(red: 1.0, green: 0.1, blue: 0.1, alpha: 1)
-        nm.emission.contents = NSColor(red: 1.0, green: 0.1, blue: 0.1, alpha: 1)
-        nm.isDoubleSided = true
-        neon.firstMaterial = nm
-        let neonNode = SCNNode(geometry: neon)
-        neonNode.position = SCNVector3(-2, 1.65, -2.24)
-        scene.rootNode.addChildNode(neonNode)
-        // Flicker
-        let flicker = SCNAction.customAction(duration: 3) { node, elapsed in
-            let phase = sin(Float(elapsed) * 12) + sin(Float(elapsed) * 17)
-            node.opacity = phase > 0 ? 1.0 : 0.2
-        }
-        neonNode.runAction(SCNAction.repeatForever(flicker))
-
-        // Diner window
-        let dwin = SCNBox(width: 0.7, height: 0.5, length: 0.04, chamferRadius: 0)
-        let dwm = SCNMaterial()
-        dwm.diffuse.contents = NSColor(red: 1.0, green: 0.9, blue: 0.6, alpha: 1)
-        dwm.emission.contents = NSColor(red: 0.7, green: 0.5, blue: 0.1, alpha: 1)
-        dwin.firstMaterial = dwm
-        let dwinNode = SCNNode(geometry: dwin)
-        dwinNode.position = SCNVector3(-2, 0.75, -2.23)
-        scene.rootNode.addChildNode(dwinNode)
-
-        // Stars (100 billboard planes, seeded)
-        var rng = SplitMix64(seed: 9001)
-        for _ in 0..<100 {
-            let sx = Float(Double.random(in: -30...30, using: &rng))
-            let sy = Float(Double.random(in: 8...28, using: &rng))
-            let sz = Float(Double.random(in: -35 ... -5, using: &rng))
-            let sr = CGFloat(Double.random(in: 0.02...0.07, using: &rng))
-            let star = SCNPlane(width: sr, height: sr)
-            let sm = SCNMaterial()
-            let br = Double.random(in: 0.5...1.0, using: &rng)
-            sm.diffuse.contents = NSColor(white: br, alpha: 1)
-            sm.emission.contents = NSColor(white: br, alpha: 1)
-            sm.isDoubleSided = true
-            star.firstMaterial = sm
-            let sNode = SCNNode(geometry: star)
-            sNode.position = SCNVector3(sx, sy, sz)
-            let bb = SCNBillboardConstraint()
-            sNode.constraints = [bb]
-            scene.rootNode.addChildNode(sNode)
-        }
-
-        // Firefly particles
-        let fireflies = SCNParticleSystem()
-        fireflies.birthRate = 5
-        fireflies.particleLifeSpan = 9
-        fireflies.particleLifeSpanVariation = 4
-        fireflies.particleSize = 0.06
-        fireflies.particleColor = NSColor(red: 0.8, green: 1.0, blue: 0.3, alpha: 0.9)
-        fireflies.particleVelocity = 0.25
-        fireflies.particleVelocityVariation = 0.2
-        fireflies.spreadingAngle = 360
-        fireflies.emittingDirection = SCNVector3(0, 1, 0)
-        fireflies.emitterShape = SCNBox(width: 14, height: 2, length: 10, chamferRadius: 0)
-        fireflies.blendMode = .additive
-        let ffNode = SCNNode()
-        ffNode.position = SCNVector3(0, 1, -3)
-        ffNode.addParticleSystem(fireflies)
-        scene.rootNode.addChildNode(ffNode)
-        coord.fireflySystem = fireflies
-
-        // Camera drifts down Main Street
-        let camNode = SCNNode()
-        let cam = SCNCamera(); cam.fieldOfView = 60; cam.zFar = 80
-        camNode.camera = cam
-        camNode.position = SCNVector3(0, 2, 6)
-        camNode.eulerAngles = SCNVector3(-0.12, 0, 0)
-        scene.rootNode.addChildNode(camNode)
-        let drift = SCNAction.customAction(duration: 28) { node, elapsed in
-            node.position.z = 6 - CGFloat(elapsed / 28) * 14
-        }
-        camNode.runAction(SCNAction.repeatForever(drift))
+        guard tapCount != c.lastTapCount else { return }
+        c.lastTapCount = tapCount
+        let t = Float(CACurrentMediaTime() - c.startTime)
+        c.triggerBurst(time: t)
     }
 }

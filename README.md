@@ -87,11 +87,12 @@ Canvas into a single Metal texture on the GPU. `.allowedDynamicRange(.high)`
 enables HDR on XDR displays. All animation is derived from elapsed time —
 Canvas closures are pure functions of `t`.
 
-**3D scenes** use SceneKit (`SCNView` via `NSViewRepresentable`). Each builds
-a low-poly diorama procedurally — no model files — with ambient lighting,
-particle systems, and a slowly orbiting camera. They share the same
-interaction model (tap for gentle effects) and crossfade into/out of Canvas
-scenes seamlessly.
+**3D scenes** use either Metal (`MTKView` via `NSViewRepresentable`) or SceneKit
+(`SCNView`). Metal scenes render with custom vertex/fragment shaders and shared
+`Metal3DHelpers` geometry builders across opaque, glow, and particle passes.
+SceneKit scenes build low-poly dioramas procedurally with ambient lighting and
+particle systems. Both share the same interaction model (tap for gentle effects)
+and crossfade into/out of Canvas scenes seamlessly.
 
 Procedural content is generated once in `.onAppear` using a deterministic
 SplitMix64 RNG, then drawn every frame from the pre-generated data.

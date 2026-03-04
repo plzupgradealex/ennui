@@ -26,7 +26,8 @@ counterpart, plus two SceneKit-exclusive scenes (Inner Light 3D, Wireframe City 
 
 ## Tech Stack
 - **SwiftUI** + **Canvas** for 2D rendering (34 Canvas scenes, Metal GPU compositing)
-- **SceneKit** (`SCNView` via `NSViewRepresentable`) for 36 3D scenes — low-poly dioramas built procedurally (no model files), ambient lighting, particle systems, orbiting camera
+- **Metal** (`MTKView` via `NSViewRepresentable`) for 21 3D scenes — low-poly dioramas rendered with custom vertex/fragment shaders, shared `Metal3DHelpers` geometry builders, multi-pass opaque/glow/particle pipelines
+- **SceneKit** (`SCNView` via `NSViewRepresentable`) for 15 3D scenes — procedural low-poly dioramas with ambient lighting and particle systems (legacy; new scenes target Metal)
 - **MultipeerConnectivity** for P2P sharing nearby (encryption: `.required` for App Store compliance)
 - **FoundationModels** for on-device AI haiku (Apple Neural Engine)
 - **NSViewRepresentable** (`MouseTrackingView`) for cursor hover detection on macOS

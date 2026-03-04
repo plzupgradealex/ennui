@@ -1,267 +1,312 @@
-// CaptainStar3DScene — Alien desert planet with floating rocks and glass outpost.
+// CaptainStar3DScene — Metal 3D barren desert planet at edge of universe.
 // Ochre floor, floating rocks, glass outpost, planetary rings, dust particles, stars.
-// Tap to luminous pulse (flash all lights).
+// Tap to send a luminous pulse (flash all emissive objects).
+// Rendered in Metal (MTKView) — no SceneKit.
 
 import SwiftUI
-import SceneKit
+import MetalKit
 
 struct CaptainStar3DScene: View {
     @ObservedObject var interaction: InteractionState
-
     var body: some View {
         CaptainStar3DRepresentable(interaction: interaction, tapCount: interaction.tapCount)
     }
 }
 
-// MARK: - NSViewRepresentable
-
 private struct CaptainStar3DRepresentable: NSViewRepresentable {
     var interaction: InteractionState
     var tapCount: Int
 
-    final class Coordinator {
+    final class Coordinator: NSObject, MTKViewDelegate {
+
+        let device:           MTLDevice
+        let commandQueue:     MTLCommandQueue
+        var opaquePipeline:   MTLRenderPipelineState?
+        var glowPipeline:     MTLRenderPipelineState?
+        var particlePipeline: MTLRenderPipelineState?
+        var depthState:       MTLDepthStencilState?
+        var depthROState:     MTLDepthStencilState?
+
+        struct DrawCall {
+            var buffer: MTLBuffer; var count: Int
+            var model: simd_float4x4
+            var emissiveCol: SIMD3<Float>; var emissiveMix: Float; var opacity: Float = 1
+        }
+        var opaqueCalls: [DrawCall] = []
+        var glowCalls:   [DrawCall] = []
+
+        struct Rock {
+            var x, baseY, z: Float
+            var bobAmp, bobSpeed, bobPhase: Float
+            var rotSpeed: Float
+            var size: SIMD3<Float>
+            var colorIdx: Int
+            var buffer: MTLBuffer
+            var count: Int
+        }
+        var rocks: [Rock] = []
+
+        struct StarPt { var pos: SIMD3<Float>; var brightness: Float; var phase: Float }
+        var stars: [StarPt] = []
+
+        // Dust particles
+        struct DustParticle { var x, y, z: Float; var phase: Float; var speed: Float }
+        var dust: [DustParticle] = []
+
+        var pulseTime: Float = -999
+
         var lastTapCount = 0
-        var allLights: [SCNNode] = []
+        var startTime: CFTimeInterval = CACurrentMediaTime()
+        var aspect:    Float = 1
+
+        override init() {
+            device       = MTLCreateSystemDefaultDevice()!
+            commandQueue = device.makeCommandQueue()!
+            super.init()
+            do {
+                opaquePipeline   = try makeOpaquePipeline(device: device)
+                glowPipeline     = try makeAlphaBlendPipeline(device: device)
+                particlePipeline = try makeParticlePipeline(device: device)
+            } catch { print("CaptainStar3D pipeline error: \(error)") }
+            depthState   = makeDepthState(device: device)
+            depthROState = makeDepthReadOnlyState(device: device)
+            buildScene()
+        }
+
+        private func addOpaque(_ v: [Vertex3D], model: simd_float4x4) {
+            guard let buf = makeVertexBuffer(v, device: device) else { return }
+            opaqueCalls.append(DrawCall(buffer: buf, count: v.count, model: model,
+                                        emissiveCol: .zero, emissiveMix: 0))
+        }
+        private func addGlow(_ v: [Vertex3D], model: simd_float4x4,
+                              emissive: SIMD3<Float>, opacity: Float = 0.9) {
+            guard let buf = makeVertexBuffer(v, device: device) else { return }
+            glowCalls.append(DrawCall(buffer: buf, count: v.count, model: model,
+                                      emissiveCol: emissive, emissiveMix: 1.0, opacity: opacity))
+        }
+
+        private func buildScene() {
+            // Ochre desert floor
+            addOpaque(buildPlane(w: 50, d: 50, color: [0.55, 0.35, 0.15, 1]),
+                      model: matrix_identity_float4x4)
+
+            // Distant foggy horizon bands
+            addOpaque(buildBox(w: 50, h: 2, d: 1, color: [0.45, 0.30, 0.12, 1]),
+                      model: m4Translation(0, 1.0, -22))
+
+            // Floating rocks
+            let rockColors: [SIMD4<Float>] = [
+                [0.55, 0.48, 0.38, 1],
+                [0.48, 0.42, 0.30, 1],
+                [0.60, 0.50, 0.35, 1]
+            ]
+            var rrng = SplitMix64(seed: 1111)
+            let rockData: [(Float, Float, Float, Float)] = [
+                ( -3.5, 2.0, -6,  0.8),
+                (  2.0, 1.5, -4,  0.6),
+                ( -1.0, 2.8, -8,  1.2),
+                (  4.5, 1.8, -5,  0.7),
+                (  0.5, 3.0, -9,  1.0)
+            ]
+            for (i, (rx, ry, rz, rsize)) in rockData.enumerated() {
+                let verts = buildBox(w: rsize, h: rsize * 0.85, d: rsize * 0.9,
+                                     color: rockColors[i % rockColors.count])
+                guard let buf = makeVertexBuffer(verts, device: device) else { continue }
+                rocks.append(Rock(
+                    x: rx, baseY: ry, z: rz,
+                    bobAmp: Float(0.15 + Double.random(in: 0...0.2, using: &rrng)),
+                    bobSpeed: Float(0.5 + Double.random(in: 0...0.5, using: &rrng)),
+                    bobPhase: Float(Double.random(in: 0...Float.pi*2, using: &rrng)),
+                    rotSpeed: Float(0.3 + Double.random(in: 0...0.4, using: &rrng)),
+                    size: [rsize, rsize * 0.85, rsize * 0.9],
+                    colorIdx: i % rockColors.count,
+                    buffer: buf, count: verts.count
+                ))
+            }
+
+            // Glass outpost (transparent, emissive interior)
+            addGlow(buildBox(w: 2, h: 2.5, d: 2, color: [0.7, 0.85, 0.9, 1]),
+                    model: m4Translation(3, 1.25, -5),
+                    emissive: [1.0, 0.78, 0.45], opacity: 0.35)
+
+            // Outpost base
+            addOpaque(buildBox(w: 2.2, h: 0.15, d: 2.2, color: [0.45, 0.35, 0.20, 1]),
+                      model: m4Translation(3, 0.075, -5))
+
+            // Planetary ring (large flat torus approximation using many thin boxes)
+            let ringSegs = 32
+            for i in 0..<ringSegs {
+                let ang = Float(i) * Float.pi * 2 / Float(ringSegs)
+                let r: Float = 25
+                let rx2 = cos(ang) * r
+                let rz2 = sin(ang) * r
+                addOpaque(buildBox(w: 1.5, h: 0.25, d: 0.4,
+                                   color: [0.42, 0.35, 0.25, 1]),
+                          model: m4Translation(rx2, -22 + rx2 * 0.08, rz2 - 30) * m4RotY(ang))
+            }
+
+            // Stars
+            var srng = SplitMix64(seed: 1112)
+            for _ in 0..<100 {
+                let sx = Float(Double.random(in: -30...30, using: &srng))
+                let sy = Float(Double.random(in: 5...25, using: &srng))
+                let sz = Float(Double.random(in: -45 ... -5, using: &srng))
+                let br = Float(Double.random(in: 0.7...1.0, using: &srng))
+                let ph = Float(Double.random(in: 0...Float.pi*2, using: &srng))
+                stars.append(StarPt(pos: [sx, sy, sz], brightness: br, phase: ph))
+            }
+
+            // Dust
+            var drng = SplitMix64(seed: 1113)
+            for _ in 0..<80 {
+                dust.append(DustParticle(
+                    x:     Float(Double.random(in: -6...6, using: &drng)),
+                    y:     Float(Double.random(in: 0.2...2.5, using: &drng)),
+                    z:     Float(Double.random(in: -10...0, using: &drng)),
+                    phase: Float(Double.random(in: 0...Float.pi*2, using: &drng)),
+                    speed: Float(Double.random(in: 0.2...0.6, using: &drng))
+                ))
+            }
+        }
+
+        func triggerPulse(time: Float) { pulseTime = time }
+
+        func mtkView(_ view: MTKView, drawableSizeWillChange size: CGSize) {
+            aspect = size.width > 0 ? Float(size.width / size.height) : 1
+        }
+
+        func draw(in view: MTKView) {
+            guard let opPipe  = opaquePipeline,
+                  let drawable = view.currentDrawable,
+                  let rpDesc   = view.currentRenderPassDescriptor,
+                  let cmdBuf   = commandQueue.makeCommandBuffer(),
+                  let encoder  = cmdBuf.makeRenderCommandEncoder(descriptor: rpDesc)
+            else { return }
+
+            let t = Float(CACurrentMediaTime() - startTime)
+
+            // Pulse factor
+            let pulseAge = t - pulseTime
+            let pulseFactor: Float = pulseAge < 1.5
+                ? (1.0 + 2.0 * (1.0 - pulseAge / 1.5))
+                : 1.0
+
+            // Camera drifts forward slowly
+            let camProgress = t.truncatingRemainder(dividingBy: 60.0) / 60.0
+            let eye: SIMD3<Float>    = [0, 1.8, 6.0 - camProgress * 8.0]
+            let center: SIMD3<Float> = [0, 1.4, eye.z - 6]
+            let view4 = m4LookAt(eye: eye, center: center, up: [0, 1, 0])
+            let proj4 = m4Perspective(fovyRad: 75 * .pi / 180, aspect: aspect, near: 0.05, far: 60)
+            let vp    = proj4 * view4
+
+            var su = SceneUniforms3D(
+                viewProjection: vp,
+                sunDirection:   SIMD4<Float>(simd_normalize([0.4, 0.6, -0.2]), 0),
+                sunColor:       SIMD4<Float>([1.0, 0.78, 0.35], 0),
+                ambientColor:   SIMD4<Float>([0.20, 0.14, 0.06], t),
+                fogParams:      SIMD4<Float>(18, 35, 0, 0),
+                fogColor:       SIMD4<Float>([0.14, 0.10, 0.05], 0),
+                cameraWorldPos: SIMD4<Float>(eye, 0)
+            )
+
+            encoder.setRenderPipelineState(opPipe)
+            encoder.setDepthStencilState(depthState)
+            encoder.setCullMode(.back)
+            encoder.setVertexBytes(&su, length: MemoryLayout<SceneUniforms3D>.size, index: 1)
+            encoder.setFragmentBytes(&su, length: MemoryLayout<SceneUniforms3D>.size, index: 1)
+
+            for call in opaqueCalls {
+                encodeDraw(encoder: encoder, vertexBuffer: call.buffer, vertexCount: call.count,
+                           model: call.model)
+            }
+
+            // Floating rocks (animated in draw loop)
+            for rock in rocks {
+                let bobY = rock.baseY + sin(t * rock.bobSpeed + rock.bobPhase) * rock.bobAmp
+                let rotY = t * rock.rotSpeed
+                let model = m4Translation(rock.x, bobY, rock.z) * m4RotY(rotY) * m4RotX(rotY * 0.3)
+                encodeDraw(encoder: encoder, vertexBuffer: rock.buffer, vertexCount: rock.count,
+                           model: model)
+            }
+
+            // Glow pass
+            if let gp = glowPipeline {
+                encoder.setRenderPipelineState(gp)
+                encoder.setDepthStencilState(depthROState)
+                for call in glowCalls {
+                    encodeDraw(encoder: encoder, vertexBuffer: call.buffer, vertexCount: call.count,
+                               model: call.model,
+                               emissiveColor: call.emissiveCol * pulseFactor,
+                               emissiveMix: call.emissiveMix, opacity: call.opacity)
+                }
+            }
+
+            // Particles: stars + dust
+            if let ppipe = particlePipeline {
+                var particles: [ParticleVertex3D] = []
+
+                for s in stars {
+                    let tw = 0.7 + 0.3 * sin(t * 1.1 + s.phase)
+                    let a = s.brightness * tw * pulseFactor
+                    particles.append(ParticleVertex3D(position: s.pos,
+                                                      color: [a, a, a*0.90, min(1, a)], size: 3))
+                }
+
+                for d in dust {
+                    let dx = d.x + sin(t * d.speed + d.phase) * 0.4
+                    let dy = d.y + cos(t * d.speed * 0.7 + d.phase) * 0.2
+                    particles.append(ParticleVertex3D(
+                        position: [dx, dy, d.z],
+                        color: [0.75, 0.60, 0.38, 0.5], size: 4))
+                }
+
+                // Pulse ring effect
+                if pulseFactor > 1.0 {
+                    let ringR = (t - pulseTime) * 8.0
+                    for i in 0..<48 {
+                        let ang = Float(i) * Float.pi * 2 / 48
+                        let rx2 = eye.x + cos(ang) * ringR
+                        let rz2 = eye.z - 3 + sin(ang) * ringR
+                        let alpha = (pulseFactor - 1.0) / 2.0
+                        particles.append(ParticleVertex3D(
+                            position: [rx2, 1.5, rz2],
+                            color: [1.0, 0.8, 0.4, alpha * 0.6], size: 5))
+                    }
+                }
+
+                if !particles.isEmpty, let pbuf = makeParticleBuffer(particles, device: device) {
+                    encoder.setRenderPipelineState(ppipe)
+                    encoder.setDepthStencilState(depthROState)
+                    encoder.setVertexBuffer(pbuf, offset: 0, index: 0)
+                    encoder.setVertexBytes(&su, length: MemoryLayout<SceneUniforms3D>.size, index: 1)
+                    encoder.drawPrimitives(type: .point, vertexStart: 0, vertexCount: particles.count)
+                }
+            }
+
+            encoder.endEncoding()
+            cmdBuf.present(drawable)
+            cmdBuf.commit()
+        }
     }
 
     func makeCoordinator() -> Coordinator { Coordinator() }
 
-    func makeNSView(context: Context) -> SCNView {
-        let view = SCNView()
-        let scene = SCNScene()
-        view.scene = scene
-        view.backgroundColor = NSColor(red: 0.12, green: 0.09, blue: 0.04, alpha: 1)
-        view.antialiasingMode = .multisampling4X
-        view.isPlaying = true
+    func makeNSView(context: Context) -> MTKView {
+        let view = MTKView(frame: .zero, device: context.coordinator.device)
+        view.delegate                = context.coordinator
+        view.colorPixelFormat        = .bgra8Unorm
+        view.depthStencilPixelFormat = .depth32Float
+        view.clearColor              = MTLClearColor(red: 0.12, green: 0.09, blue: 0.04, alpha: 1)
         view.preferredFramesPerSecond = 60
-        view.allowsCameraControl = true
-        buildScene(scene, coord: context.coordinator)
+        view.autoResizeDrawable      = true
         return view
     }
 
-    func updateNSView(_ nsView: SCNView, context: Context) {
+    func updateNSView(_ nsView: MTKView, context: Context) {
         let c = context.coordinator
         guard tapCount != c.lastTapCount else { return }
         c.lastTapCount = tapCount
-        // Flash all lights to 3x intensity then fade back
-        for lightNode in c.allLights {
-            guard let light = lightNode.light else { continue }
-            let originalIntensity = light.intensity
-            let flash = SCNAction.customAction(duration: 1.5) { _, elapsed in
-                let t = Float(elapsed / 1.5)
-                light.intensity = CGFloat(originalIntensity) * CGFloat(1.0 + 2.0 * (1.0 - t))
-            }
-            lightNode.runAction(flash)
-        }
-    }
-
-    // MARK: - Scene construction
-
-    private func buildScene(_ scene: SCNScene, coord: Coordinator) {
-        scene.background.contents = NSColor(red: 0.12, green: 0.09, blue: 0.04, alpha: 1)
-        scene.fogStartDistance = 18
-        scene.fogEndDistance = 35
-        scene.fogColor = NSColor(red: 0.14, green: 0.10, blue: 0.05, alpha: 1)
-        addLighting(to: scene, coord: coord)
-        addFloor(to: scene)
-        addFloatingRocks(to: scene)
-        addGlassOutpost(to: scene, coord: coord)
-        addPlanetaryRings(to: scene)
-        addDust(to: scene)
-        addStars(to: scene)
-        addCamera(to: scene)
-    }
-
-    // MARK: - Lighting
-
-    private func addLighting(to scene: SCNScene, coord: Coordinator) {
-        let ambient = SCNNode()
-        ambient.light = SCNLight()
-        ambient.light!.type = .ambient
-        ambient.light!.intensity = 50
-        ambient.light!.color = NSColor(red: 0.7, green: 0.55, blue: 0.3, alpha: 1)
-        scene.rootNode.addChildNode(ambient)
-        coord.allLights.append(ambient)
-
-        // Low-angle golden directional sun
-        let sun = SCNNode()
-        sun.light = SCNLight()
-        sun.light!.type = .directional
-        sun.light!.intensity = 300
-        sun.light!.color = NSColor(red: 1.0, green: 0.78, blue: 0.35, alpha: 1)
-        sun.eulerAngles = SCNVector3(-Float.pi / 8, Float.pi / 5, 0)
-        scene.rootNode.addChildNode(sun)
-        coord.allLights.append(sun)
-    }
-
-    // MARK: - Floor
-
-    private func addFloor(to scene: SCNScene) {
-        let floor = SCNFloor()
-        floor.reflectivity = 0.01
-        let mat = SCNMaterial()
-        mat.diffuse.contents = NSColor(red: 0.55, green: 0.35, blue: 0.15, alpha: 1)
-        mat.roughness.contents = 0.95
-        floor.materials = [mat]
-        scene.rootNode.addChildNode(SCNNode(geometry: floor))
-    }
-
-    // MARK: - Floating Rocks
-
-    private func addFloatingRocks(to scene: SCNScene) {
-        var rng = SplitMix64(seed: 1111)
-        let rockColors: [NSColor] = [
-            NSColor(red: 0.55, green: 0.48, blue: 0.38, alpha: 1),
-            NSColor(red: 0.48, green: 0.42, blue: 0.30, alpha: 1),
-            NSColor(red: 0.60, green: 0.50, blue: 0.35, alpha: 1),
-        ]
-        for i in 0..<5 {
-            let size = Float(0.5 + rng.nextDouble() * 1.0)
-            let rock = SCNBox(
-                width: CGFloat(size),
-                height: CGFloat(size * (0.7 + Float(rng.nextDouble()) * 0.6)),
-                length: CGFloat(size * (0.7 + Float(rng.nextDouble()) * 0.6)),
-                chamferRadius: CGFloat(size * 0.3)
-            )
-            let mat = SCNMaterial()
-            mat.diffuse.contents = rockColors[i % rockColors.count]
-            rock.materials = [mat]
-            let rockNode = SCNNode(geometry: rock)
-            let x = Float(rng.nextDouble() * 10 - 5)
-            let y = Float(1.0 + rng.nextDouble() * 3.0)
-            let z = Float(-3.0 - rng.nextDouble() * 5.0)
-            rockNode.position = SCNVector3(x, y, z)
-            rockNode.eulerAngles = SCNVector3(
-                Float(rng.nextDouble() * Double.pi),
-                Float(rng.nextDouble() * Double.pi),
-                Float(rng.nextDouble() * Double.pi * 0.3)
-            )
-            scene.rootNode.addChildNode(rockNode)
-
-            // Slow rotation
-            let rotDur = 12.0 + rng.nextDouble() * 10.0
-            let rot = SCNAction.rotateBy(x: CGFloat(rng.nextDouble() * 0.5),
-                                          y: CGFloat(Double.pi * 2),
-                                          z: CGFloat(rng.nextDouble() * 0.3),
-                                          duration: rotDur)
-            rockNode.runAction(SCNAction.repeatForever(rot))
-
-            // Gentle bob
-            let bobAmt = Float(0.15 + rng.nextDouble() * 0.2)
-            let bobDur = 3.0 + rng.nextDouble() * 3.0
-            let bob = SCNAction.sequence([
-                SCNAction.moveBy(x: 0, y: CGFloat(bobAmt), z: 0, duration: bobDur),
-                SCNAction.moveBy(x: 0, y: CGFloat(-bobAmt), z: 0, duration: bobDur)
-            ])
-            rockNode.runAction(SCNAction.repeatForever(bob))
-        }
-    }
-
-    // MARK: - Glass Outpost
-
-    private func addGlassOutpost(to scene: SCNScene, coord: Coordinator) {
-        let box = SCNBox(width: 2, height: 2.5, length: 2, chamferRadius: 0.05)
-        let mat = SCNMaterial()
-        mat.diffuse.contents = NSColor(red: 0.7, green: 0.85, blue: 0.9, alpha: 0.4)
-        mat.transparency = 0.6
-        mat.lightingModel = .constant
-        mat.isDoubleSided = true
-        box.materials = [mat]
-        let outpostNode = SCNNode(geometry: box)
-        outpostNode.position = SCNVector3(3, 1.25, -5)
-        scene.rootNode.addChildNode(outpostNode)
-
-        // Interior warm light
-        let interiorLight = SCNNode()
-        interiorLight.light = SCNLight()
-        interiorLight.light!.type = .omni
-        interiorLight.light!.intensity = 150
-        interiorLight.light!.color = NSColor(red: 1.0, green: 0.78, blue: 0.45, alpha: 1)
-        interiorLight.light!.attenuationStartDistance = 0.5
-        interiorLight.light!.attenuationEndDistance = 4.0
-        interiorLight.position = SCNVector3(3, 1.5, -5)
-        scene.rootNode.addChildNode(interiorLight)
-        coord.allLights.append(interiorLight)
-    }
-
-    // MARK: - Planetary Rings
-
-    private func addPlanetaryRings(to scene: SCNScene) {
-        let torus = SCNTorus(ringRadius: 25, pipeRadius: 0.3)
-        let mat = SCNMaterial()
-        mat.diffuse.contents = NSColor(red: 0.42, green: 0.35, blue: 0.25, alpha: 0.55)
-        mat.isDoubleSided = true
-        torus.materials = [mat]
-        let torusNode = SCNNode(geometry: torus)
-        torusNode.position = SCNVector3(0, -22, -30)
-        torusNode.eulerAngles = SCNVector3(Float.pi / 16, 0, Float.pi / 20)
-        scene.rootNode.addChildNode(torusNode)
-    }
-
-    // MARK: - Dust
-
-    private func addDust(to scene: SCNScene) {
-        let ps = SCNParticleSystem()
-        ps.birthRate = 15
-        ps.particleLifeSpan = 5.0
-        ps.emitterShape = SCNBox(width: 12, height: 2, length: 12, chamferRadius: 0)
-        ps.particleSize = 0.05
-        ps.particleColor = NSColor(red: 0.75, green: 0.6, blue: 0.38, alpha: 0.6)
-        ps.isAffectedByGravity = false
-        ps.particleVelocity = 0.4
-        ps.particleVelocityVariation = 0.3
-        ps.spreadingAngle = 60
-        let dustNode = SCNNode()
-        dustNode.position = SCNVector3(0, 1.5, -4)
-        scene.rootNode.addChildNode(dustNode)
-        dustNode.addParticleSystem(ps)
-    }
-
-    // MARK: - Stars
-
-    private func addStars(to scene: SCNScene) {
-        var rng = SplitMix64(seed: 1112)
-        for _ in 0..<100 {
-            let plane = SCNPlane(width: 0.06, height: 0.06)
-            let mat = SCNMaterial()
-            let brightness = Float(0.7 + rng.nextDouble() * 0.3)
-            mat.diffuse.contents = NSColor(red: CGFloat(brightness), green: CGFloat(brightness), blue: CGFloat(brightness * 0.9), alpha: 1)
-            mat.emission.contents = NSColor(red: CGFloat(brightness), green: CGFloat(brightness), blue: CGFloat(brightness), alpha: 1)
-            mat.lightingModel = .constant
-            mat.isDoubleSided = true
-            plane.materials = [mat]
-            let starNode = SCNNode(geometry: plane)
-            let constraint = SCNBillboardConstraint()
-            constraint.freeAxes = .all
-            starNode.constraints = [constraint]
-            starNode.position = SCNVector3(
-                Float(rng.nextDouble() * 60 - 30),
-                Float(rng.nextDouble() * 20 + 5),
-                Float(rng.nextDouble() * -40 - 5)
-            )
-            scene.rootNode.addChildNode(starNode)
-        }
-    }
-
-    // MARK: - Camera
-
-    private func addCamera(to scene: SCNScene) {
-        let cameraNode = SCNNode()
-        cameraNode.camera = SCNCamera()
-        cameraNode.camera!.zFar = 60
-        cameraNode.camera!.fieldOfView = 75
-        cameraNode.position = SCNVector3(0, 1.8, 6.0)
-        cameraNode.eulerAngles = SCNVector3(-0.1, 0, 0)
-        scene.rootNode.addChildNode(cameraNode)
-
-        // Drift forward slowly
-        let drift = SCNAction.customAction(duration: 60) { node, time in
-            let t = Float(time / 60)
-            node.position = SCNVector3(0, 1.8, 6.0 - t * 8.0)
-        }
-        let reset = SCNAction.customAction(duration: 0) { node, _ in
-            node.position = SCNVector3(0, 1.8, 6.0)
-        }
-        cameraNode.runAction(SCNAction.repeatForever(SCNAction.sequence([drift, reset])))
+        let t = Float(CACurrentMediaTime() - c.startTime)
+        c.triggerPulse(time: t)
     }
 }
