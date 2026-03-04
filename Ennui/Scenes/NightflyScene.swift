@@ -1,882 +1,800 @@
 // NightflyScene — Inspired by all four of Donald Fagen's solo albums.
+// SceneKit 3D scene.
 //
-// "The Nightfly" (1982) — a retrofuturistic late-night radio studio:
-//   reel-to-reel tape, a ribbon microphone, a mixing console, VU meters.
-// "Kamakiriad" (1993) — a sleek steam-powered vehicle idles on the street,
-//   wisps of warm exhaust drifting upward through the cold air.
-// "Morph the Cat" (2006) — Manhattan fog, a cat watching from a rooftop,
-//   sodium-orange street lamps mirrored in rain-slicked asphalt.
-// "Sunken Condos" (2012) — warm windows high in dark towers, the quiet
-//   solitude of a city that never stops breathing.
+// "The Nightfly" (1982)  — late-night radio studio interior: mixing console,
+//   ribbon microphone on a boom arm, reel-to-reel deck with spinning reels,
+//   VU meter segment bars, pulsing ON AIR sign.
+// "Kamakiriad" (1993)    — aerodynamic steam-powered vehicle idling on the
+//   wet street below, running light glowing blue, exhaust wisps rising.
+// "Morph the Cat" (2006) — rolling Manhattan fog, a cat on a nearby rooftop
+//   with amber eyes and a slowly swaying tail.
+// "Sunken Condos" (2012) — dark NYC towers studded with warm lit windows,
+//   sodium-orange street lamp pooling on rain-slicked asphalt.
 //
-// Tap to broadcast a signal — radio rings ripple outward across the skyline.
+// Tap to broadcast a signal — three radio rings ripple outward from the window.
 
 import SwiftUI
+import SceneKit
 
 struct NightflyScene: View {
     @ObservedObject var interaction: InteractionState
-    @State private var startDate = Date()
-
-    // MARK: - Data types
-
-    struct SignalRipple: Identifiable {
-        let id = UUID()
-        let birth: Double
-    }
-
-    struct SteamPuff {
-        let x, phase, speed: Double
-    }
-
-    // MARK: - State
-
-    @State private var ready = false
-    @State private var ripples: [SignalRipple] = []
-    @State private var steamPuffs: [SteamPuff] = []
-
-    // MARK: - Body
 
     var body: some View {
-        TimelineView(.animation(minimumInterval: 1.0 / 60.0)) { tl in
-            let t = tl.date.timeIntervalSince(startDate)
-            Canvas { ctx, size in
-                guard ready, size.width > 50, size.height > 50 else { return }
-                let w = size.width
-                let h = size.height
+        NightflySceneRepresentable(interaction: interaction)
+    }
+}
 
-                drawSky(ctx: &ctx, w: w, h: h, t: t)
-                drawCityscape(ctx: &ctx, w: w, h: h, t: t)
-                drawFog(ctx: &ctx, w: w, h: h, t: t)
-                drawStreet(ctx: &ctx, w: w, h: h, t: t)
-                drawSteam(ctx: &ctx, w: w, h: h, t: t)
-                drawKamakiriad(ctx: &ctx, w: w, h: h, t: t)
-                drawCat(ctx: &ctx, w: w, h: h, t: t)
-                drawWindowFrame(ctx: &ctx, w: w, h: h)
-                drawControlBoard(ctx: &ctx, w: w, h: h, t: t)
-                drawReelToReel(ctx: &ctx, w: w, h: h, t: t)
-                drawMicrophone(ctx: &ctx, w: w, h: h)
-                drawVUMeters(ctx: &ctx, w: w, h: h, t: t)
-                drawSignalRipples(ctx: &ctx, w: w, h: h, t: t)
-            }
-        }
-        .background(Color(red: 0.03, green: 0.04, blue: 0.09))
-        .drawingGroup(opaque: false, colorMode: .extendedLinear)
-        .allowedDynamicRange(.high)
-        .onAppear(perform: generate)
-        .onChange(of: interaction.tapCount) { _, _ in
-            let t = Date().timeIntervalSince(startDate)
-            ripples.append(SignalRipple(birth: t))
-            if ripples.count > 5 { ripples.removeFirst() }
-        }
+// MARK: - NSViewRepresentable
+
+private struct NightflySceneRepresentable: NSViewRepresentable {
+    @ObservedObject var interaction: InteractionState
+
+    final class Coordinator {
+        var reelLeft: SCNNode?
+        var reelRight: SCNNode?
+        var onAirLight: SCNNode?
+        var lastTapCount = 0
     }
 
-    // MARK: - Generate
+    func makeCoordinator() -> Coordinator { Coordinator() }
 
-    private func generate() {
-        var rng = SplitMix64(seed: 0x1982_CAFE)
-        steamPuffs = (0..<9).map { _ in
-            SteamPuff(
-                x: 0.08 + nextDouble(&rng) * 0.84,
-                phase: nextDouble(&rng) * .pi * 2,
-                speed: 0.22 + nextDouble(&rng) * 0.18
-            )
-        }
-        ready = true
+    func makeNSView(context: Context) -> SCNView {
+        let scnView = SCNView()
+        let scene = SCNScene()
+        scnView.scene = scene
+        scnView.backgroundColor = NSColor(red: 0.015, green: 0.02, blue: 0.05, alpha: 1)
+        scnView.antialiasingMode = .multisampling4X
+        scnView.isPlaying = true
+        scnView.preferredFramesPerSecond = 60
+        scnView.allowsCameraControl = false
+
+        buildScene(scene, coord: context.coordinator)
+        return scnView
     }
 
-    // MARK: - Sky
+    func updateNSView(_ nsView: SCNView, context: Context) {
+        let c = context.coordinator
+        guard interaction.tapCount != c.lastTapCount else { return }
+        c.lastTapCount = interaction.tapCount
+        guard let scene = nsView.scene else { return }
 
-    private func drawSky(ctx: inout GraphicsContext, w: Double, h: Double, t: Double) {
-        let skyH = h * 0.74
-        // Deep night-blue gradient — Manhattan light pollution tints the low horizon amber
-        ctx.fill(
-            Path(CGRect(x: 0, y: 0, width: w, height: skyH)),
-            with: .linearGradient(
-                Gradient(colors: [
-                    Color(red: 0.03, green: 0.04, blue: 0.10),
-                    Color(red: 0.06, green: 0.07, blue: 0.15),
-                    Color(red: 0.14, green: 0.10, blue: 0.10),
-                ]),
-                startPoint: .zero,
-                endPoint: CGPoint(x: 0, y: skyH)
-            )
-        )
+        // Three radio rings ripple outward from the window opening
+        for i in 0 ..< 3 {
+            DispatchQueue.main.asyncAfter(deadline: .now() + Double(i) * 0.22) {
+                let ring = SCNTorus(ringRadius: 0.15, pipeRadius: 0.014)
+                ring.firstMaterial?.diffuse.contents = NSColor.clear
+                ring.firstMaterial?.emission.contents = NSColor(red: 0.4, green: 0.7, blue: 1.0, alpha: 0.9)
+                ring.firstMaterial?.isDoubleSided = true
+                let ringNode = SCNNode(geometry: ring)
+                ringNode.position = SCNVector3(0, 1.3, -2.4)
+                ringNode.eulerAngles = SCNVector3(Float.pi / 2, 0, 0)
+                scene.rootNode.addChildNode(ringNode)
 
-        // Sparse stars filtered through light pollution
-        var rng = SplitMix64(seed: 0x4E59)
-        for _ in 0..<70 {
-            let sx = nextDouble(&rng) * w
-            let sy = nextDouble(&rng) * skyH * 0.65
-            let ss = 0.5 + nextDouble(&rng) * 1.0
-            let twinkle = sin(t * (1.2 + nextDouble(&rng) * 2.5) + nextDouble(&rng) * 6.28) * 0.25 + 0.75
-            ctx.fill(
-                Ellipse().path(in: CGRect(x: sx - ss / 2, y: sy - ss / 2, width: ss, height: ss)),
-                with: .color(.white.opacity(0.35 * twinkle))
-            )
-        }
+                SCNTransaction.begin()
+                SCNTransaction.animationDuration = 2.8
+                ringNode.scale = SCNVector3(10, 10, 10)
+                ring.firstMaterial?.emission.contents = NSColor(red: 0.4, green: 0.7, blue: 1.0, alpha: 0.0)
+                SCNTransaction.commit()
 
-        // City-glow haze on the horizon
-        ctx.drawLayer { l in
-            l.addFilter(.blur(radius: 55))
-            l.fill(
-                Ellipse().path(in: CGRect(x: -w * 0.1, y: skyH * 0.55, width: w * 1.2, height: h * 0.28)),
-                with: .color(Color(red: 0.65, green: 0.42, blue: 0.18).opacity(0.14))
-            )
-        }
-    }
-
-    // MARK: - Cityscape  (Morph the Cat / Sunken Condos Manhattan)
-
-    private func drawCityscape(ctx: inout GraphicsContext, w: Double, h: Double, t: Double) {
-        let horizonY = h * 0.74
-        var rng = SplitMix64(seed: 0x2006_NYCT)
-
-        // Background building layer — 20 varied towers
-        for i in 0..<20 {
-            let bx = w * Double(i) / 20.0 + nextDouble(&rng) * w * 0.03
-            let bw = w * (0.055 + nextDouble(&rng) * 0.07)
-            let bh = h * (0.12 + nextDouble(&rng) * 0.38)
-            let by = horizonY - bh
-            let warmth = 0.07 + nextDouble(&rng) * 0.06
-
-            // Building face
-            ctx.fill(
-                Path(CGRect(x: bx, y: by, width: bw, height: bh + 2)),
-                with: .linearGradient(
-                    Gradient(colors: [
-                        Color(red: warmth * 1.1, green: warmth * 0.85, blue: warmth * 0.6),
-                        Color(red: warmth * 0.75, green: warmth * 0.6, blue: warmth * 0.45),
-                    ]),
-                    startPoint: CGPoint(x: bx, y: by),
-                    endPoint: CGPoint(x: bx, y: horizonY)
-                )
-            )
-
-            // Water tower on some rooftops
-            if nextDouble(&rng) > 0.72 {
-                let wtX = bx + bw * 0.25 + nextDouble(&rng) * bw * 0.3
-                let wtR = bw * 0.14
-                let wtH = h * 0.042
-                // Legs
-                ctx.fill(
-                    Path(CGRect(x: wtX - wtR * 0.08, y: by - wtH * 0.7, width: wtR * 0.18, height: wtH * 0.7)),
-                    with: .color(Color(red: 0.11, green: 0.09, blue: 0.07))
-                )
-                ctx.fill(
-                    Path(CGRect(x: wtX + wtR * 0.55, y: by - wtH * 0.7, width: wtR * 0.18, height: wtH * 0.7)),
-                    with: .color(Color(red: 0.11, green: 0.09, blue: 0.07))
-                )
-                // Tank
-                var tankPath = Path()
-                tankPath.move(to: CGPoint(x: wtX - wtR, y: by - wtH * 0.15))
-                tankPath.addLine(to: CGPoint(x: wtX + wtR, y: by - wtH * 0.15))
-                tankPath.addLine(to: CGPoint(x: wtX + wtR * 0.78, y: by - wtH))
-                tankPath.addLine(to: CGPoint(x: wtX - wtR * 0.78, y: by - wtH))
-                tankPath.closeSubpath()
-                ctx.fill(tankPath, with: .color(Color(red: 0.14, green: 0.11, blue: 0.08)))
-            }
-
-            // Lit windows (Sunken Condos warmth)
-            let cols = Int(2 + nextDouble(&rng) * 4)
-            let rows = Int(3 + nextDouble(&rng) * 9)
-            let cellW = bw / Double(cols + 1)
-            let cellH = bh / Double(rows + 2)
-            var wRng = SplitMix64(seed: UInt64(i * 41 + 7))
-            for row in 0..<rows {
-                for col in 0..<cols {
-                    guard nextDouble(&wRng) > 0.48 else { continue }
-                    let wx = bx + cellW * (Double(col) + 0.5)
-                    let wy = by + cellH * (Double(row) + 1.0)
-                    let flicker = sin(t * 0.25 + Double(i * 5 + row * 3 + col)) * 0.04 + 0.96
-                    ctx.fill(
-                        Path(CGRect(x: wx, y: wy, width: cellW * 0.58, height: cellH * 0.48)),
-                        with: .color(Color(red: 1.0, green: 0.88, blue: 0.62).opacity(0.72 * flicker))
-                    )
+                DispatchQueue.main.asyncAfter(deadline: .now() + 3.2) {
+                    ringNode.removeFromParentNode()
                 }
             }
         }
 
-        // Radio / broadcast tower (The Nightfly) — tallest structure
-        let txX = w * 0.80
-        let txBase = horizonY - h * 0.13
-        let txTop = h * 0.03
-        // Tower body
-        ctx.fill(
-            Path(CGRect(x: txX - 1.5, y: txTop, width: 3.0, height: txBase - txTop)),
-            with: .color(Color(red: 0.18, green: 0.16, blue: 0.12))
-        )
-        // Cross-braces
-        for brace in 0..<5 {
-            let by2 = txTop + Double(brace) * (txBase - txTop) / 5.0
-            let braceW = 5.0 + Double(brace) * 2.5
-            var bracePath = Path()
-            bracePath.move(to: CGPoint(x: txX - braceW, y: by2))
-            bracePath.addLine(to: CGPoint(x: txX + braceW, y: by2 + (txBase - txTop) / 5.0 * 0.5))
-            ctx.stroke(bracePath, with: .color(Color(red: 0.20, green: 0.17, blue: 0.13)), lineWidth: 1.0)
-        }
-        // Aviation beacon
-        let blink = sin(t * 2.5) > 0.45 ? 1.0 : 0.0
-        ctx.drawLayer { l in
-            l.addFilter(.blur(radius: 4))
-            l.fill(
-                Ellipse().path(in: CGRect(x: txX - 5, y: txTop - 5, width: 10, height: 10)),
-                with: .color(Color(red: 1.0, green: 0.18, blue: 0.18).opacity(0.85 * blink))
-            )
-        }
-        ctx.fill(
-            Ellipse().path(in: CGRect(x: txX - 2.5, y: txTop - 2.5, width: 5, height: 5)),
-            with: .color(Color(red: 1.0, green: 0.3, blue: 0.3).opacity(blink))
-        )
-    }
+        // Brief ON AIR flash
+        SCNTransaction.begin()
+        SCNTransaction.animationDuration = 0.08
+        c.onAirLight?.light?.intensity = 900
+        SCNTransaction.commit()
 
-    // MARK: - Fog  (Morph the Cat)
-
-    private func drawFog(ctx: inout GraphicsContext, w: Double, h: Double, t: Double) {
-        ctx.drawLayer { l in
-            l.addFilter(.blur(radius: 35))
-            let a = 0.11 + sin(t * 0.09) * 0.04
-            l.fill(
-                Path(CGRect(x: -w * 0.1, y: h * 0.52, width: w * 1.2, height: h * 0.28)),
-                with: .color(Color(red: 0.50, green: 0.53, blue: 0.62).opacity(a))
-            )
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            SCNTransaction.begin()
+            SCNTransaction.animationDuration = 1.0
+            c.onAirLight?.light?.intensity = 220
+            SCNTransaction.commit()
         }
     }
 
-    // MARK: - Street  (rain-slicked asphalt)
+    // MARK: - Scene construction
 
-    private func drawStreet(ctx: inout GraphicsContext, w: Double, h: Double, t: Double) {
-        let streetTop = h * 0.74
+    private func buildScene(_ scene: SCNScene, coord: Coordinator) {
+        scene.fogStartDistance = 8
+        scene.fogEndDistance = 28
+        scene.fogColor = NSColor(red: 0.04, green: 0.06, blue: 0.12, alpha: 1)
+        scene.background.contents = NSColor(red: 0.015, green: 0.02, blue: 0.05, alpha: 1)
 
-        // Asphalt
-        ctx.fill(
-            Path(CGRect(x: 0, y: streetTop, width: w, height: h * 0.26)),
-            with: .linearGradient(
-                Gradient(colors: [
-                    Color(red: 0.09, green: 0.09, blue: 0.11),
-                    Color(red: 0.06, green: 0.06, blue: 0.08),
-                ]),
-                startPoint: CGPoint(x: 0, y: streetTop),
-                endPoint: CGPoint(x: 0, y: h)
-            )
-        )
+        addLighting(to: scene, coord: coord)
+        addStudioRoom(to: scene)
+        addMixingConsole(to: scene)
+        addReelToReel(to: scene, coord: coord)
+        addMicrophone(to: scene)
+        addVUMeters(to: scene)
+        addCityscape(to: scene)
+        addKamakiriad(to: scene)
+        addCat(to: scene)
+        addFog(to: scene)
+        addCamera(to: scene)
+    }
 
-        // Rain reflections of city lights
-        ctx.drawLayer { l in
-            l.addFilter(.blur(radius: 9))
-            var rng = SplitMix64(seed: 0xABCD)
-            for i in 0..<14 {
-                let rx = nextDouble(&rng) * w
-                let ry = streetTop + nextDouble(&rng) * h * 0.18
-                let rw = 5.0 + nextDouble(&rng) * 18.0
-                let rh = 28.0 + nextDouble(&rng) * 55.0
-                let warmth = 0.7 + nextDouble(&rng) * 0.3
-                l.fill(
-                    Ellipse().path(in: CGRect(x: rx - rw / 2, y: ry, width: rw, height: rh)),
-                    with: .color(
-                        Color(red: warmth, green: warmth * 0.82, blue: warmth * 0.45)
-                            .opacity(0.16 + sin(t * 0.38 + Double(i)) * 0.05)
-                    )
-                )
-            }
+    // MARK: - Lighting
+
+    private func addLighting(to scene: SCNScene, coord: Coordinator) {
+        // Dim amber studio ambient
+        let ambient = SCNNode()
+        ambient.light = SCNLight()
+        ambient.light!.type = .ambient
+        ambient.light!.intensity = 45
+        ambient.light!.color = NSColor(red: 0.28, green: 0.18, blue: 0.10, alpha: 1)
+        scene.rootNode.addChildNode(ambient)
+
+        // Warm overhead studio fill
+        let overhead = SCNNode()
+        overhead.light = SCNLight()
+        overhead.light!.type = .omni
+        overhead.light!.intensity = 280
+        overhead.light!.color = NSColor(red: 0.90, green: 0.70, blue: 0.40, alpha: 1)
+        overhead.light!.attenuationStartDistance = 0
+        overhead.light!.attenuationEndDistance = 7
+        overhead.position = SCNVector3(0, 2.8, 0.5)
+        scene.rootNode.addChildNode(overhead)
+
+        // ON AIR red accent — stored so tap can flash it
+        let onAirNode = SCNNode()
+        onAirNode.light = SCNLight()
+        onAirNode.light!.type = .omni
+        onAirNode.light!.intensity = 220
+        onAirNode.light!.color = NSColor(red: 1.0, green: 0.08, blue: 0.08, alpha: 1)
+        onAirNode.light!.attenuationStartDistance = 0
+        onAirNode.light!.attenuationEndDistance = 2.5
+        onAirNode.position = SCNVector3(0, 2.5, -1.6)
+        scene.rootNode.addChildNode(onAirNode)
+        coord.onAirLight = onAirNode
+
+        // Cool city-glow coming through the window
+        let cityGlow = SCNNode()
+        cityGlow.light = SCNLight()
+        cityGlow.light!.type = .directional
+        cityGlow.light!.intensity = 60
+        cityGlow.light!.color = NSColor(red: 0.28, green: 0.38, blue: 0.70, alpha: 1)
+        cityGlow.eulerAngles = SCNVector3(0, Float.pi, 0)
+        scene.rootNode.addChildNode(cityGlow)
+    }
+
+    // MARK: - Studio room shell
+
+    private func addStudioRoom(to scene: SCNScene) {
+        let wallMat = SCNMaterial()
+        wallMat.diffuse.contents = NSColor(red: 0.07, green: 0.055, blue: 0.04, alpha: 1)
+
+        // Floor — dark studio carpet
+        let floor = SCNFloor()
+        floor.reflectivity = 0.01
+        floor.firstMaterial?.diffuse.contents = NSColor(red: 0.055, green: 0.04, blue: 0.03, alpha: 1)
+        scene.rootNode.addChildNode(SCNNode(geometry: floor))
+
+        // Ceiling
+        let ceiling = SCNPlane(width: 8, height: 8)
+        ceiling.firstMaterial = wallMat
+        let ceilNode = SCNNode(geometry: ceiling)
+        ceilNode.position = SCNVector3(0, 3.2, 0)
+        ceilNode.eulerAngles = SCNVector3(Float.pi / 2, 0, 0)
+        scene.rootNode.addChildNode(ceilNode)
+
+        // Side walls
+        for (rotSign, xPos) in [(-1.0, -3.2), (1.0, 3.2)] as [(Double, Double)] {
+            let wall = SCNPlane(width: 9, height: 3.2)
+            wall.firstMaterial = wallMat
+            let wNode = SCNNode(geometry: wall)
+            wNode.position = SCNVector3(Float(xPos), 1.6, 0)
+            wNode.eulerAngles = SCNVector3(0, Float(rotSign) * Float.pi / 2, 0)
+            scene.rootNode.addChildNode(wNode)
         }
 
-        // Kerb line
-        ctx.fill(
-            Path(CGRect(x: 0, y: streetTop, width: w, height: 7)),
-            with: .color(Color(red: 0.16, green: 0.15, blue: 0.16))
-        )
+        // Front wall sections flanking the window (at z = -2.0)
+        let wallColor = NSColor(red: 0.07, green: 0.055, blue: 0.04, alpha: 1)
+        for (cx, cw) in [(-2.6, 2.0), (2.6, 2.0)] as [(Float, Float)] {
+            let slab = SCNBox(width: CGFloat(cw), height: 3.2, length: 0.14, chamferRadius: 0)
+            slab.firstMaterial?.diffuse.contents = wallColor
+            let sNode = SCNNode(geometry: slab)
+            sNode.position = SCNVector3(cx, 1.6, -2.0)
+            scene.rootNode.addChildNode(sNode)
+        }
+        // Wall above window
+        let topSlab = SCNBox(width: 3.7, height: 0.55, length: 0.14, chamferRadius: 0)
+        topSlab.firstMaterial?.diffuse.contents = wallColor
+        let topNode = SCNNode(geometry: topSlab)
+        topNode.position = SCNVector3(0, 2.82, -2.0)
+        scene.rootNode.addChildNode(topNode)
 
-        // Street lane markings
-        for i in 0..<7 {
-            let mx = w * Double(i) / 6.0
-            ctx.fill(
-                Path(CGRect(x: mx - w * 0.03, y: streetTop + h * 0.12, width: w * 0.055, height: 2.5)),
-                with: .color(Color(red: 0.32, green: 0.30, blue: 0.22).opacity(0.45))
-            )
+        // Window frame bars
+        let frameMat = SCNMaterial()
+        frameMat.diffuse.contents = NSColor(red: 0.13, green: 0.10, blue: 0.08, alpha: 1)
+        let frameSpecs: [(Float, Float, Float, Float, Float)] = [
+            // x,     y,    z,   width, height
+            (-1.75, 1.30, -2.0, 0.28, 2.60),  // left bar
+            ( 1.75, 1.30, -2.0, 0.28, 2.60),  // right bar
+        ]
+        for spec in frameSpecs {
+            let bar = SCNBox(width: CGFloat(spec.3), height: CGFloat(spec.4), length: 0.18, chamferRadius: 0.02)
+            bar.firstMaterial = frameMat
+            let bNode = SCNNode(geometry: bar)
+            bNode.position = SCNVector3(spec.0, spec.1, spec.2)
+            scene.rootNode.addChildNode(bNode)
+        }
+        // Top bar
+        let tBar = SCNBox(width: 3.78, height: 0.26, length: 0.18, chamferRadius: 0.02)
+        tBar.firstMaterial = frameMat
+        let tNode = SCNNode(geometry: tBar)
+        tNode.position = SCNVector3(0, 2.65, -2.0)
+        scene.rootNode.addChildNode(tNode)
+        // Sill
+        let sill = SCNBox(width: 3.78, height: 0.16, length: 0.30, chamferRadius: 0.02)
+        sill.firstMaterial = frameMat
+        let sillNode = SCNNode(geometry: sill)
+        sillNode.position = SCNVector3(0, 0.02, -2.0)
+        scene.rootNode.addChildNode(sillNode)
+
+        // ON AIR sign
+        let signMat = SCNMaterial()
+        signMat.diffuse.contents = NSColor.black
+        signMat.emission.contents = NSColor(red: 0.92, green: 0.08, blue: 0.08, alpha: 1)
+        let onAirSign = SCNBox(width: 1.0, height: 0.28, length: 0.09, chamferRadius: 0.03)
+        onAirSign.firstMaterial = signMat
+        let signNode = SCNNode(geometry: onAirSign)
+        signNode.position = SCNVector3(0, 3.05, -1.96)
+        scene.rootNode.addChildNode(signNode)
+
+        // Pulse the ON AIR sign
+        let pulse = SCNAction.repeatForever(.sequence([
+            .customAction(duration: 0.8) { node, t in
+                let alpha = CGFloat(0.5 + 0.5 * sin(Float(t) * Float.pi / 0.8))
+                let mat = (node.geometry as? SCNBox)?.firstMaterial
+                mat?.emission.contents = NSColor(red: 0.92, green: 0.08, blue: 0.08, alpha: alpha)
+            },
+            .customAction(duration: 0.8) { node, t in
+                let alpha = CGFloat(1.0 - 0.5 * sin(Float(t) * Float.pi / 0.8))
+                let mat = (node.geometry as? SCNBox)?.firstMaterial
+                mat?.emission.contents = NSColor(red: 0.92, green: 0.08, blue: 0.08, alpha: alpha)
+            },
+        ]))
+        signNode.runAction(pulse)
+    }
+
+    // MARK: - Mixing console
+
+    private func addMixingConsole(to scene: SCNScene) {
+        let consoleMat = SCNMaterial()
+        consoleMat.diffuse.contents = NSColor(red: 0.09, green: 0.08, blue: 0.11, alpha: 1)
+
+        // Console surface
+        let surface = SCNBox(width: 3.4, height: 0.11, length: 1.1, chamferRadius: 0.03)
+        surface.firstMaterial = consoleMat
+        let surfNode = SCNNode(geometry: surface)
+        surfNode.position = SCNVector3(0, 0.78, 0.25)
+        scene.rootNode.addChildNode(surfNode)
+
+        // Angled front panel
+        let panel = SCNBox(width: 3.4, height: 0.55, length: 0.07, chamferRadius: 0.02)
+        panel.firstMaterial = consoleMat
+        let panelNode = SCNNode(geometry: panel)
+        panelNode.position = SCNVector3(0, 0.575, 0.82)
+        panelNode.eulerAngles = SCNVector3(-Float.pi / 5, 0, 0)
+        scene.rootNode.addChildNode(panelNode)
+
+        // Faders
+        let faderMat = SCNMaterial()
+        faderMat.diffuse.contents = NSColor(red: 0.72, green: 0.72, blue: 0.76, alpha: 1)
+        for i in 0 ..< 14 {
+            let fader = SCNBox(width: 0.038, height: 0.17, length: 0.038, chamferRadius: 0.008)
+            fader.firstMaterial = faderMat
+            let fNode = SCNNode(geometry: fader)
+            let fx = Float(i - 6) * 0.235 + 0.12
+            let fy: Float = 0.84 + sin(Float(i) * 1.1) * 0.055
+            fNode.position = SCNVector3(fx, fy, 0.15)
+            scene.rootNode.addChildNode(fNode)
         }
 
-        // Street lamps — sodium orange (Morph the Cat)
-        for lampI in 0..<4 {
-            let lx = w * (Double(lampI) + 0.5) / 4.0
-            let lPoleTop = streetTop - h * 0.13
-            // Pole
-            ctx.fill(
-                Path(CGRect(x: lx - 1.5, y: lPoleTop, width: 3, height: h * 0.13 + 7)),
-                with: .color(Color(red: 0.20, green: 0.18, blue: 0.14))
-            )
-            // Arm
-            var armPath = Path()
-            armPath.move(to: CGPoint(x: lx, y: lPoleTop + 5))
-            armPath.addCurve(
-                to: CGPoint(x: lx + 18, y: lPoleTop),
-                control1: CGPoint(x: lx + 8, y: lPoleTop + 3),
-                control2: CGPoint(x: lx + 15, y: lPoleTop + 1)
-            )
-            ctx.stroke(armPath, with: .color(Color(red: 0.20, green: 0.18, blue: 0.14)), lineWidth: 2.5)
-            // Halo
-            let flicker = 0.95 + sin(t * 0.17 + Double(lampI) * 1.9) * 0.05
-            ctx.drawLayer { l in
-                l.addFilter(.blur(radius: 14))
-                l.fill(
-                    Ellipse().path(in: CGRect(x: lx + 8, y: lPoleTop - 10, width: 26, height: 20)),
-                    with: .color(Color(red: 1.0, green: 0.82, blue: 0.35).opacity(0.50 * flicker))
-                )
+        // Knobs
+        let knobMat = SCNMaterial()
+        knobMat.diffuse.contents = NSColor(red: 0.18, green: 0.18, blue: 0.22, alpha: 1)
+        for i in 0 ..< 10 {
+            let knob = SCNCylinder(radius: 0.046, height: 0.055)
+            knob.firstMaterial = knobMat
+            let kNode = SCNNode(geometry: knob)
+            kNode.position = SCNVector3(Float(i - 4) * 0.32 + 0.16, 0.87, -0.1)
+            scene.rootNode.addChildNode(kNode)
+        }
+
+        // Indicator LEDs
+        let ledColors: [NSColor] = [
+            NSColor(red: 0.15, green: 0.95, blue: 0.25, alpha: 1),
+            NSColor(red: 0.95, green: 0.80, blue: 0.10, alpha: 1),
+            NSColor(red: 0.95, green: 0.18, blue: 0.12, alpha: 1),
+        ]
+        for (row, color) in ledColors.enumerated() {
+            for col in 0 ..< 5 {
+                let led = SCNSphere(radius: 0.016)
+                led.firstMaterial?.emission.contents = color
+                led.firstMaterial?.diffuse.contents = NSColor.black
+                let lNode = SCNNode(geometry: led)
+                lNode.position = SCNVector3(Float(col) * 0.14 - 0.28 + Float(row) * 0.74 - 0.74,
+                                            0.855,
+                                            0.43)
+                scene.rootNode.addChildNode(lNode)
             }
-            ctx.fill(
-                Ellipse().path(in: CGRect(x: lx + 14, y: lPoleTop - 5, width: 10, height: 7)),
-                with: .color(Color(red: 1.0, green: 0.95, blue: 0.72).opacity(0.92))
-            )
         }
     }
 
-    // MARK: - Steam from street grates  (Kamakiriad)
+    // MARK: - Reel-to-reel deck
 
-    private func drawSteam(ctx: inout GraphicsContext, w: Double, h: Double, t: Double) {
-        let streetTop = h * 0.74
-        ctx.drawLayer { l in
-            l.addFilter(.blur(radius: 7))
-            for puff in steamPuffs {
-                let px = puff.x * w
-                let life = fmod(t * puff.speed + puff.phase, 1.0)
-                let py = streetTop - life * h * 0.28
-                let alpha = (1.0 - life) * (1.0 - life) * 0.38
-                let sz = 11 + life * 38
-                l.fill(
-                    Ellipse().path(in: CGRect(x: px - sz / 2, y: py - sz * 0.7, width: sz, height: sz * 1.4)),
-                    with: .color(Color(red: 0.72, green: 0.76, blue: 0.82).opacity(alpha))
-                )
+    private func addReelToReel(to scene: SCNScene, coord: Coordinator) {
+        // Machine body on a side rack to the right
+        let bodyMat = SCNMaterial()
+        bodyMat.diffuse.contents = NSColor(red: 0.07, green: 0.07, blue: 0.09, alpha: 1)
+        let body = SCNBox(width: 0.72, height: 0.60, length: 0.26, chamferRadius: 0.03)
+        body.firstMaterial = bodyMat
+        let bodyNode = SCNNode(geometry: body)
+        bodyNode.position = SCNVector3(1.9, 1.12, -0.22)
+        scene.rootNode.addChildNode(bodyNode)
+
+        // Two reels
+        let leftReel = makeReel(at: SCNVector3(1.73, 1.43, -0.10), scene: scene)
+        coord.reelLeft = leftReel
+        let rightReel = makeReel(at: SCNVector3(2.07, 1.43, -0.10), scene: scene)
+        coord.reelRight = rightReel
+
+        // Animate: left spins faster (supply), right slower (take-up)
+        leftReel.runAction(.repeatForever(.rotateBy(x: 0, y: 0, z: -.pi * 2, duration: 3.5)))
+        rightReel.runAction(.repeatForever(.rotateBy(x: 0, y: 0, z: -.pi * 2, duration: 5.5)))
+
+        // Tape guide pin
+        let guide = SCNCylinder(radius: 0.016, height: 0.04)
+        guide.firstMaterial?.diffuse.contents = NSColor(red: 0.55, green: 0.55, blue: 0.6, alpha: 1)
+        let guideNode = SCNNode(geometry: guide)
+        guideNode.position = SCNVector3(1.90, 1.29, -0.09)
+        guideNode.eulerAngles = SCNVector3(Float.pi / 2, 0, 0)
+        scene.rootNode.addChildNode(guideNode)
+    }
+
+    private func makeReel(at position: SCNVector3, scene: SCNScene) -> SCNNode {
+        let reelMat = SCNMaterial()
+        reelMat.diffuse.contents = NSColor(red: 0.22, green: 0.19, blue: 0.15, alpha: 1)
+
+        let reelNode = SCNNode()
+        reelNode.position = position
+        reelNode.eulerAngles = SCNVector3(Float.pi / 2, 0, 0)
+
+        // Hub
+        let hub = SCNCylinder(radius: 0.048, height: 0.038)
+        hub.firstMaterial?.diffuse.contents = NSColor(red: 0.50, green: 0.50, blue: 0.54, alpha: 1)
+        reelNode.addChildNode(SCNNode(geometry: hub))
+
+        // Spokes
+        for i in 0 ..< 6 {
+            let angle = Float(i) * (.pi / 3)
+            let spoke = SCNBox(width: 0.008, height: 0.082, length: 0.022, chamferRadius: 0)
+            spoke.firstMaterial = reelMat
+            let sNode = SCNNode(geometry: spoke)
+            sNode.position = SCNVector3(sin(angle) * 0.042, cos(angle) * 0.042, 0)
+            sNode.eulerAngles = SCNVector3(0, 0, angle)
+            reelNode.addChildNode(sNode)
+        }
+
+        // Outer rim
+        let rim = SCNTorus(ringRadius: 0.095, pipeRadius: 0.007)
+        rim.firstMaterial = reelMat
+        reelNode.addChildNode(SCNNode(geometry: rim))
+
+        scene.rootNode.addChildNode(reelNode)
+        return reelNode
+    }
+
+    // MARK: - Ribbon microphone
+
+    private func addMicrophone(to scene: SCNScene) {
+        // Boom arm
+        let arm = SCNCylinder(radius: 0.011, height: 0.88)
+        arm.firstMaterial?.diffuse.contents = NSColor(red: 0.28, green: 0.28, blue: 0.32, alpha: 1)
+        let armNode = SCNNode(geometry: arm)
+        armNode.position = SCNVector3(-1.55, 1.28, 0.22)
+        armNode.eulerAngles = SCNVector3(0, 0, Float.pi / 5)
+        scene.rootNode.addChildNode(armNode)
+
+        // Capsule body
+        let micMat = SCNMaterial()
+        micMat.diffuse.contents = NSColor(red: 0.52, green: 0.48, blue: 0.42, alpha: 1)
+        micMat.metalness.contents = NSNumber(value: 0.75)
+        micMat.roughness.contents = NSNumber(value: 0.30)
+        let capsule = SCNBox(width: 0.058, height: 0.21, length: 0.048, chamferRadius: 0.022)
+        capsule.firstMaterial = micMat
+        let micNode = SCNNode(geometry: capsule)
+        micNode.position = SCNVector3(-1.17, 1.58, 0.14)
+        scene.rootNode.addChildNode(micNode)
+
+        // Grille cylinder
+        let grille = SCNCylinder(radius: 0.036, height: 0.155)
+        let grilleMat = SCNMaterial()
+        grilleMat.diffuse.contents = NSColor(red: 0.38, green: 0.36, blue: 0.33, alpha: 0.65)
+        grilleMat.isDoubleSided = true
+        grille.firstMaterial = grilleMat
+        let grilleNode = SCNNode(geometry: grille)
+        grilleNode.position = SCNVector3(-1.17, 1.58, 0.14)
+        scene.rootNode.addChildNode(grilleNode)
+    }
+
+    // MARK: - VU meters
+
+    private func addVUMeters(to scene: SCNScene) {
+        // Small panel mounted on the console surface
+        let panelMat = SCNMaterial()
+        panelMat.diffuse.contents = NSColor(red: 0.07, green: 0.065, blue: 0.09, alpha: 1)
+        let panel = SCNBox(width: 0.62, height: 0.28, length: 0.055, chamferRadius: 0.02)
+        panel.firstMaterial = panelMat
+        let panelNode = SCNNode(geometry: panel)
+        panelNode.position = SCNVector3(0, 1.34, -0.06)
+        scene.rootNode.addChildNode(panelNode)
+
+        // Segment bars: 2 channels × 7 segments (green→yellow→red)
+        let segColors: [NSColor] = [
+            NSColor(red: 0.10, green: 0.92, blue: 0.20, alpha: 1),
+            NSColor(red: 0.10, green: 0.92, blue: 0.20, alpha: 1),
+            NSColor(red: 0.10, green: 0.92, blue: 0.20, alpha: 1),
+            NSColor(red: 0.10, green: 0.92, blue: 0.20, alpha: 1),
+            NSColor(red: 0.92, green: 0.80, blue: 0.08, alpha: 1),
+            NSColor(red: 0.92, green: 0.80, blue: 0.08, alpha: 1),
+            NSColor(red: 0.92, green: 0.18, blue: 0.08, alpha: 1),
+        ]
+
+        for ch in 0 ..< 2 {
+            let chX = Float(ch) * 0.28 - 0.16
+            for (seg, color) in segColors.enumerated() {
+                let bar = SCNBox(width: 0.022, height: 0.038, length: 0.012, chamferRadius: 0)
+                bar.firstMaterial?.emission.contents = color
+                bar.firstMaterial?.diffuse.contents = NSColor.black
+                let bNode = SCNNode(geometry: bar)
+                bNode.position = SCNVector3(chX + Float(seg) * 0.034, 1.34, -0.030)
+                scene.rootNode.addChildNode(bNode)
+
+                // Pulsing VU animation
+                let delay = Double(ch) * 0.13 + Double(seg) * 0.04
+                let pulse = SCNAction.repeatForever(.sequence([
+                    .wait(duration: delay),
+                    .customAction(duration: 0.25 + Double(seg) * 0.03) { node, _ in
+                        let v = Float.random(in: 0.25 ... 1.0)
+                        node.opacity = CGFloat(v)
+                    },
+                    .customAction(duration: 0.15) { node, _ in
+                        node.opacity = 0.2
+                    },
+                ]))
+                bNode.runAction(pulse)
             }
         }
+    }
+
+    // MARK: - Manhattan cityscape
+
+    private func addCityscape(to scene: SCNScene) {
+        var rng = SplitMix64(seed: 0x1982_CAFE)
+
+        // Night sky backdrop
+        let sky = SCNPlane(width: 28, height: 14)
+        sky.firstMaterial?.diffuse.contents = NSColor(red: 0.015, green: 0.02, blue: 0.05, alpha: 1)
+        sky.firstMaterial?.emission.contents = NSColor(red: 0.015, green: 0.02, blue: 0.05, alpha: 1)
+        let skyNode = SCNNode(geometry: sky)
+        skyNode.position = SCNVector3(0, 5, -16)
+        scene.rootNode.addChildNode(skyNode)
+
+        // Stars
+        for _ in 0 ..< 110 {
+            let star = SCNSphere(radius: 0.018)
+            let b = Float(0.45 + nextDouble(&rng) * 0.55)
+            star.firstMaterial?.emission.contents = NSColor(white: CGFloat(b), alpha: 1)
+            star.firstMaterial?.diffuse.contents = NSColor.black
+            let sNode = SCNNode(geometry: star)
+            sNode.position = SCNVector3(
+                Float(nextDouble(&rng) * 20 - 10),
+                Float(3.8 + nextDouble(&rng) * 5.0),
+                Float(-15.5 + nextDouble(&rng) * 4.0)
+            )
+            scene.rootNode.addChildNode(sNode)
+        }
+
+        // Buildings
+        let buildingDefs: [(Float, Float, Float, Float, Float)] = [
+            // x,    z,    h,    w,    d
+            (-7.2, -9.0,  6.5, 1.3, 0.85),
+            (-5.1, -8.0,  5.0, 1.0, 0.70),
+            (-3.3, -7.0,  4.2, 1.1, 0.75),
+            (-1.6, -6.5,  3.8, 0.95, 0.65),
+            ( 0.4, -8.0,  5.5, 1.2, 0.80),
+            ( 2.1, -7.0,  4.0, 1.0, 0.70),
+            ( 3.7, -7.5,  5.8, 1.1, 0.75),
+            ( 5.4, -9.0,  6.2, 1.3, 0.85),
+            (-6.2, -12.0, 7.5, 1.5, 0.90),
+            (-4.2, -13.0, 8.0, 1.4, 0.85),
+            (-2.0, -11.0, 6.0, 1.1, 0.75),
+            ( 0.0, -13.0, 8.5, 1.6, 0.90),
+            ( 2.5, -12.0, 7.0, 1.3, 0.80),
+            ( 4.5, -11.0, 6.5, 1.2, 0.75),
+            ( 6.5, -12.0, 7.8, 1.4, 0.88),
+        ]
+        let wallColors: [NSColor] = [
+            NSColor(red: 0.05, green: 0.05, blue: 0.08, alpha: 1),
+            NSColor(red: 0.06, green: 0.055, blue: 0.085, alpha: 1),
+            NSColor(red: 0.045, green: 0.048, blue: 0.072, alpha: 1),
+        ]
+
+        for (idx, def) in buildingDefs.enumerated() {
+            let (bx, bz, bh, bw, bd) = (def.0, def.1, def.2, def.3, def.4)
+            let building = SCNBox(width: CGFloat(bw), height: CGFloat(bh),
+                                  length: CGFloat(bd), chamferRadius: 0.01)
+            building.firstMaterial?.diffuse.contents = wallColors[idx % wallColors.count]
+            let bNode = SCNNode(geometry: building)
+            bNode.position = SCNVector3(bx, bh / 2, bz)
+            scene.rootNode.addChildNode(bNode)
+
+            // Broadcast antenna on one tall tower
+            if idx == 9 {
+                let antenna = SCNCylinder(radius: 0.025, height: 1.4)
+                antenna.firstMaterial?.diffuse.contents = NSColor(red: 0.4, green: 0.4, blue: 0.45, alpha: 1)
+                let antNode = SCNNode(geometry: antenna)
+                antNode.position = SCNVector3(bx, bh + 0.7, bz)
+                scene.rootNode.addChildNode(antNode)
+                // Aviation beacon — blinking red sphere at the top
+                let beacon = SCNSphere(radius: 0.045)
+                beacon.firstMaterial?.emission.contents = NSColor(red: 0.95, green: 0.10, blue: 0.10, alpha: 1)
+                beacon.firstMaterial?.diffuse.contents = NSColor.black
+                let beaconNode = SCNNode(geometry: beacon)
+                beaconNode.position = SCNVector3(bx, bh + 1.45, bz)
+                scene.rootNode.addChildNode(beaconNode)
+                beaconNode.runAction(.repeatForever(.sequence([
+                    .fadeOpacity(to: 1.0, duration: 0.1),
+                    .wait(duration: 0.3),
+                    .fadeOpacity(to: 0.05, duration: 0.3),
+                    .wait(duration: 1.2),
+                ])))
+            }
+
+            // Warm windows
+            let floorsCount = Int(bh / 0.68)
+            let winsPerFloor = Int(2 + nextDouble(&rng) * 3)
+            for fl in 0 ..< floorsCount {
+                for wi in 0 ..< winsPerFloor {
+                    guard nextDouble(&rng) < 0.52 else { continue }
+                    let win = SCNPlane(width: 0.11, height: 0.15)
+                    let r = CGFloat(0.82 + nextDouble(&rng) * 0.12)
+                    let g = CGFloat(0.62 + nextDouble(&rng) * 0.10)
+                    let b = CGFloat(0.18 + nextDouble(&rng) * 0.14)
+                    win.firstMaterial?.emission.contents = NSColor(red: r, green: g, blue: b, alpha: 1)
+                    win.firstMaterial?.diffuse.contents = NSColor.black
+                    let wNode = SCNNode(geometry: win)
+                    let spacingX = bw / Float(winsPerFloor + 1)
+                    let wx = -bw / 2 + spacingX * Float(wi + 1)
+                    wNode.position = SCNVector3(bx + wx, 0.38 + Float(fl) * 0.68, bz + bd / 2 + 0.01)
+                    scene.rootNode.addChildNode(wNode)
+                }
+            }
+        }
+
+        // Wet street plane
+        let streetPlane = SCNPlane(width: 22, height: 14)
+        streetPlane.firstMaterial?.diffuse.contents = NSColor(red: 0.04, green: 0.04, blue: 0.06, alpha: 1)
+        streetPlane.firstMaterial?.specular.contents = NSColor(white: 0.28, alpha: 1)
+        let streetNode = SCNNode(geometry: streetPlane)
+        streetNode.eulerAngles = SCNVector3(-Float.pi / 2, 0, 0)
+        streetNode.position = SCNVector3(0, 0.01, -7)
+        scene.rootNode.addChildNode(streetNode)
+
+        // Sodium street lamp
+        let pole = SCNCylinder(radius: 0.038, height: 2.6)
+        pole.firstMaterial?.diffuse.contents = NSColor(red: 0.28, green: 0.24, blue: 0.18, alpha: 1)
+        let poleNode = SCNNode(geometry: pole)
+        poleNode.position = SCNVector3(1.5, 1.3, -5.0)
+        scene.rootNode.addChildNode(poleNode)
+
+        let lampHead = SCNBox(width: 0.26, height: 0.10, length: 0.13, chamferRadius: 0.03)
+        lampHead.firstMaterial?.emission.contents = NSColor(red: 1.0, green: 0.62, blue: 0.18, alpha: 1)
+        lampHead.firstMaterial?.diffuse.contents = NSColor.black
+        let lampHeadNode = SCNNode(geometry: lampHead)
+        lampHeadNode.position = SCNVector3(1.5, 2.65, -5.0)
+        scene.rootNode.addChildNode(lampHeadNode)
+
+        let lampOmni = SCNNode()
+        lampOmni.light = SCNLight()
+        lampOmni.light!.type = .omni
+        lampOmni.light!.intensity = 380
+        lampOmni.light!.color = NSColor(red: 1.0, green: 0.62, blue: 0.22, alpha: 1)
+        lampOmni.light!.attenuationStartDistance = 0
+        lampOmni.light!.attenuationEndDistance = 5
+        lampOmni.position = SCNVector3(1.5, 2.7, -5.0)
+        scene.rootNode.addChildNode(lampOmni)
     }
 
     // MARK: - Kamakiriad vehicle
 
-    private func drawKamakiriad(ctx: inout GraphicsContext, w: Double, h: Double, t: Double) {
-        let streetTop = h * 0.74
-        // Slow idle drift
-        let carX = w * 0.54 + sin(t * 0.04) * w * 0.015
-        let carY = streetTop + h * 0.028
-        let carW = w * 0.20
-        let carH = h * 0.058
+    private func addKamakiriad(to scene: SCNScene) {
+        let vehicleMat = SCNMaterial()
+        vehicleMat.diffuse.contents = NSColor(red: 0.11, green: 0.13, blue: 0.17, alpha: 1)
+        vehicleMat.specular.contents = NSColor(white: 0.55, alpha: 1)
+        vehicleMat.roughness.contents = NSNumber(value: 0.30)
 
-        // Sleek aerodynamic body
-        var bodyPath = Path()
-        bodyPath.move(to: CGPoint(x: carX, y: carY + carH))
-        bodyPath.addLine(to: CGPoint(x: carX + carW, y: carY + carH))
-        bodyPath.addLine(to: CGPoint(x: carX + carW * 1.04, y: carY + carH * 0.52))
-        bodyPath.addQuadCurve(
-            to: CGPoint(x: carX + carW * 0.68, y: carY),
-            control: CGPoint(x: carX + carW * 1.0, y: carY + carH * 0.08)
-        )
-        bodyPath.addQuadCurve(
-            to: CGPoint(x: carX + carW * 0.14, y: carY),
-            control: CGPoint(x: carX + carW * 0.48, y: carY - carH * 0.28)
-        )
-        bodyPath.addQuadCurve(
-            to: CGPoint(x: carX - carW * 0.04, y: carY + carH * 0.52),
-            control: CGPoint(x: carX, y: carY + carH * 0.09)
-        )
-        bodyPath.closeSubpath()
+        // Aerodynamic body
+        let body = SCNBox(width: 0.92, height: 0.26, length: 1.85, chamferRadius: 0.09)
+        body.firstMaterial = vehicleMat
+        let bodyNode = SCNNode(geometry: body)
+        bodyNode.position = SCNVector3(-1.3, 0.19, -5.2)
+        scene.rootNode.addChildNode(bodyNode)
 
-        ctx.fill(bodyPath, with: .linearGradient(
-            Gradient(colors: [
-                Color(red: 0.22, green: 0.24, blue: 0.30),
-                Color(red: 0.10, green: 0.11, blue: 0.15),
-            ]),
-            startPoint: CGPoint(x: carX, y: carY),
-            endPoint: CGPoint(x: carX, y: carY + carH)
-        ))
-        // Subtle sheen
-        ctx.fill(bodyPath, with: .linearGradient(
-            Gradient(colors: [
-                Color(red: 0.55, green: 0.60, blue: 0.72).opacity(0.12),
-                Color.clear,
-            ]),
-            startPoint: CGPoint(x: carX, y: carY),
-            endPoint: CGPoint(x: carX, y: carY + carH * 0.5)
-        ))
-
-        // Steam exhaust — Kamakiriad is steam-powered
-        ctx.drawLayer { l in
-            l.addFilter(.blur(radius: 8))
-            let exX = carX + carW * 0.91
-            let exY = carY + carH * 0.38
-            for i in 0..<4 {
-                let phase = fmod(t * 0.85 + Double(i) * 0.28, 1.0)
-                let ey = exY - phase * carH * 2.2
-                let er = 4.5 + phase * 11.0
-                l.fill(
-                    Ellipse().path(in: CGRect(x: exX - er / 2, y: ey - er / 2, width: er, height: er)),
-                    with: .color(Color(red: 0.82, green: 0.86, blue: 0.92).opacity((1.0 - phase) * 0.55))
-                )
-            }
-        }
-
-        // Headlights
-        let headY = carY + carH * 0.38
-        ctx.drawLayer { l in
-            l.addFilter(.blur(radius: 22))
-            l.fill(
-                Ellipse().path(in: CGRect(x: carX - 32, y: headY - 14, width: 44, height: 28)),
-                with: .color(Color(red: 0.90, green: 0.86, blue: 0.70).opacity(0.28))
-            )
-        }
-        ctx.fill(
-            Ellipse().path(in: CGRect(x: carX - 4, y: headY - 3, width: 7, height: 6)),
-            with: .color(Color(red: 1.0, green: 0.96, blue: 0.82))
-        )
-
-        // Rear blue running light (futuristic)
-        ctx.drawLayer { l in
-            l.addFilter(.blur(radius: 6))
-            l.fill(
-                Ellipse().path(in: CGRect(x: carX + carW * 0.94, y: carY + carH * 0.42, width: 11, height: 7)),
-                with: .color(Color(red: 0.28, green: 0.50, blue: 1.0).opacity(0.65))
-            )
-        }
+        // Cockpit bubble
+        let cabin = SCNCapsule(capRadius: 0.12, height: 0.38)
+        cabin.firstMaterial?.diffuse.contents = NSColor(red: 0.07, green: 0.09, blue: 0.14, alpha: 1)
+        cabin.firstMaterial?.transparency = 0.35
+        let cabinNode = SCNNode(geometry: cabin)
+        cabinNode.position = SCNVector3(-1.3, 0.40, -5.1)
+        scene.rootNode.addChildNode(cabinNode)
 
         // Wheels
-        for wDX in [carX + carW * 0.17, carX + carW * 0.76] {
-            let wr = carH * 0.36
-            ctx.fill(
-                Ellipse().path(in: CGRect(x: wDX - wr, y: carY + carH * 0.72, width: wr * 2, height: wr * 2)),
-                with: .color(Color(red: 0.07, green: 0.07, blue: 0.09))
-            )
-            ctx.stroke(
-                Ellipse().path(in: CGRect(x: wDX - wr, y: carY + carH * 0.72, width: wr * 2, height: wr * 2)),
-                with: .color(Color(red: 0.28, green: 0.24, blue: 0.20)),
-                lineWidth: 1.5
-            )
+        let wheelMat = SCNMaterial()
+        wheelMat.diffuse.contents = NSColor(red: 0.07, green: 0.07, blue: 0.07, alpha: 1)
+        for (wox, woz) in [(-0.50, -4.4), (0.50, -4.4), (-0.50, -6.0), (0.50, -6.0)] as [(Float, Float)] {
+            let wheel = SCNCylinder(radius: 0.13, height: 0.11)
+            wheel.firstMaterial = wheelMat
+            let wNode = SCNNode(geometry: wheel)
+            wNode.position = SCNVector3(-1.3 + wox, 0.065, woz)
+            wNode.eulerAngles = SCNVector3(0, 0, Float.pi / 2)
+            scene.rootNode.addChildNode(wNode)
         }
+
+        // Blue running light strip
+        let runLight = SCNBox(width: 0.88, height: 0.016, length: 0.016, chamferRadius: 0.006)
+        runLight.firstMaterial?.emission.contents = NSColor(red: 0.28, green: 0.58, blue: 1.0, alpha: 1)
+        runLight.firstMaterial?.diffuse.contents = NSColor.black
+        let runLightNode = SCNNode(geometry: runLight)
+        runLightNode.position = SCNVector3(-1.3, 0.275, -5.16)
+        scene.rootNode.addChildNode(runLightNode)
+
+        // Headlights
+        let hlMat = SCNMaterial()
+        hlMat.emission.contents = NSColor(red: 0.90, green: 0.86, blue: 0.70, alpha: 1)
+        hlMat.diffuse.contents = NSColor.black
+        for hox in [-0.34, 0.34] as [Float] {
+            let hl = SCNSphere(radius: 0.038)
+            hl.firstMaterial = hlMat
+            let hNode = SCNNode(geometry: hl)
+            hNode.position = SCNVector3(-1.3 + hox, 0.17, -4.32)
+            scene.rootNode.addChildNode(hNode)
+
+            let beam = SCNNode()
+            beam.light = SCNLight()
+            beam.light!.type = .omni
+            beam.light!.intensity = 180
+            beam.light!.color = NSColor(red: 0.90, green: 0.86, blue: 0.70, alpha: 1)
+            beam.light!.attenuationStartDistance = 0
+            beam.light!.attenuationEndDistance = 3
+            beam.position = SCNVector3(-1.3 + hox, 0.17, -4.35)
+            scene.rootNode.addChildNode(beam)
+        }
+
+        // Steam exhaust
+        let steam = SCNParticleSystem()
+        steam.birthRate = 9
+        steam.particleLifeSpan = 2.8
+        steam.particleSize = 0.14
+        steam.particleSizeVariation = 0.07
+        steam.particleColor = NSColor(white: 0.82, alpha: 0.30)
+        steam.particleColorVariation = SCNVector4(0, 0, 0, 0.15)
+        steam.blendMode = .alpha
+        steam.spreadingAngle = 28
+        steam.emittingDirection = SCNVector3(0, 1, 0)
+        steam.particleVelocity = 0.28
+        steam.particleVelocityVariation = 0.12
+        steam.emitterShape = SCNSphere(radius: 0.035)
+        steam.loops = true
+        let steamEmitter = SCNNode()
+        steamEmitter.position = SCNVector3(-1.3, 0.40, -6.12)
+        steamEmitter.addParticleSystem(steam)
+        scene.rootNode.addChildNode(steamEmitter)
     }
 
-    // MARK: - Cat  (Morph the Cat)
+    // MARK: - Cat (Morph the Cat)
 
-    private func drawCat(ctx: inout GraphicsContext, w: Double, h: Double, t: Double) {
-        // Silhouette on a rooftop — watching the city
-        let catX = w * 0.24
-        let catY = h * 0.41
-        let cs = w * 0.020      // scale unit
-
-        // Tail — slow graceful sway
-        let sway = sin(t * 0.75) * 0.32
-        var tailPath = Path()
-        tailPath.move(to: CGPoint(x: catX - cs * 0.9, y: catY))
-        tailPath.addCurve(
-            to: CGPoint(x: catX - cs * 2.1, y: catY - cs * 0.6),
-            control1: CGPoint(x: catX - cs * 1.3, y: catY + cs * 0.35 + sway * cs),
-            control2: CGPoint(x: catX - cs * 1.8, y: catY - cs * 0.15 + sway * cs * 0.5)
-        )
-        ctx.stroke(tailPath,
-                   with: .color(Color(red: 0.07, green: 0.07, blue: 0.09).opacity(0.92)),
-                   lineWidth: cs * 0.38)
+    private func addCat(to scene: SCNScene) {
+        let catMat = SCNMaterial()
+        catMat.diffuse.contents = NSColor(red: 0.055, green: 0.045, blue: 0.06, alpha: 1)
 
         // Body
-        ctx.fill(
-            Ellipse().path(in: CGRect(x: catX - cs, y: catY - cs * 0.55, width: cs * 2.0, height: cs * 1.15)),
-            with: .color(Color(red: 0.07, green: 0.07, blue: 0.09).opacity(0.92))
-        )
+        let catBody = SCNBox(width: 0.20, height: 0.13, length: 0.30, chamferRadius: 0.06)
+        catBody.firstMaterial = catMat
+        let bodyNode = SCNNode(geometry: catBody)
+        bodyNode.position = SCNVector3(-3.3, 2.76, -7.0)
+        scene.rootNode.addChildNode(bodyNode)
 
         // Head
-        ctx.fill(
-            Ellipse().path(in: CGRect(x: catX - cs * 0.52, y: catY - cs * 1.52, width: cs * 1.04, height: cs * 1.0)),
-            with: .color(Color(red: 0.07, green: 0.07, blue: 0.09).opacity(0.92))
-        )
+        let head = SCNSphere(radius: 0.072)
+        head.firstMaterial = catMat
+        let headNode = SCNNode(geometry: head)
+        headNode.position = SCNVector3(-3.3, 2.90, -6.76)
+        scene.rootNode.addChildNode(headNode)
 
         // Ears
-        for earDir in [-1.0, 1.0] {
-            let ex = catX + earDir * cs * 0.28
-            var earPath = Path()
-            earPath.move(to: CGPoint(x: ex - cs * 0.18, y: catY - cs * 1.52))
-            earPath.addLine(to: CGPoint(x: ex, y: catY - cs * 2.12))
-            earPath.addLine(to: CGPoint(x: ex + cs * 0.18, y: catY - cs * 1.52))
-            earPath.closeSubpath()
-            ctx.fill(earPath, with: .color(Color(red: 0.07, green: 0.07, blue: 0.09).opacity(0.92)))
+        for earOffsetX in [-0.038, 0.038] as [Float] {
+            let ear = SCNPyramid(width: 0.042, height: 0.052, length: 0.024)
+            ear.firstMaterial = catMat
+            let eNode = SCNNode(geometry: ear)
+            eNode.position = SCNVector3(-3.3 + earOffsetX, 2.995, -6.74)
+            scene.rootNode.addChildNode(eNode)
         }
 
-        // Eyes — amber gleam
-        let eyeGlow = sin(t * 0.55) * 0.12 + 0.88
-        for exDir in [-1.0, 1.0] {
-            ctx.drawLayer { l in
-                l.addFilter(.blur(radius: 2))
-                l.fill(
-                    Ellipse().path(in: CGRect(
-                        x: catX + exDir * cs * 0.24 - 2,
-                        y: catY - cs * 1.07 - 1.5,
-                        width: 4, height: 3
-                    )),
-                    with: .color(Color(red: 0.92, green: 0.70, blue: 0.18).opacity(0.65 * eyeGlow))
-                )
-            }
+        // Amber eyes
+        for eyeOffsetX in [-0.026, 0.026] as [Float] {
+            let eye = SCNSphere(radius: 0.011)
+            eye.firstMaterial?.emission.contents = NSColor(red: 0.92, green: 0.60, blue: 0.10, alpha: 1)
+            eye.firstMaterial?.diffuse.contents = NSColor.black
+            let eNode = SCNNode(geometry: eye)
+            eNode.position = SCNVector3(-3.3 + eyeOffsetX, 2.905, -6.692)
+            scene.rootNode.addChildNode(eNode)
         }
+
+        // Tail with gentle sway
+        let tail = SCNCylinder(radius: 0.016, height: 0.30)
+        tail.firstMaterial = catMat
+        let tailNode = SCNNode(geometry: tail)
+        tailNode.position = SCNVector3(-3.3 - 0.16, 2.80, -7.04)
+        tailNode.eulerAngles = SCNVector3(0, 0, Float.pi / 4)
+        scene.rootNode.addChildNode(tailNode)
+
+        tailNode.runAction(.repeatForever(.sequence([
+            .rotateTo(x: 0, y: 0, z: CGFloat(Float.pi / 4 + 0.22), duration: 1.6, usesShortestUnitArc: true),
+            .rotateTo(x: 0, y: 0, z: CGFloat(Float.pi / 4 - 0.22), duration: 1.6, usesShortestUnitArc: true),
+        ])))
     }
 
-    // MARK: - Window frame  (we're inside the studio)
+    // MARK: - City fog (Morph the Cat)
 
-    private func drawWindowFrame(ctx: inout GraphicsContext, w: Double, h: Double) {
-        let fw = w * 0.07
-
-        // Left drape of darkness
-        ctx.fill(
-            Path(CGRect(x: 0, y: 0, width: fw, height: h)),
-            with: .linearGradient(
-                Gradient(colors: [
-                    Color(red: 0.11, green: 0.09, blue: 0.07),
-                    Color(red: 0.11, green: 0.09, blue: 0.07).opacity(0),
-                ]),
-                startPoint: .zero,
-                endPoint: CGPoint(x: fw, y: 0)
-            )
-        )
-        // Right drape of darkness
-        ctx.fill(
-            Path(CGRect(x: w - fw, y: 0, width: fw, height: h)),
-            with: .linearGradient(
-                Gradient(colors: [
-                    Color(red: 0.11, green: 0.09, blue: 0.07).opacity(0),
-                    Color(red: 0.11, green: 0.09, blue: 0.07),
-                ]),
-                startPoint: CGPoint(x: w - fw, y: 0),
-                endPoint: CGPoint(x: w, y: 0)
-            )
-        )
-        // Window sill
-        ctx.fill(
-            Path(CGRect(x: 0, y: h * 0.74, width: w, height: h * 0.018)),
-            with: .color(Color(red: 0.16, green: 0.13, blue: 0.10))
-        )
-        // Reflection of console on sill
-        ctx.fill(
-            Path(CGRect(x: 0, y: h * 0.74 + h * 0.018, width: w, height: 1.5)),
-            with: .color(Color(red: 0.40, green: 0.35, blue: 0.28).opacity(0.3))
-        )
+    private func addFog(to scene: SCNScene) {
+        let fog = SCNParticleSystem()
+        fog.birthRate = 3
+        fog.particleLifeSpan = 14
+        fog.particleSize = 1.0
+        fog.particleSizeVariation = 0.5
+        fog.particleColor = NSColor(red: 0.28, green: 0.33, blue: 0.44, alpha: 0.10)
+        fog.blendMode = .alpha
+        fog.spreadingAngle = 55
+        fog.emittingDirection = SCNVector3(1, 0, 0)
+        fog.particleVelocity = 0.18
+        fog.particleVelocityVariation = 0.09
+        fog.emitterShape = SCNBox(width: 2, height: 5, length: 14, chamferRadius: 0)
+        fog.loops = true
+        let fogEmitter = SCNNode()
+        fogEmitter.position = SCNVector3(-5, 1.5, -9)
+        fogEmitter.addParticleSystem(fog)
+        scene.rootNode.addChildNode(fogEmitter)
     }
 
-    // MARK: - Mixing console  (The Nightfly)
+    // MARK: - Camera
 
-    private func drawControlBoard(ctx: inout GraphicsContext, w: Double, h: Double, t: Double) {
-        let boardY = h * 0.79
-        let boardH = h * 0.21
+    private func addCamera(to scene: SCNScene) {
+        let camera = SCNCamera()
+        camera.fieldOfView = 66
+        camera.zNear = 0.1
+        camera.zFar = 32
+        camera.wantsHDR = true
+        camera.bloomIntensity = 0.45
+        camera.bloomThreshold = 0.72
 
-        // Console surface
-        ctx.fill(
-            Path(CGRect(x: 0, y: boardY, width: w, height: boardH)),
-            with: .linearGradient(
-                Gradient(colors: [
-                    Color(red: 0.19, green: 0.17, blue: 0.14),
-                    Color(red: 0.11, green: 0.10, blue: 0.09),
-                ]),
-                startPoint: CGPoint(x: 0, y: boardY),
-                endPoint: CGPoint(x: 0, y: h)
-            )
-        )
-        // Sheen
-        ctx.fill(
-            Path(CGRect(x: 0, y: boardY, width: w, height: 2)),
-            with: .color(Color(red: 0.58, green: 0.50, blue: 0.40).opacity(0.45))
-        )
+        let camNode = SCNNode()
+        camNode.camera = camera
+        camNode.position = SCNVector3(0, 1.32, 2.35)
+        camNode.look(at: SCNVector3(0, 0.90, -10))
+        scene.rootNode.addChildNode(camNode)
 
-        // Fader bank — 14 channels
-        let faderCount = 14
-        for i in 0..<faderCount {
-            let fx = w * 0.04 + Double(i) * (w * 0.066)
-            let trackH = boardH * 0.52
-            let fy = boardY + boardH * 0.10
-
-            // Track groove
-            ctx.fill(
-                Path(CGRect(x: fx - 1.5, y: fy, width: 3, height: trackH)),
-                with: .color(Color(red: 0.07, green: 0.07, blue: 0.08))
-            )
-            // Fader cap
-            var rng = SplitMix64(seed: UInt64(i * 19 + 3))
-            let pos = 0.18 + nextDouble(&rng) * 0.64
-            let capY = fy + trackH * (1.0 - pos)
-            ctx.fill(
-                Path(CGRect(x: fx - 6.5, y: capY - 4, width: 13, height: 8)),
-                with: .color(Color(red: 0.46, green: 0.41, blue: 0.35))
-            )
-            ctx.fill(
-                Path(CGRect(x: fx - 4.5, y: capY - 1, width: 9, height: 2)),
-                with: .color(Color(red: 0.66, green: 0.60, blue: 0.52).opacity(0.55))
-            )
-        }
-
-        // Knobs
-        let knobCount = 9
-        for i in 0..<knobCount {
-            let kx = w * 0.055 + Double(i) * (w * 0.104)
-            let ky = boardY + boardH * 0.78
-            let kr = w * 0.017
-
-            ctx.fill(
-                Ellipse().path(in: CGRect(x: kx - kr, y: ky - kr, width: kr * 2, height: kr * 2)),
-                with: .color(Color(red: 0.28, green: 0.25, blue: 0.21))
-            )
-            ctx.stroke(
-                Ellipse().path(in: CGRect(x: kx - kr, y: ky - kr, width: kr * 2, height: kr * 2)),
-                with: .color(Color(red: 0.46, green: 0.41, blue: 0.35).opacity(0.45)),
-                lineWidth: 1.0
-            )
-            var rng = SplitMix64(seed: UInt64(i * 29 + 13))
-            let angle = (0.25 + nextDouble(&rng) * 0.75) * .pi * 1.5 - .pi * 0.75
-            let dx = cos(angle) * kr * 0.64
-            let dy = sin(angle) * kr * 0.64
-            ctx.fill(
-                Ellipse().path(in: CGRect(x: kx + dx - 1.5, y: ky + dy - 1.5, width: 3, height: 3)),
-                with: .color(Color(red: 0.85, green: 0.80, blue: 0.68).opacity(0.8))
-            )
-        }
-
-        // ON AIR button — pulsing red
-        let oaX = w * 0.89
-        let oaY = boardY + boardH * 0.52
-        let oaR = w * 0.023
-        let oaPulse = sin(t * 1.85) * 0.22 + 0.78
-        ctx.drawLayer { l in
-            l.addFilter(.blur(radius: 9))
-            l.fill(
-                Ellipse().path(in: CGRect(x: oaX - oaR * 2, y: oaY - oaR * 2, width: oaR * 4, height: oaR * 4)),
-                with: .color(Color(red: 1.0, green: 0.08, blue: 0.08).opacity(0.42 * oaPulse))
-            )
-        }
-        ctx.fill(
-            Ellipse().path(in: CGRect(x: oaX - oaR, y: oaY - oaR, width: oaR * 2, height: oaR * 2)),
-            with: .color(Color(red: 0.88, green: 0.07, blue: 0.07).opacity(0.80 + oaPulse * 0.20))
-        )
-
-        // Small indicator LEDs
-        for ledI in 0..<5 {
-            let lx = w * 0.82 + Double(ledI) * w * 0.018
-            let ly = boardY + boardH * 0.72
-            let ledOn = sin(t * 3.2 + Double(ledI) * 1.1) > 0.2
-            let ledColor: Color = ledOn
-                ? Color(red: 0.1, green: 0.9, blue: 0.35)
-                : Color(red: 0.05, green: 0.18, blue: 0.08)
-            ctx.fill(
-                Ellipse().path(in: CGRect(x: lx - 2, y: ly - 2, width: 4, height: 4)),
-                with: .color(ledColor)
-            )
-        }
-    }
-
-    // MARK: - Reel-to-reel  (The Nightfly)
-
-    private func drawReelToReel(ctx: inout GraphicsContext, w: Double, h: Double, t: Double) {
-        let r2rX = w * 0.70
-        let r2rY = h * 0.65
-        let reelR = w * 0.062
-
-        // Machine housing
-        ctx.fill(
-            Path(CGRect(
-                x: r2rX - reelR * 1.45, y: r2rY - reelR * 0.45,
-                width: reelR * 2.90, height: reelR * 1.85
-            )),
-            with: .color(Color(red: 0.14, green: 0.12, blue: 0.10))
-        )
-        ctx.stroke(
-            Path(CGRect(
-                x: r2rX - reelR * 1.45, y: r2rY - reelR * 0.45,
-                width: reelR * 2.90, height: reelR * 1.85
-            )),
-            with: .color(Color(red: 0.30, green: 0.26, blue: 0.20).opacity(0.35)),
-            lineWidth: 1.0
-        )
-
-        // Two reels
-        for (dX, dir) in [(-reelR * 0.68, 1.0), (reelR * 0.68, -0.65)] {
-            let rx = r2rX + dX
-            let ry = r2rY
-            let spinAngle = t * 0.38 * dir
-
-            // Tape body
-            ctx.fill(
-                Ellipse().path(in: CGRect(x: rx - reelR, y: ry - reelR, width: reelR * 2, height: reelR * 2)),
-                with: .color(Color(red: 0.21, green: 0.19, blue: 0.16))
-            )
-            // Spokes
-            for spoke in 0..<6 {
-                let sa = spinAngle + Double(spoke) * .pi / 3.0
-                var spk = Path()
-                spk.move(to: CGPoint(x: rx + cos(sa) * reelR * 0.18, y: ry + sin(sa) * reelR * 0.18))
-                spk.addLine(to: CGPoint(x: rx + cos(sa) * reelR * 0.84, y: ry + sin(sa) * reelR * 0.84))
-                ctx.stroke(spk, with: .color(Color(red: 0.38, green: 0.33, blue: 0.26)), lineWidth: 1.5)
-            }
-            // Rim
-            ctx.stroke(
-                Ellipse().path(in: CGRect(x: rx - reelR, y: ry - reelR, width: reelR * 2, height: reelR * 2)),
-                with: .color(Color(red: 0.36, green: 0.30, blue: 0.24)),
-                lineWidth: 1.5
-            )
-            // Hub
-            ctx.fill(
-                Ellipse().path(in: CGRect(x: rx - reelR * 0.14, y: ry - reelR * 0.14, width: reelR * 0.28, height: reelR * 0.28)),
-                with: .color(Color(red: 0.46, green: 0.41, blue: 0.34))
-            )
-        }
-
-        // Tape ribbon between reels
-        var tapePath = Path()
-        tapePath.move(to: CGPoint(x: r2rX - reelR * 0.68 + reelR * 0.84, y: r2rY))
-        tapePath.addLine(to: CGPoint(x: r2rX + reelR * 0.68 - reelR * 0.84, y: r2rY))
-        ctx.stroke(tapePath, with: .color(Color(red: 0.16, green: 0.14, blue: 0.11)), lineWidth: 3.0)
-    }
-
-    // MARK: - Ribbon microphone  (The Nightfly)
-
-    private func drawMicrophone(ctx: inout GraphicsContext, w: Double, h: Double) {
-        let micX = w * 0.49
-        let micY = h * 0.595
-        let micW = w * 0.022
-        let micH = h * 0.115
-
-        // Boom arm
-        var boom = Path()
-        boom.move(to: CGPoint(x: micX - w * 0.115, y: micY + micH * 0.55))
-        boom.addLine(to: CGPoint(x: micX + w * 0.038, y: micY))
-        ctx.stroke(boom, with: .color(Color(red: 0.30, green: 0.27, blue: 0.23)), lineWidth: 2.5)
-
-        // Vertical stand
-        ctx.fill(
-            Path(CGRect(x: micX - w * 0.115 - 1.5, y: micY + micH * 0.55, width: 3, height: h * 0.19)),
-            with: .color(Color(red: 0.27, green: 0.24, blue: 0.20))
-        )
-
-        // Base
-        var base = Path()
-        base.move(to: CGPoint(x: micX - w * 0.115 - w * 0.038, y: micY + micH * 0.55 + h * 0.19))
-        base.addLine(to: CGPoint(x: micX - w * 0.115 + w * 0.038, y: micY + micH * 0.55 + h * 0.19))
-        ctx.stroke(base, with: .color(Color(red: 0.27, green: 0.24, blue: 0.20)), lineWidth: 3.0)
-
-        // Capsule — vintage ribbon shape
-        var cap = Path()
-        cap.addRoundedRect(
-            in: CGRect(x: micX + w * 0.038 - micW / 2, y: micY - micH / 2, width: micW, height: micH),
-            cornerSize: CGSize(width: micW * 0.45, height: micW * 0.45)
-        )
-        ctx.fill(cap, with: .linearGradient(
-            Gradient(colors: [
-                Color(red: 0.56, green: 0.50, blue: 0.42),
-                Color(red: 0.34, green: 0.29, blue: 0.24),
-            ]),
-            startPoint: CGPoint(x: micX - micW, y: micY),
-            endPoint: CGPoint(x: micX + micW, y: micY)
-        ))
-
-        // Mesh lines
-        for i in 0..<6 {
-            let ly = micY - micH * 0.42 + Double(i) * micH * 0.16
-            ctx.fill(
-                Path(CGRect(x: micX + w * 0.038 - micW / 2 + 2.5, y: ly, width: micW - 5, height: 0.8)),
-                with: .color(Color(red: 0.22, green: 0.19, blue: 0.15).opacity(0.7))
-            )
-        }
-    }
-
-    // MARK: - VU meters  (The Nightfly — pulsing to imagined music)
-
-    private func drawVUMeters(ctx: inout GraphicsContext, w: Double, h: Double, t: Double) {
-        let vuX = w * 0.84
-        let vuY = h * 0.590
-        let vuW = w * 0.12
-        let vuH = h * 0.135
-
-        // Panel
-        ctx.fill(
-            Path(CGRect(x: vuX, y: vuY, width: vuW, height: vuH)),
-            with: .color(Color(red: 0.05, green: 0.055, blue: 0.065))
-        )
-        ctx.stroke(
-            Path(CGRect(x: vuX, y: vuY, width: vuW, height: vuH)),
-            with: .color(Color(red: 0.30, green: 0.25, blue: 0.18).opacity(0.35)),
-            lineWidth: 1.0
-        )
-
-        // Left + Right channel columns
-        for ch in 0..<2 {
-            let chX = vuX + vuW * (0.10 + Double(ch) * 0.50)
-            let chW = vuW * 0.34
-            let chH = vuH * 0.76
-            let chY = vuY + vuH * 0.11
-
-            let seed = Double(ch) * 8.1
-            let level = min(1.0,
-                0.28
-                + abs(sin(t * 1.15 + seed)) * 0.30
-                + abs(sin(t * 2.85 + seed * 1.4)) * 0.22
-                + abs(sin(t * 5.5 + seed * 0.8)) * 0.18
-            )
-
-            let segCount = 16
-            let peakSeg = Int(Double(segCount) * min(1.0, level + 0.07))
-
-            for seg in 0..<segCount {
-                let segY = chY + chH * (1.0 - Double(seg + 1) / Double(segCount))
-                let segH = chH / Double(segCount) * 0.84
-                let filled = Double(seg) / Double(segCount) < level
-
-                let segColor: Color
-                if seg >= segCount - 3 {
-                    segColor = filled
-                        ? Color(red: 1.0, green: 0.12, blue: 0.08)
-                        : Color(red: 0.20, green: 0.05, blue: 0.05)
-                } else if seg >= segCount - 6 {
-                    segColor = filled
-                        ? Color(red: 1.0, green: 0.78, blue: 0.04)
-                        : Color(red: 0.20, green: 0.15, blue: 0.02)
-                } else {
-                    segColor = filled
-                        ? Color(red: 0.08, green: 0.88, blue: 0.28)
-                        : Color(red: 0.04, green: 0.17, blue: 0.07)
-                }
-                ctx.fill(
-                    Path(CGRect(x: chX, y: segY, width: chW, height: segH)),
-                    with: .color(segColor)
-                )
-                // Peak hold dot
-                if seg == peakSeg - 1 && seg >= segCount / 2 {
-                    ctx.fill(
-                        Path(CGRect(x: chX, y: segY, width: chW, height: segH)),
-                        with: .color(Color(red: 1.0, green: 0.92, blue: 0.55))
-                    )
-                }
-            }
-
-            // Channel label
-            ctx.draw(
-                Text(ch == 0 ? "L" : "R")
-                    .font(.system(size: 7, weight: .bold, design: .monospaced))
-                    .foregroundStyle(Color(red: 0.55, green: 0.50, blue: 0.38)),
-                at: CGPoint(x: chX + chW / 2, y: vuY + vuH * 0.93)
-            )
-        }
-    }
-
-    // MARK: - Signal ripples  (tap interaction — broadcasting)
-
-    private func drawSignalRipples(ctx: inout GraphicsContext, w: Double, h: Double, t: Double) {
-        for ripple in ripples {
-            let age = t - ripple.birth
-            guard age < 3.2 else { continue }
-            for ring in 0..<3 {
-                let delay = Double(ring) * 0.28
-                let rAge = age - delay
-                guard rAge > 0 else { continue }
-                let progress = rAge / 2.6
-                guard progress < 1.0 else { continue }
-                let radius = progress * w * 0.52
-                let alpha = (1.0 - progress) * 0.45
-                // Slightly elliptical to suggest broadcast waves
-                ctx.stroke(
-                    Ellipse().path(in: CGRect(
-                        x: w * 0.5 - radius, y: h * 0.38 - radius * 0.58,
-                        width: radius * 2, height: radius * 1.16
-                    )),
-                    with: .color(Color(red: 0.32, green: 0.62, blue: 1.0).opacity(alpha)),
-                    lineWidth: 1.5 * (1.0 - progress)
-                )
-            }
-        }
+        // Gentle breathing drift — studio stillness
+        camNode.runAction(.repeatForever(.sequence([
+            .move(to: SCNVector3( 0.18, 1.28, 2.35), duration: 9),
+            .move(to: SCNVector3(-0.18, 1.36, 2.35), duration: 9),
+            .move(to: SCNVector3( 0.00, 1.32, 2.35), duration: 9),
+        ])))
     }
 }
