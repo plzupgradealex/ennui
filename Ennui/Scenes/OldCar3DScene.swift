@@ -95,7 +95,7 @@ private struct OldCar3DRepresentable: NSViewRepresentable {
         // Cloud masses — large dark translucent planes
         for i in 0..<8 {
             let angle = Double(i) / 8.0 * .pi * 2
-            let r: Float = 20
+            let r: CGFloat = 20
             let cloud = SCNPlane(width: 14, height: 6)
             let cloudMat = SCNMaterial()
             cloudMat.diffuse.contents = NSColor(red: 0.06, green: 0.06, blue: 0.09, alpha: 0.45)
@@ -104,11 +104,11 @@ private struct OldCar3DRepresentable: NSViewRepresentable {
             cloud.firstMaterial = cloudMat
             let cloudNode = SCNNode(geometry: cloud)
             cloudNode.position = SCNVector3(
-                Float(cos(angle)) * r,
-                Float.random(in: 3...8),
-                Float(sin(angle)) * r
+                CGFloat(cos(angle)) * r,
+                CGFloat.random(in: 3...8),
+                CGFloat(sin(angle)) * r
             )
-            cloudNode.eulerAngles = SCNVector3(Float(-0.2), Float(angle), 0)
+            cloudNode.eulerAngles = SCNVector3(CGFloat(-0.2), CGFloat(angle), 0)
             scene.rootNode.addChildNode(cloudNode)
 
             // Slow drift animation
@@ -125,7 +125,7 @@ private struct OldCar3DRepresentable: NSViewRepresentable {
         roadMat.diffuse.contents = NSColor(red: 0.14, green: 0.13, blue: 0.12, alpha: 1)
         road.firstMaterial = roadMat
         let roadNode = SCNNode(geometry: road)
-        roadNode.eulerAngles = SCNVector3(-Float.pi / 2, 0, 0)
+        roadNode.eulerAngles = SCNVector3(-CGFloat.pi / 2, 0, 0)
         roadNode.position = SCNVector3(0, -1.5, -18)
         scene.rootNode.addChildNode(roadNode)
 
@@ -134,13 +134,13 @@ private struct OldCar3DRepresentable: NSViewRepresentable {
             let dash = SCNBox(width: 0.15, height: 0.01, length: 1.5, chamferRadius: 0)
             dash.firstMaterial?.diffuse.contents = NSColor(red: 0.80, green: 0.76, blue: 0.60, alpha: 0.55)
             let dashNode = SCNNode(geometry: dash)
-            dashNode.position = SCNVector3(0, -1.49, Float(-3 - i * 5))
+            dashNode.position = SCNVector3(0, -1.49, CGFloat(-3 - i * 5))
             scene.rootNode.addChildNode(dashNode)
 
             // Scroll animation: move from z=-3 to z=10 then teleport back
             let scroll = SCNAction.repeatForever(.sequence([
                 .moveBy(x: 0, y: 0, z: 58, duration: 4.5),
-                .move(to: SCNVector3(0, -1.49, Float(-3 - i * 5)), duration: 0),
+                .move(to: SCNVector3(0, -1.49, CGFloat(-3 - i * 5)), duration: 0),
             ]))
             dashNode.runAction(scroll)
         }
@@ -152,13 +152,13 @@ private struct OldCar3DRepresentable: NSViewRepresentable {
         snowMat.blendMode = .alpha
         snowRoad.firstMaterial = snowMat
         let snowRoadNode = SCNNode(geometry: snowRoad)
-        snowRoadNode.eulerAngles = SCNVector3(-Float.pi / 2, 0, 0)
+        snowRoadNode.eulerAngles = SCNVector3(-CGFloat.pi / 2, 0, 0)
         snowRoadNode.position = SCNVector3(0, -1.48, -18)
         scene.rootNode.addChildNode(snowRoadNode)
 
         // Utility poles on right shoulder, scrolling past
         for i in 0..<6 {
-            addUtilityPole(to: scene, at: SCNVector3(5.5, -1.5, Float(-4 - i * 8)), index: i)
+            addUtilityPole(to: scene, at: SCNVector3(5.5, -1.5, CGFloat(-4 - i * 8)), index: i)
         }
 
         // Barn silhouettes far left and right
@@ -168,7 +168,7 @@ private struct OldCar3DRepresentable: NSViewRepresentable {
     }
 
     private func addUtilityPole(to scene: SCNScene, at position: SCNVector3, index: Int) {
-        let poleH: Float = 7.0
+        let poleH: CGFloat = 7.0
         let pole = SCNCylinder(radius: 0.06, height: CGFloat(poleH))
         pole.firstMaterial?.diffuse.contents = NSColor(red: 0.15, green: 0.12, blue: 0.10, alpha: 1)
         let poleNode = SCNNode(geometry: pole)
@@ -179,7 +179,7 @@ private struct OldCar3DRepresentable: NSViewRepresentable {
         let arm = SCNCylinder(radius: 0.04, height: 1.4)
         arm.firstMaterial?.diffuse.contents = NSColor(red: 0.15, green: 0.12, blue: 0.10, alpha: 1)
         let armNode = SCNNode(geometry: arm)
-        armNode.eulerAngles = SCNVector3(0, 0, Float.pi / 2)
+        armNode.eulerAngles = SCNVector3(0, 0, CGFloat.pi / 2)
         armNode.position = SCNVector3(position.x, position.y + poleH - 0.8, position.z)
         scene.rootNode.addChildNode(armNode)
 
@@ -188,10 +188,10 @@ private struct OldCar3DRepresentable: NSViewRepresentable {
             let wireGeo = SCNCylinder(radius: 0.012, height: 18)
             wireGeo.firstMaterial?.diffuse.contents = NSColor(red: 0.12, green: 0.10, blue: 0.08, alpha: 0.7)
             let wireNode = SCNNode(geometry: wireGeo)
-            let wireOffX = Float(-0.5 + Double(w) * 0.5)
-            let wireStartY = position.y + poleH - 0.6 - Float(w) * 0.3
+            let wireOffX = CGFloat(-0.5 + Double(w) * 0.5)
+            let wireStartY = position.y + poleH - 0.6 - CGFloat(w) * 0.3
             wireNode.position = SCNVector3(wireOffX, wireStartY, 0)
-            wireNode.eulerAngles = SCNVector3(Float.pi / 6, 0, 0)
+            wireNode.eulerAngles = SCNVector3(CGFloat.pi / 6, 0, 0)
             scene.rootNode.addChildNode(wireNode)
         }
 
@@ -206,7 +206,7 @@ private struct OldCar3DRepresentable: NSViewRepresentable {
     }
 
     private func addBarnSilhouette(to scene: SCNScene, at position: SCNVector3) {
-        let barnW: Float = 8, barnH: Float = 4
+        let barnW: CGFloat = 8, barnH: CGFloat = 4
         let body = SCNBox(width: CGFloat(barnW), height: CGFloat(barnH), length: 2, chamferRadius: 0)
         body.firstMaterial?.diffuse.contents = NSColor(red: 0.06, green: 0.05, blue: 0.05, alpha: 1)
         let bodyNode = SCNNode(geometry: body)
@@ -222,7 +222,7 @@ private struct OldCar3DRepresentable: NSViewRepresentable {
     }
 
     private func addSiloSilhouette(to scene: SCNScene, at position: SCNVector3) {
-        let siloH: Float = 10, siloR: Float = 1.5
+        let siloH: CGFloat = 10, siloR: CGFloat = 1.5
         let silo = SCNCylinder(radius: CGFloat(siloR), height: CGFloat(siloH))
         silo.firstMaterial?.diffuse.contents = NSColor(red: 0.06, green: 0.05, blue: 0.05, alpha: 1)
         let siloNode = SCNNode(geometry: silo)
@@ -327,7 +327,7 @@ private struct OldCar3DRepresentable: NSViewRepresentable {
         arm.firstMaterial?.diffuse.contents = NSColor(red: 0.18, green: 0.14, blue: 0.12, alpha: 1)
         let armNode = SCNNode(geometry: arm)
         // Pivot at bottom of arm: offset arm so it rotates from one end
-        armNode.position = SCNVector3(0, Float(length / 2), 0)
+        armNode.position = SCNVector3(0, length / 2, 0)
         return armNode
     }
 
@@ -422,10 +422,10 @@ private struct OldCar3DRepresentable: NSViewRepresentable {
             let spoke = SCNCylinder(radius: 0.018, height: outerR * 0.92)
             spoke.firstMaterial?.diffuse.contents = rimColor
             let spokeNode = SCNNode(geometry: spoke)
-            let midX = Float(cos(a)) * Float(outerR * 0.46)
-            let midY = Float(sin(a)) * Float(outerR * 0.46)
+            let midX = CGFloat(cos(a)) * (outerR * 0.46)
+            let midY = CGFloat(sin(a)) * (outerR * 0.46)
             spokeNode.position = SCNVector3(position.x + midX, position.y + midY, position.z)
-            spokeNode.eulerAngles = SCNVector3(-0.30, 0, Float(a + .pi / 2))
+            spokeNode.eulerAngles = SCNVector3(-0.30, 0, CGFloat(a + .pi / 2))
             scene.rootNode.addChildNode(spokeNode)
         }
 
@@ -506,7 +506,7 @@ private struct OldCar3DRepresentable: NSViewRepresentable {
         knob.firstMaterial = mat
         let knobNode = SCNNode(geometry: knob)
         knobNode.position = position
-        knobNode.eulerAngles = SCNVector3(Float.pi / 2, 0, 0)
+        knobNode.eulerAngles = SCNVector3(CGFloat.pi / 2, 0, 0)
         scene.rootNode.addChildNode(knobNode)
     }
 
@@ -559,7 +559,7 @@ private struct OldCar3DRepresentable: NSViewRepresentable {
 
         let snowNode = SCNNode()
         snowNode.position = SCNVector3(0, 1, -18)
-        snowNode.eulerAngles = SCNVector3(Float.pi / 2, 0, 0)
+        snowNode.eulerAngles = SCNVector3(CGFloat.pi / 2, 0, 0)
         snowNode.addParticleSystem(snow)
         scene.rootNode.addChildNode(snowNode)
         coord.snowSystem = snowNode
@@ -582,7 +582,7 @@ private struct OldCar3DRepresentable: NSViewRepresentable {
         moon.light!.type = .directional
         moon.light!.intensity = 12
         moon.light!.color = NSColor(red: 0.30, green: 0.35, blue: 0.55, alpha: 1)
-        moon.eulerAngles = SCNVector3(-Float.pi / 4, 0.3, 0)
+        moon.eulerAngles = SCNVector3(-CGFloat.pi / 4, 0.3, 0)
         scene.rootNode.addChildNode(moon)
     }
 

@@ -23,6 +23,7 @@ private struct MedievalVillage3DRepresentable: NSViewRepresentable {
         var windowLights: [SCNNode] = []
         var windowGlows: [SCNNode] = []  // emissive planes paired with lights
         var ambientLight: SCNNode?
+        var moonLight: SCNNode?
         var lastTapCount = 0
         var extinguishedIndex = 0
     }
@@ -94,16 +95,20 @@ private struct MedievalVillage3DRepresentable: NSViewRepresentable {
 
         c.extinguishedIndex += 1
 
-        // Progressively dim ambient light as windows go out
+        // Progressively dim ambient and moonlight as windows go out
         let total = c.windowLights.count
         let remaining = max(0, total - c.extinguishedIndex)
         let fraction = total > 0 ? Double(remaining) / Double(total) : 0
-        let minAmbient: CGFloat = 3    // intensity when all lights are out
-        let maxAmbient: CGFloat = 10   // intensity when all lights are lit (matches addLighting)
+        let minAmbient: CGFloat = 5
+        let maxAmbient: CGFloat = 35
         let newAmbient = minAmbient + (maxAmbient - minAmbient) * CGFloat(fraction)
+        let minMoon: CGFloat = 25
+        let maxMoon: CGFloat = 80
+        let newMoon = minMoon + (maxMoon - minMoon) * CGFloat(fraction)
         SCNTransaction.begin()
         SCNTransaction.animationDuration = 2.0
         c.ambientLight?.light?.intensity = newAmbient
+        c.moonLight?.light?.intensity = newMoon
         SCNTransaction.commit()
     }
 
@@ -127,26 +132,27 @@ private struct MedievalVillage3DRepresentable: NSViewRepresentable {
     // MARK: - Lighting
 
     private func addLighting(to scene: SCNScene, coord: Coordinator) {
-        // Very dim ambient — windows are the real light source, not the moon
+        // Warm ambient — village is alive at the start, windows glowing
         let ambient = SCNNode()
         ambient.light = SCNLight()
         ambient.light!.type = .ambient
-        ambient.light!.intensity = 10
-        ambient.light!.color = NSColor(red: 0.12, green: 0.10, blue: 0.22, alpha: 1)
+        ambient.light!.intensity = 35
+        ambient.light!.color = NSColor(red: 0.15, green: 0.12, blue: 0.25, alpha: 1)
         scene.rootNode.addChildNode(ambient)
         coord.ambientLight = ambient
 
-        // Moonlight — subtle blue-silver wash, much dimmer than window glow
+        // Moonlight — blue-silver wash, bright enough to see the village
         let moon = SCNNode()
         moon.light = SCNLight()
         moon.light!.type = .directional
-        moon.light!.intensity = 45
+        moon.light!.intensity = 80
         moon.light!.color = NSColor(red: 0.40, green: 0.45, blue: 0.70, alpha: 1)
         moon.light!.castsShadow = true
         moon.light!.shadowRadius = 3
         moon.light!.shadowSampleCount = 4
         moon.eulerAngles = SCNVector3(-Float.pi / 3.5, Float.pi / 5, 0)
         scene.rootNode.addChildNode(moon)
+        coord.moonLight = moon
     }
 
     // MARK: - Ground

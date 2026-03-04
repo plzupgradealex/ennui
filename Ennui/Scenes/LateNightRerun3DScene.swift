@@ -19,10 +19,14 @@ struct LateNightRerun3DScene: View {
 private struct LateNightRerun3DRepresentable: NSViewRepresentable {
     @ObservedObject var interaction: InteractionState
 
-    final class Coordinator {
+    final class Coordinator: NSObject {
         var tvLight: SCNNode?
         var tvScreen: SCNNode?
         var scanlineNode: SCNNode?
+        var camNode: SCNNode?
+        var camYaw: CGFloat = 0      // horizontal look (radians)
+        var camPitch: CGFloat = 0    // vertical look (radians)
+        var lastDragPoint: CGPoint = .zero
         var lastTapCount = 0
         var channel = 0
         let channelColors: [NSColor] = [
@@ -32,6 +36,22 @@ private struct LateNightRerun3DRepresentable: NSViewRepresentable {
             NSColor(red: 0.12, green: 0.45, blue: 0.12, alpha: 1),  // X-Files green
             NSColor(red: 0.75, green: 0.50, blue: 0.20, alpha: 1),  // Poirot warm
         ]
+
+        @objc func handlePan(_ gesture: NSPanGestureRecognizer) {
+            guard let cam = camNode else { return }
+            let sensitivity: CGFloat = 0.003
+            let delta = gesture.translation(in: gesture.view)
+
+            camYaw  -= delta.x * sensitivity
+            camPitch -= delta.y * sensitivity
+
+            // Clamp: can look ~70° left/right, ~40° up, ~25° down
+            camYaw   = max(-.pi * 0.38, min(.pi * 0.38, camYaw))
+            camPitch = max(-0.44, min(0.70, camPitch))
+
+            cam.eulerAngles = SCNVector3(camPitch, camYaw, 0)
+            gesture.setTranslation(.zero, in: gesture.view)
+        }
     }
 
     func makeCoordinator() -> Coordinator { Coordinator() }
@@ -47,6 +67,12 @@ private struct LateNightRerun3DRepresentable: NSViewRepresentable {
         view.allowsCameraControl = false
 
         buildScene(scene, coord: context.coordinator)
+
+        // Pan gesture for look-around
+        let pan = NSPanGestureRecognizer(target: context.coordinator,
+                                         action: #selector(Coordinator.handlePan(_:)))
+        view.addGestureRecognizer(pan)
+
         return view
     }
 
@@ -87,7 +113,7 @@ private struct LateNightRerun3DRepresentable: NSViewRepresentable {
         addLavaLamp(to: scene)
         addCeilingStars(to: scene)
         addLighting(to: scene)
-        addCamera(to: scene)
+        addCamera(to: scene, coord: coord)
     }
 
     // MARK: - Room shell
@@ -223,10 +249,10 @@ private struct LateNightRerun3DRepresentable: NSViewRepresentable {
         let flicker = SCNAction.repeatForever(.sequence([
             .customAction(duration: 0.08) { node, _ in
                 let base: CGFloat = 220
-                let wobble = CGFloat.random(in: -30...30)
+                let wobble = CGFloat.random(in: -20...20)
                 node.light?.intensity = base + wobble
             },
-            .wait(duration: Double.random(in: 0.03...0.1))
+            .wait(duration: Double.random(in: 0.05...0.15))
         ]))
         tvLight.runAction(flicker)
 
@@ -271,14 +297,14 @@ private struct LateNightRerun3DRepresentable: NSViewRepresentable {
         let nightstand = SCNBox(width: 0.4, height: 0.5, length: 0.35, chamferRadius: 0.01)
         nightstand.firstMaterial?.diffuse.contents = woodColor
         let nsNode = SCNNode(geometry: nightstand)
-        nsNode.position = SCNVector3(1.3, 0.25, 1.2)
+        nsNode.position = SCNVector3(1.1, 0.25, 0.8)
         scene.rootNode.addChildNode(nsNode)
 
         // Alarm clock on nightstand
         let clockBody = SCNBox(width: 0.1, height: 0.07, length: 0.05, chamferRadius: 0.01)
         clockBody.firstMaterial?.diffuse.contents = NSColor(red: 0.06, green: 0.06, blue: 0.06, alpha: 1)
         let clockNode = SCNNode(geometry: clockBody)
-        clockNode.position = SCNVector3(1.25, 0.535, 1.15)
+        clockNode.position = SCNVector3(1.05, 0.535, 0.75)
         scene.rootNode.addChildNode(clockNode)
         // Clock display glow (red LED digits)
         let clockFace = SCNPlane(width: 0.07, height: 0.035)
@@ -286,7 +312,7 @@ private struct LateNightRerun3DRepresentable: NSViewRepresentable {
         clockFace.firstMaterial?.emission.contents = NSColor(red: 0.9, green: 0.15, blue: 0.1, alpha: 1)
         clockFace.firstMaterial?.isDoubleSided = true
         let clockFaceNode = SCNNode(geometry: clockFace)
-        clockFaceNode.position = SCNVector3(1.25, 0.535, 1.13)
+        clockFaceNode.position = SCNVector3(1.05, 0.535, 0.73)
         scene.rootNode.addChildNode(clockFaceNode)
     }
 
@@ -346,7 +372,7 @@ private struct LateNightRerun3DRepresentable: NSViewRepresentable {
 
         // Rug on floor — dark patterned rectangle
         let rug = SCNBox(width: 1.5, height: 0.005, length: 1.0, chamferRadius: 0.01)
-        rug.firstMaterial?.diffuse.contents = NSColor(red: 0.18, green: 0.08, blue: 0.08, alpha: 1)
+        rug.firstMaterial?.diffuse.contents = NSColor(red: 0.30, green: 0.12, blue: 0.12, alpha: 1)
         let rugNode = SCNNode(geometry: rug)
         rugNode.position = SCNVector3(0, 0.003, -0.5)
         scene.rootNode.addChildNode(rugNode)
@@ -559,7 +585,7 @@ private struct LateNightRerun3DRepresentable: NSViewRepresentable {
         let body = SCNCylinder(radius: 0.06, height: 0.28)
         body.firstMaterial?.diffuse.contents = NSColor(red: 0.12, green: 0.08, blue: 0.12, alpha: 1)
         let bodyNode = SCNNode(geometry: body)
-        bodyNode.position = SCNVector3(1.3, 0.64, 1.2)
+        bodyNode.position = SCNVector3(1.1, 0.64, 0.8)
         scene.rootNode.addChildNode(bodyNode)
 
         // Glowing lava
@@ -567,7 +593,7 @@ private struct LateNightRerun3DRepresentable: NSViewRepresentable {
         glow.firstMaterial?.diffuse.contents = NSColor.black
         glow.firstMaterial?.emission.contents = NSColor(red: 0.85, green: 0.25, blue: 0.55, alpha: 1)
         let glowNode = SCNNode(geometry: glow)
-        glowNode.position = SCNVector3(1.3, 0.64, 1.2)
+        glowNode.position = SCNVector3(1.1, 0.64, 0.8)
         scene.rootNode.addChildNode(glowNode)
 
         // Lava lamp light — soft pink omni
@@ -578,7 +604,7 @@ private struct LateNightRerun3DRepresentable: NSViewRepresentable {
         light.light!.color = NSColor(red: 0.85, green: 0.25, blue: 0.55, alpha: 1)
         light.light!.attenuationStartDistance = 0
         light.light!.attenuationEndDistance = 1.5
-        light.position = SCNVector3(1.3, 0.64, 1.2)
+        light.position = SCNVector3(1.1, 0.64, 0.8)
         scene.rootNode.addChildNode(light)
 
         // Subtle pulsing
@@ -628,7 +654,7 @@ private struct LateNightRerun3DRepresentable: NSViewRepresentable {
 
     // MARK: - Camera
 
-    private func addCamera(to scene: SCNScene) {
+    private func addCamera(to scene: SCNScene, coord: Coordinator) {
         let camera = SCNCamera()
         camera.fieldOfView = 65
         camera.zNear = 0.1
@@ -643,6 +669,7 @@ private struct LateNightRerun3DRepresentable: NSViewRepresentable {
         camNode.position = SCNVector3(0, 0.75, 1.5)
         camNode.look(at: SCNVector3(0, 0.78, -2.5))
         scene.rootNode.addChildNode(camNode)
+        coord.camNode = camNode
 
         // Very gentle breathing sway
         let sway = SCNAction.repeatForever(.sequence([

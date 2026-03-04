@@ -42,6 +42,8 @@ actor HaikuGenerator {
             .medievalVillage3D: "a low-poly three-dimensional medieval village diorama viewed from above like a tabletop model, warm amber window lights, moonlit thatched roofs, firefly particles drifting between cottages, a church steeple, fog rolling in, the camera orbiting slowly as if you were an owl circling the sleeping hamlet",
             .lateNightRerun3D: "a three-dimensional nineties bedroom seen from the perspective of lying in bed, a CRT television casting shifting colored light across purple walls, green glow-in-the-dark stars on the ceiling, a lava lamp pulsing pink on the nightstand, the cozy geometry of a room you fell asleep in a thousand times",
             .jeonjuNight3D: "a three-dimensional quiet Korean neighbourhood at night, hanok houses with warm lit windows, a sodium vapour street lamp casting warm orange light onto the road, moths orbiting the lamp, a cat sitting on a wall with green eyes, telephone wires against the deep blue sky, the crescent moon",
+            .oldCar: "behind the wheel of a big 1950s American land yacht driving through a snowstorm at night, windshield wipers sweeping, incandescent dash glowing amber, chrome radio knobs, utility poles and barns drifting past in the dark, the warmth of the heater against the cold outside",
+            .oldCar3D: "a three-dimensional view from inside a 1950s bench-seat land yacht driving through a blizzard at night, snow rushing at the windshield, wipers sweeping, the warm dash glow reflected on the glass, barns and utility poles in the dark, the comforting rumble of the engine",
         ]
         let theme = themes[scene] ?? "a peaceful calming moment"
 
@@ -248,6 +250,16 @@ struct HaikuOverlayView: View {
             "Sodium light pools\nOn the three-dimensional road\nMoth wings catch the glow",
             "Cat's green eyes in space\nHanok roofs in polygon\nWarm windows float near",
             "Wire sags in vertices\nBetween the modelled houses\nNight hums in three-D",
+        ],
+        .oldCar: [
+            "Wipers sweep the snow\nAmber dash light hums along\nThe road disappears",
+            "Chrome knobs catch the glow\nA heater fights the blizzard\nWarm hands on the wheel",
+            "Poles drift past like ghosts\nThe bench seat holds steady warmth\nSnow erases all",
+        ],
+        .oldCar3D: [
+            "Snow rushes the glass\nThe engine hums beneath me\nBarns fade into white",
+            "Depth of winter night\nDash light paints the falling snow\nThe road carries us",
+            "Wipers mark the time\nReflections glow on the glass\nWarm inside the storm",
         ],
     ]
 
