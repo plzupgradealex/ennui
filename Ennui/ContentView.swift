@@ -300,6 +300,7 @@ struct ContentView: View {
         case .captainStar: CaptainStarScene(interaction: interaction)
         case .nonsenseLullabies: NonsenseLullabiesScene(interaction: interaction)
         case .gouraudSolarSystem: GouraudSolarSystemScene(interaction: interaction)
+        case .potterGarden: PotterGardenScene(interaction: interaction)
         case .medievalVillage3D: MedievalVillage3DScene(interaction: interaction)
         case .lateNightRerun3D: LateNightRerun3DScene(interaction: interaction)
         case .jeonjuNight3D: JeonjuNight3DScene(interaction: interaction)
@@ -335,6 +336,7 @@ struct ContentView: View {
         case .greetingTheDay3D: GreetingTheDay3DScene(interaction: interaction)
         case .mystify3D: Mystify3DScene(interaction: interaction)
         case .nonsenseLullabies3D: NonsenseLullabies3DScene(interaction: interaction)
+        case .potterGarden3D: PotterGarden3DScene(interaction: interaction)
         case .innerLight3D: InnerLight3DScene(interaction: interaction)
         case .wireframeCity3D: WireframeCity3DScene(interaction: interaction)
         }

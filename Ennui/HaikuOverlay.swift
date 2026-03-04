@@ -38,6 +38,7 @@ actor HaikuGenerator {
             .midnightMotel: "a quiet motel room somewhere in America in 1968, wood-paneled walls, a neon vacancy sign bleeding pink light through thin curtains, a warm table lamp, a rotary phone on the nightstand, a patterned bedspread, headlights from the highway sweeping across the ceiling, dust motes floating in the lamplight, the gentle solitude of being safely nowhere",
             .captainStar: "a barren desert planet at the very edge of the universe, yellow and ochre skies stretching forever, floating rocks defying gravity, a lone glass and crystal outpost catching distant starlight, dust motes drifting through warm emptiness, stars visible through the haze, cosmic desolation that is somehow peaceful and beautiful",
             .nonsenseLullabies: "a hand-painted watercolour world like a page from a beloved picture book, soft washes of colour bleeding into warm paper, simple nursery shapes drifting gently — moons, stars, cats, little houses, birds, flowers — paint drips running slowly down the page, the gentle nonsense of lullabies and bedtime stories",
+            .potterGarden: "a soft watercolour English cottage garden inspired by Beatrix Potter, neat rows of fat cabbages with ruffled leaves, a low stone wall with a wooden gate, wildflowers growing between the rows, a distant cottage with a thatched roof and a thin chimney, butterflies drifting lazily over the garden, the warm golden light of an English summer afternoon, the whole scene painted on cream paper with visible brushstrokes and gentle ink outlines",
             .gouraudSolarSystem: "an imaginary solar system rendered in retro Gouraud-shaded 3D, a warm star at the centre, smooth-lit planets with specular highlights orbiting in ellipses, ring systems catching the light, tiny moons tracing paths around gas giants, faint scanlines and orbital grid lines giving it the feel of a late-nineties tech demo running at two in the morning",
             .medievalVillage3D: "a low-poly three-dimensional medieval village diorama viewed from above like a tabletop model, warm amber window lights, moonlit thatched roofs, firefly particles drifting between cottages, a church steeple, fog rolling in, the camera orbiting slowly as if you were an owl circling the sleeping hamlet",
             .lateNightRerun3D: "a three-dimensional nineties bedroom seen from the perspective of lying in bed, a CRT television casting shifting colored light across purple walls, green glow-in-the-dark stars on the ceiling, a lava lamp pulsing pink on the nightstand, the cozy geometry of a room you fell asleep in a thousand times",
@@ -73,6 +74,7 @@ actor HaikuGenerator {
             .retroPS13D: "a three-dimensional PS1-era scene with intentionally low-poly mountains, a glowing cabin with warm light, fireflies as simple particle spheres, chunky vertex-jittered stars, the nostalgic beauty of early 3D rendered with love",
             .greetingTheDay3D: "a three-dimensional city at sunrise, buildings rendered with real height and depth growing in the morning light, warm sun rays between the structures, the gentle feeling of a world waking up, each window catching the dawn",
             .mystify3D: "a three-dimensional homage to the classic screensaver, glowing coloured lines bouncing through a dark space with real depth, phosphor trails fading behind them, the hypnotic geometry of Windows 95 given an extra dimension",
+            .potterGarden3D: "a three-dimensional Beatrix Potter cottage garden diorama, rows of round cabbages modelled with gentle geometry, a stone wall and wooden gate with real depth, wildflowers swaying softly, a distant cottage rendered in warm watercolour tones, butterflies as particles drifting through golden afternoon light, the charm of an English kitchen garden given spatial depth",
             .nonsenseLullabies3D: "a three-dimensional watercolour world like a pop-up picture book, soft painted shapes with gentle depth — moons, stars, cats, little houses — paper texture visible on the surfaces, paint drips running slowly, the gentle nonsense of bedtime stories made spatial",
             .innerLight3D: "warm glowing geometric forms floating in deep indigo space, faceted crystalline icosahedra connected by luminous golden filaments that pulse softly, tiny motes rising from below like thoughts forming, the quiet inner space of a mind that thinks in patterns and light",
             .wireframeCity3D: "a green phosphor wireframe cityscape on pure black, glowing vector-graphic buildings viewed from a slow flyover, a scrolling grid floor underneath, the whole scene looks like a nineteen-eighties vector display terminal, scan lines faintly visible, the iconic early-CG aesthetic of wireframe worlds",
@@ -263,6 +265,11 @@ struct HaikuOverlayView: View {
             "Watercolour stars\nDrip softly onto warm paper\nThe story begins",
             "Little house floats by\nA bird sings in washed-out blue\nNonsense holds us close",
         ],
+        .potterGarden: [
+            "Fat cabbages grow\nA robin lands on the gate\nSummer afternoon",
+            "Stone wall holds the light\nButterfly drifts past the peas\nThe cottage chimney smokes",
+            "Watercolour leaves\nInk lines trace each ruffled edge\nThe garden is still",
+        ],
         .gouraudSolarSystem: [
             "Seven worlds orbit\nSmooth light slides across their faces\nThe star hums below",
             "A new moon is born\nGradient and highlight spinning\nPolygons at peace",
@@ -442,6 +449,11 @@ struct HaikuOverlayView: View {
             "Pop-up book has depth\nPaper moons and stars stand up\nPaint drips down the page",
             "Little houses fold\nOut from painted paper worlds\nNonsense in three-D",
             "Watercolour cats\nHave dimension now they sleep\nBeside paper moons",
+        ],
+        .potterGarden3D: [
+            "Round cabbages sit\nIn rows of gentle green spheres\nThe gate swings in wind",
+            "Stone wall has real depth\nA butterfly finds a path\nThrough summer light beams",
+            "The cottage stands small\nGolden light on garden rows\nPotter drew this world",
         ],
         .innerLight3D: [
             "Shapes glow in the dark\nConnections pulse without sound\nThinking feels like warmth",

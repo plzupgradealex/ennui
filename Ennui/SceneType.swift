@@ -34,6 +34,7 @@ enum SceneKind: String, CaseIterable, Identifiable {
     case captainStar = "captainStar"
     case nonsenseLullabies = "nonsenseLullabies"
     case gouraudSolarSystem = "gouraudSolarSystem"
+    case potterGarden = "potterGarden"
     case oldCar = "oldCar"
     case oldCar3D = "oldCar3D"
     case medievalVillage3D = "medievalVillage3D"
@@ -69,6 +70,7 @@ enum SceneKind: String, CaseIterable, Identifiable {
     case greetingTheDay3D = "greetingTheDay3D"
     case mystify3D = "mystify3D"
     case nonsenseLullabies3D = "nonsenseLullabies3D"
+    case potterGarden3D = "potterGarden3D"
     case innerLight3D = "innerLight3D"
     case wireframeCity3D = "wireframeCity3D"
 
@@ -111,6 +113,7 @@ enum SceneKind: String, CaseIterable, Identifiable {
         case .captainStar: return "Captain Star"
         case .nonsenseLullabies: return "Nonsense & Lullabies"
         case .gouraudSolarSystem: return "Solar System"
+        case .potterGarden: return "Potter Garden"
         case .medievalVillage3D: return "Medieval Village 3D"
         case .lateNightRerun3D: return "Late Night Rerun 3D"
         case .jeonjuNight3D: return "Jeonju Night 3D"
@@ -146,6 +149,7 @@ enum SceneKind: String, CaseIterable, Identifiable {
         case .greetingTheDay3D: return "Greeting the Day 3D"
         case .mystify3D: return "Mystify 3D"
         case .nonsenseLullabies3D: return "Nonsense & Lullabies 3D"
+        case .potterGarden3D: return "Potter Garden 3D"
         case .innerLight3D: return "Inner Light 3D"
         case .wireframeCity3D: return "Wireframe City 3D"
         }
@@ -188,6 +192,7 @@ enum SceneKind: String, CaseIterable, Identifiable {
         case .captainStar: return "A barren desert planet at the edge of the universe, ochre skies, floating rocks, a lone glass outpost, stars visible through the dust, cosmic desolation made beautiful"
         case .nonsenseLullabies: return "Hand-painted watercolour nursery shapes drifting on warm paper, cats, moons, little houses, gentle paint drips running down"
         case .gouraudSolarSystem: return "A retro-rendered imaginary solar system with Gouraud-shaded planets orbiting a warm star, specular highlights, ring systems, and moons drifting in elliptical orbits"
+        case .potterGarden: return "A watercolour English cottage garden in the style of Beatrix Potter, rows of lush green cabbages on brown earth paths, a stone wall with a wooden gate, a distant cottage, butterflies drifting in warm afternoon light"
         case .medievalVillage3D: return "A low-poly three-dimensional medieval village diorama viewed from above, with warm window lights, moonlit roofs, firefly particles, and a slowly orbiting camera"
         case .lateNightRerun3D: return "A three-dimensional nineties bedroom seen from bed, CRT television casting colored light across the walls, glow-in-the-dark ceiling stars, a pulsing lava lamp"
         case .jeonjuNight3D: return "A three-dimensional quiet Korean neighbourhood at night, hanok houses with warm windows, a sodium-lit street lamp casting orange light, moths, a cat on a wall, telephone wires against the night sky"
@@ -223,6 +228,7 @@ enum SceneKind: String, CaseIterable, Identifiable {
         case .greetingTheDay3D: return "Three-dimensional city waking up at sunrise"
         case .mystify3D: return "Three-dimensional glowing lines bouncing with phosphor trails"
         case .nonsenseLullabies3D: return "Three-dimensional watercolour nursery shapes drifting on warm paper"
+        case .potterGarden3D: return "Three-dimensional Beatrix Potter cottage garden diorama with rows of cabbages, a stone wall, a wooden gate, butterflies, and warm afternoon light"
         case .innerLight3D: return "Warm glowing geometric forms floating in deep indigo space, connected by luminous filaments, tiny motes rising like thoughts forming"
         case .wireframeCity3D: return "Green phosphor wireframe cityscape on black, a slow flyover of glowing vector buildings, grid floor scrolling beneath, nineteen-eighties vector terminal aesthetic"
         }
@@ -265,6 +271,7 @@ enum SceneKind: String, CaseIterable, Identifiable {
         case .captainStar: return "Tap to send a luminous pulse across the desert"
         case .nonsenseLullabies: return "Tap to bloom a watercolour splash"
         case .gouraudSolarSystem: return "Tap to shimmer a planet or add a new moon"
+        case .potterGarden: return "Tap to release a butterfly"
         case .medievalVillage3D: return "Tap to snuff a window light"
         case .lateNightRerun3D: return "Tap to change the channel"
         case .jeonjuNight3D: return "Tap to toggle a window light"
@@ -300,6 +307,7 @@ enum SceneKind: String, CaseIterable, Identifiable {
         case .greetingTheDay3D: return "Tap to grow a new building"
         case .mystify3D: return "Tap to launch an extra ribbon of light"
         case .nonsenseLullabies3D: return "Tap to bloom a watercolour splash"
+        case .potterGarden3D: return "Tap to release a butterfly"
         case .innerLight3D: return "Tap to send a brightness pulse through the connections"
         case .wireframeCity3D: return "Tap to sweep a radar pulse across the grid"
         }
@@ -340,6 +348,7 @@ enum SceneKind: String, CaseIterable, Identifiable {
         case .captainStar: return "globe.americas"
         case .nonsenseLullabies: return "paintbrush.pointed"
         case .gouraudSolarSystem: return "globe.europe.africa"
+        case .potterGarden: return "leaf.fill"
         case .medievalVillage3D: return "cube"
         case .lateNightRerun3D: return "cube.fill"
         case .jeonjuNight3D: return "cube.transparent"
@@ -375,6 +384,7 @@ enum SceneKind: String, CaseIterable, Identifiable {
         case .greetingTheDay3D: return "cube"
         case .mystify3D: return "cube"
         case .nonsenseLullabies3D: return "cube"
+        case .potterGarden3D: return "cube"
         case .innerLight3D: return "cube"
         case .wireframeCity3D: return "cube"
         }
@@ -415,6 +425,7 @@ enum SceneKind: String, CaseIterable, Identifiable {
         case .captainStar: return Color(red: 0.72, green: 0.52, blue: 0.22)
         case .nonsenseLullabies: return Color(red: 0.75, green: 0.55, blue: 0.70)
         case .gouraudSolarSystem: return Color(red: 0.35, green: 0.25, blue: 0.65)
+        case .potterGarden: return Color(red: 0.40, green: 0.58, blue: 0.35)
         case .medievalVillage3D: return Color(red: 0.60, green: 0.45, blue: 0.25)
         case .lateNightRerun3D: return Color(red: 0.25, green: 0.20, blue: 0.50)
         case .jeonjuNight3D: return Color(red: 0.85, green: 0.60, blue: 0.22)
@@ -450,6 +461,7 @@ enum SceneKind: String, CaseIterable, Identifiable {
         case .greetingTheDay3D: return Color(red: 0.9, green: 0.65, blue: 0.3)
         case .mystify3D: return Color(red: 0.20, green: 0.85, blue: 0.90)
         case .nonsenseLullabies3D: return Color(red: 0.75, green: 0.55, blue: 0.70)
+        case .potterGarden3D: return Color(red: 0.35, green: 0.52, blue: 0.30)
         case .innerLight3D: return Color(red: 0.85, green: 0.65, blue: 0.30)
         case .wireframeCity3D: return Color(red: 0.15, green: 0.90, blue: 0.35)
         }
@@ -486,8 +498,10 @@ enum SceneKind: String, CaseIterable, Identifiable {
         // Retro, nostalgia, gentle floating
         case .retroGarden, .retroPS1, .nightTrain, .paperLanternFestival,
              .mystify, .nonsenseLullabies, .floatingKingdom, .greetingTheDay,
+             .potterGarden,
              .retroGarden3D, .retroPS13D, .nightTrain3D, .paperLanternFestival3D,
              .mystify3D, .nonsenseLullabies3D, .floatingKingdom3D, .greetingTheDay3D,
+             .potterGarden3D,
              .wireframeCity3D:
             return "dreamy"
         // Libraries, scrolls, ancient knowledge, aurora

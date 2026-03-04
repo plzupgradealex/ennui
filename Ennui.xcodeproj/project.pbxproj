@@ -85,6 +85,8 @@
 		EE00000000000000000005E /* OldCar3DScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE00000000000000000005D /* OldCar3DScene.swift */; };
 		EE000000000000000000060 /* InnerLight3DScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE00000000000000000005F /* InnerLight3DScene.swift */; };
 		EE000000000000000000062 /* WireframeCity3DScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE000000000000000000061 /* WireframeCity3DScene.swift */; };
+		EE000000000000000000068 /* PotterGardenScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE000000000000000000067 /* PotterGardenScene.swift */; };
+		EE00000000000000000006A /* PotterGarden3DScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE000000000000000000069 /* PotterGarden3DScene.swift */; };
 		EE000000000000000000064 /* RatingManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE000000000000000000063 /* RatingManager.swift */; };
 		EE000000000000000000066 /* StarRatingOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE000000000000000000065 /* StarRatingOverlay.swift */; };
 		DD0000000000000000000004 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = DD0000000000000000000003 /* PrivacyInfo.xcprivacy */; };
@@ -146,6 +148,8 @@
 		EE00000000000000000005D /* OldCar3DScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OldCar3DScene.swift; sourceTree = "<group>"; };
 		EE00000000000000000005F /* InnerLight3DScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InnerLight3DScene.swift; sourceTree = "<group>"; };
 		EE000000000000000000061 /* WireframeCity3DScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WireframeCity3DScene.swift; sourceTree = "<group>"; };
+		EE000000000000000000067 /* PotterGardenScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PotterGardenScene.swift; sourceTree = "<group>"; };
+		EE000000000000000000069 /* PotterGarden3DScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PotterGarden3DScene.swift; sourceTree = "<group>"; };
 		EE000000000000000000063 /* RatingManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RatingManager.swift; sourceTree = "<group>"; };
 		EE000000000000000000065 /* StarRatingOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StarRatingOverlay.swift; sourceTree = "<group>"; };
 		EE00000000000000000002B /* CosmicDrift3DScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CosmicDrift3DScene.swift; sourceTree = "<group>"; };
@@ -322,6 +326,8 @@
 				EE00000000000000000005D /* OldCar3DScene.swift */,
 				EE00000000000000000005F /* InnerLight3DScene.swift */,
 				EE000000000000000000061 /* WireframeCity3DScene.swift */,
+				EE000000000000000000067 /* PotterGardenScene.swift */,
+				EE000000000000000000069 /* PotterGarden3DScene.swift */,
 			);
 			path = Scenes;
 			sourceTree = "<group>";
@@ -520,6 +526,8 @@
 				EE00000000000000000005E /* OldCar3DScene.swift in Sources */,
 				EE000000000000000000060 /* InnerLight3DScene.swift in Sources */,
 				EE000000000000000000062 /* WireframeCity3DScene.swift in Sources */,
+				EE000000000000000000068 /* PotterGardenScene.swift in Sources */,
+				EE00000000000000000006A /* PotterGarden3DScene.swift in Sources */,
 				EE000000000000000000064 /* RatingManager.swift in Sources */,
 				EE000000000000000000066 /* StarRatingOverlay.swift in Sources */,
 			);
