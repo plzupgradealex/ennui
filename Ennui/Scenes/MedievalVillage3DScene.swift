@@ -99,11 +99,11 @@ private struct MedievalVillage3DRepresentable: NSViewRepresentable {
         let total = c.windowLights.count
         let remaining = max(0, total - c.extinguishedIndex)
         let fraction = total > 0 ? Double(remaining) / Double(total) : 0
-        let minAmbient: CGFloat = 5
-        let maxAmbient: CGFloat = 35
+        let minAmbient: CGFloat = 3
+        let maxAmbient: CGFloat = 15
         let newAmbient = minAmbient + (maxAmbient - minAmbient) * CGFloat(fraction)
-        let minMoon: CGFloat = 25
-        let maxMoon: CGFloat = 80
+        let minMoon: CGFloat = 15
+        let maxMoon: CGFloat = 40
         let newMoon = minMoon + (maxMoon - minMoon) * CGFloat(fraction)
         SCNTransaction.begin()
         SCNTransaction.animationDuration = 2.0
@@ -116,10 +116,10 @@ private struct MedievalVillage3DRepresentable: NSViewRepresentable {
 
     private func buildScene(_ scene: SCNScene, coord: Coordinator) {
         // Atmosphere
-        scene.fogStartDistance = 12
-        scene.fogEndDistance = 35
-        scene.fogColor = NSColor(red: 0.03, green: 0.03, blue: 0.06, alpha: 1)
-        scene.background.contents = NSColor(red: 0.015, green: 0.015, blue: 0.04, alpha: 1)
+        scene.fogStartDistance = 8
+        scene.fogEndDistance = 28
+        scene.fogColor = NSColor(red: 0.02, green: 0.02, blue: 0.04, alpha: 1)
+        scene.background.contents = NSColor(red: 0.01, green: 0.01, blue: 0.025, alpha: 1)
 
         addLighting(to: scene, coord: coord)
         addGround(to: scene)
@@ -136,7 +136,7 @@ private struct MedievalVillage3DRepresentable: NSViewRepresentable {
         let ambient = SCNNode()
         ambient.light = SCNLight()
         ambient.light!.type = .ambient
-        ambient.light!.intensity = 35
+        ambient.light!.intensity = 15
         ambient.light!.color = NSColor(red: 0.15, green: 0.12, blue: 0.25, alpha: 1)
         scene.rootNode.addChildNode(ambient)
         coord.ambientLight = ambient
@@ -145,7 +145,7 @@ private struct MedievalVillage3DRepresentable: NSViewRepresentable {
         let moon = SCNNode()
         moon.light = SCNLight()
         moon.light!.type = .directional
-        moon.light!.intensity = 80
+        moon.light!.intensity = 40
         moon.light!.color = NSColor(red: 0.40, green: 0.45, blue: 0.70, alpha: 1)
         moon.light!.castsShadow = true
         moon.light!.shadowRadius = 3
@@ -159,13 +159,13 @@ private struct MedievalVillage3DRepresentable: NSViewRepresentable {
 
     private func addGround(to scene: SCNScene) {
         let ground = SCNFloor()
-        ground.reflectivity = 0.02
-        ground.firstMaterial?.diffuse.contents = NSColor(red: 0.06, green: 0.10, blue: 0.04, alpha: 1)
+        ground.reflectivity = 0.01
+        ground.firstMaterial?.diffuse.contents = NSColor(red: 0.03, green: 0.05, blue: 0.02, alpha: 1)
         scene.rootNode.addChildNode(SCNNode(geometry: ground))
 
         // Slight path through village (flattened box)
         let path = SCNBox(width: 1.0, height: 0.01, length: 14, chamferRadius: 0)
-        path.firstMaterial?.diffuse.contents = NSColor(red: 0.12, green: 0.09, blue: 0.06, alpha: 1)
+        path.firstMaterial?.diffuse.contents = NSColor(red: 0.07, green: 0.05, blue: 0.03, alpha: 1)
         let pathNode = SCNNode(geometry: path)
         pathNode.position = SCNVector3(0, 0.005, 0)
         scene.rootNode.addChildNode(pathNode)
@@ -187,8 +187,8 @@ private struct MedievalVillage3DRepresentable: NSViewRepresentable {
             Spot(x:  2.5, z:  1.8, s: 0.95, isChurch: false),
         ]
 
-        let wallColor = NSColor(red: 0.20, green: 0.16, blue: 0.10, alpha: 1)
-        let roofColor = NSColor(red: 0.28, green: 0.18, blue: 0.08, alpha: 1)
+        let wallColor = NSColor(red: 0.12, green: 0.09, blue: 0.06, alpha: 1)
+        let roofColor = NSColor(red: 0.16, green: 0.10, blue: 0.05, alpha: 1)
 
         for spot in spots {
             let h = Float(spot.isChurch ? 2.8 : (1.0 + Double.random(in: 0...0.7, using: &rng)))
@@ -244,10 +244,10 @@ private struct MedievalVillage3DRepresentable: NSViewRepresentable {
                     let light = SCNNode()
                     light.light = SCNLight()
                     light.light!.type = .omni
-                    light.light!.intensity = 200
+                    light.light!.intensity = 150
                     light.light!.color = warmAmber
                     light.light!.attenuationStartDistance = 0
-                    light.light!.attenuationEndDistance = 2.5
+                    light.light!.attenuationEndDistance = 2.0
                     light.position = SCNVector3(wx, wy, spot.z + sd / 2 + 0.15)
                     scene.rootNode.addChildNode(light)
                     coord.windowLights.append(light)
@@ -317,8 +317,8 @@ private struct MedievalVillage3DRepresentable: NSViewRepresentable {
         camera.zFar = 80
         // Slight bloom for a dreamy feel
         camera.wantsHDR = true
-        camera.bloomIntensity = 0.3
-        camera.bloomThreshold = 0.8
+        camera.bloomIntensity = 0.4
+        camera.bloomThreshold = 0.5
 
         let camNode = SCNNode()
         camNode.camera = camera

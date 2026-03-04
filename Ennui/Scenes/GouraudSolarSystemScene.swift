@@ -37,6 +37,7 @@ struct GouraudSolarSystemScene: View {
     @State private var moons: [MoonData] = []
     @State private var shimmers: [ShimmerEvent] = []
     @State private var moonIdCounter = 100
+    @State private var planetIdCounter = 20
     @State private var ready = false
 
     // Light direction rotates very slowly
@@ -136,26 +137,49 @@ struct GouraudSolarSystemScene: View {
 
     private func handleTap() {
         var rng = SplitMix64(seed: UInt64(interaction.tapCount * 53 + 7))
-        let action = nextDouble(&rng)
+        let roll = nextDouble(&rng)
 
-        if action < 0.5, !planets.isEmpty {
-            // Shimmer a random planet
+        if roll < 0.80, !planets.isEmpty {
+            // ~80%: Shimmer a random planet
             let idx = Int(nextDouble(&rng) * Double(planets.count)) % planets.count
             let shimmer = ShimmerEvent(
                 planetId: planets[idx].id,
                 birth: Date().timeIntervalSince(startDate)
             )
             shimmers.append(shimmer)
-            if shimmers.count > 8 { shimmers.removeFirst() }
+            if shimmers.count > 20 { shimmers.removeFirst() }
+        } else if roll < 0.90 {
+            // ~10%: Add a new planet at a fresh orbit
+            let maxOrbit = (planets.map { $0.orbitRadius }.max() ?? 0.80)
+            let newOrbit = maxOrbit + 0.06 + nextDouble(&rng) * 0.06
+            let hue = nextDouble(&rng)
+            let newSize = 5 + nextDouble(&rng) * 14
+            let planet = PlanetData(
+                id: planetIdCounter,
+                orbitRadius: min(newOrbit, 1.4),
+                orbitSpeed: 0.01 + nextDouble(&rng) * 0.12,
+                orbitPhase: nextDouble(&rng) * .pi * 2,
+                size: newSize,
+                baseHue: hue,
+                saturation: 0.3 + nextDouble(&rng) * 0.35,
+                brightness: 0.35 + nextDouble(&rng) * 0.30,
+                tilt: 0.30 + nextDouble(&rng) * 0.30,
+                hasRing: nextDouble(&rng) > 0.65,
+                ringHue: hue + 0.05
+            )
+            planets.append(planet)
+            planetIdCounter += 1
+            shimmers.append(ShimmerEvent(planetId: planet.id, birth: Date().timeIntervalSince(startDate)))
+            if shimmers.count > 20 { shimmers.removeFirst() }
         } else if !planets.isEmpty {
-            // Add a moon to a random planet
+            // ~10%: Add a moon to a random planet
             let idx = Int(nextDouble(&rng) * Double(planets.count)) % planets.count
             let parent = planets[idx]
             let existingMoons = moons.filter { $0.parentId == parent.id }.count
             let m = MoonData(
                 id: moonIdCounter,
                 parentId: parent.id,
-                orbitRadius: parent.size * 1.5 + Double(existingMoons) * 8 + nextDouble(&rng) * 8,
+                orbitRadius: parent.size * 1.5 + Double(existingMoons) * 6 + nextDouble(&rng) * 8,
                 orbitSpeed: 1.2 + nextDouble(&rng) * 2.5,
                 orbitPhase: nextDouble(&rng) * .pi * 2,
                 size: 1.5 + nextDouble(&rng) * 3,
@@ -163,9 +187,8 @@ struct GouraudSolarSystemScene: View {
             )
             moons.append(m)
             moonIdCounter += 1
-            // Also shimmer the parent
             shimmers.append(ShimmerEvent(planetId: parent.id, birth: Date().timeIntervalSince(startDate)))
-            if shimmers.count > 8 { shimmers.removeFirst() }
+            if shimmers.count > 20 { shimmers.removeFirst() }
         }
     }
 
