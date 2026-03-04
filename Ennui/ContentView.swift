@@ -20,8 +20,10 @@ struct ContentView: View {
     @State private var launched = false
     @State private var isActive = true  // battery: false when window not focused
     @State private var warmingScenes: Set<SceneKind> = []  // preload on hover / adjacency
+    @State private var showRating = false
     @StateObject private var interaction = InteractionState()
     @StateObject private var audioEngine = AmbientAudioEngine()
+    @StateObject private var ratingManager = RatingManager()
     @EnvironmentObject var multipeerManager: MultipeerManager
 
     var body: some View {
@@ -160,6 +162,13 @@ struct ContentView: View {
                     .transition(.opacity)
                     .accessibilityAddTraits(.isModal)
             }
+
+            // Star rating overlay
+            if showRating {
+                StarRatingOverlay(scene: currentScene, ratingManager: ratingManager, isPresented: $showRating)
+                    .transition(.opacity)
+                    .accessibilityAddTraits(.isModal)
+            }
         }
         .frame(minWidth: 800, minHeight: 600)
         .onTapGesture(count: 3) {
@@ -207,6 +216,10 @@ struct ContentView: View {
         }
         .onKeyPress(characters: CharacterSet(charactersIn: "mM")) { _ in
             audioEngine.isMuted.toggle()
+            return .handled
+        }
+        .onKeyPress(characters: CharacterSet(charactersIn: "rR")) { _ in
+            withAnimation(.easeInOut(duration: 0.3)) { showRating.toggle() }
             return .handled
         }
         .onAppear {
@@ -287,11 +300,45 @@ struct ContentView: View {
         case .captainStar: CaptainStarScene(interaction: interaction)
         case .nonsenseLullabies: NonsenseLullabiesScene(interaction: interaction)
         case .gouraudSolarSystem: GouraudSolarSystemScene(interaction: interaction)
+        case .potterGarden: PotterGardenScene(interaction: interaction)
         case .medievalVillage3D: MedievalVillage3DScene(interaction: interaction)
         case .lateNightRerun3D: LateNightRerun3DScene(interaction: interaction)
         case .jeonjuNight3D: JeonjuNight3DScene(interaction: interaction)
         case .oldCar: OldCarScene(interaction: interaction)
         case .oldCar3D: OldCar3DScene(interaction: interaction)
+        case .cosmicDrift3D: CosmicDrift3DScene(interaction: interaction)
+        case .voyagerNebula3D: VoyagerNebula3DScene(interaction: interaction)
+        case .desertStarscape3D: DesertStarscape3DScene(interaction: interaction)
+        case .deepOcean3D: DeepOcean3DScene(interaction: interaction)
+        case .ancientRuins3D: AncientRuins3DScene(interaction: interaction)
+        case .lushRuins3D: LushRuins3DScene(interaction: interaction)
+        case .auroraBorealis3D: AuroraBorealis3DScene(interaction: interaction)
+        case .saltLamp3D: SaltLamp3DScene(interaction: interaction)
+        case .conservatory3D: Conservatory3DScene(interaction: interaction)
+        case .quietMeal3D: QuietMeal3DScene(interaction: interaction)
+        case .artDecoLA3D: ArtDecoLA3DScene(interaction: interaction)
+        case .urbanDreamscape3D: UrbanDreamscape3DScene(interaction: interaction)
+        case .shimizuEvening3D: ShimizuEvening3DScene(interaction: interaction)
+        case .nightTrain3D: NightTrain3DScene(interaction: interaction)
+        case .ontarioCountryside3D: OntarioCountryside3DScene(interaction: interaction)
+        case .minnesotaSmallTown3D: MinnesotaSmallTown3DScene(interaction: interaction)
+        case .midnightMotel3D: MidnightMotel3DScene(interaction: interaction)
+        case .forgottenLibrary3D: ForgottenLibrary3DScene(interaction: interaction)
+        case .enchantedArchives3D: EnchantedArchives3DScene(interaction: interaction)
+        case .celestialScrollHall3D: CelestialScrollHall3DScene(interaction: interaction)
+        case .floatingKingdom3D: FloatingKingdom3DScene(interaction: interaction)
+        case .paperLanternFestival3D: PaperLanternFestival3DScene(interaction: interaction)
+        case .captainStar3D: CaptainStar3DScene(interaction: interaction)
+        case .gouraudSolarSystem3D: GouraudSolarSystem3DScene(interaction: interaction)
+        case .retroGarden3D: RetroGarden3DScene(interaction: interaction)
+        case .celShadedRainyDay3D: CelShadedRainyDay3DScene(interaction: interaction)
+        case .retroPS13D: RetroPS13DScene(interaction: interaction)
+        case .greetingTheDay3D: GreetingTheDay3DScene(interaction: interaction)
+        case .mystify3D: Mystify3DScene(interaction: interaction)
+        case .nonsenseLullabies3D: NonsenseLullabies3DScene(interaction: interaction)
+        case .potterGarden3D: PotterGarden3DScene(interaction: interaction)
+        case .innerLight3D: InnerLight3DScene(interaction: interaction)
+        case .wireframeCity3D: WireframeCity3DScene(interaction: interaction)
         }
     }
 
@@ -326,83 +373,95 @@ struct ContentView: View {
     private var etherealPicker: some View {
         TimelineView(.animation(minimumInterval: 1.0 / 60.0)) { timeline in
             let t = timeline.date.timeIntervalSinceReferenceDate
+            let scenes2D = SceneKind.allCases.filter { !$0.rawValue.hasSuffix("3D") }
+            let scenes3D = SceneKind.allCases.filter { $0.rawValue.hasSuffix("3D") }
             VStack {
+                // 3D orbs at the top
+                orbRow(scenes: scenes3D, allCases: SceneKind.allCases, t: t)
+                    .padding(.top, 28)
                 Spacer()
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 10) {
-                        ForEach(Array(SceneKind.allCases.enumerated()), id: \.element.id) { idx, scene in
-                            let isActive = scene == currentScene
-                            let float = sin(t * 0.6 + Double(idx) * 1.1) * 3
-                            let glow = sin(t * 0.8 + Double(idx) * 0.7) * 0.15 + 0.85
-
-                            Button {
-                                transitionToScene(scene)
-                            } label: {
-                                ZStack {
-                                    // Outer glow ring
-                                    Circle()
-                                        .fill(
-                                            RadialGradient(
-                                                colors: [
-                                                    scene.tint.opacity(isActive ? 0.5 * glow : 0.1),
-                                                    scene.tint.opacity(isActive ? 0.15 : 0.0),
-                                                    .clear
-                                                ],
-                                                center: .center,
-                                                startRadius: 4,
-                                                endRadius: isActive ? 22 : 15
-                                            )
-                                        )
-                                        .frame(width: isActive ? 40 : 30, height: isActive ? 40 : 30)
-
-                                    // Inner orb
-                                    Circle()
-                                        .fill(
-                                            RadialGradient(
-                                                colors: [
-                                                    scene.tint.opacity(isActive ? 0.95 : 0.35),
-                                                    scene.tint.opacity(isActive ? 0.6 : 0.15),
-                                                    .clear
-                                                ],
-                                                center: .center,
-                                                startRadius: 0,
-                                                endRadius: isActive ? 10 : 7
-                                            )
-                                        )
-                                        .frame(width: isActive ? 20 : 14, height: isActive ? 20 : 14)
-
-                                    // Bright core
-                                    Circle()
-                                        .fill(scene.tint.opacity(isActive ? 0.9 * glow : 0.3))
-                                        .frame(width: isActive ? 6 : 3, height: isActive ? 6 : 3)
-                                        .blur(radius: isActive ? 1.5 : 0.5)
-                                }
-                                .offset(y: float)
-                                .animation(.easeInOut(duration: 0.6), value: isActive)
-                            }
-                            .buttonStyle(.plain)
-                            .onHover { hovering in
-                                if hovering && scene != currentScene {
-                                    warmingScenes.insert(scene)
-                                }
-                            }
-                            .accessibilityLabel(scene.displayName)
-                            .accessibilityHint(isActive ? "Currently viewing" : "Switch to \(scene.displayName)")
-                            .accessibilityAddTraits(isActive ? .isSelected : [])
-                        }
-                    }
-                    .padding(.horizontal, 24)
-                }
-                .frame(maxWidth: 700)
-                .padding(.vertical, 14)
-                .background(
-                    Capsule()
-                        .fill(.black.opacity(0.25))
-                        .blur(radius: 20)
-                )
-                .padding(.bottom, 28)
+                // 2D orbs at the bottom
+                orbRow(scenes: scenes2D, allCases: SceneKind.allCases, t: t)
+                    .padding(.bottom, 28)
             }
         }
+    }
+
+    @ViewBuilder
+    private func orbRow(scenes: [SceneKind], allCases: [SceneKind], t: Double) -> some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 10) {
+                ForEach(Array(scenes.enumerated()), id: \.element.id) { idx, scene in
+                    let globalIdx = allCases.firstIndex(of: scene) ?? idx
+                    let isActive = scene == currentScene
+                    let float = sin(t * 0.6 + Double(globalIdx) * 1.1) * 3
+                    let glow = sin(t * 0.8 + Double(globalIdx) * 0.7) * 0.15 + 0.85
+
+                    Button {
+                        transitionToScene(scene)
+                    } label: {
+                        ZStack {
+                            // Outer glow ring
+                            Circle()
+                                .fill(
+                                    RadialGradient(
+                                        colors: [
+                                            scene.tint.opacity(isActive ? 0.5 * glow : 0.1),
+                                            scene.tint.opacity(isActive ? 0.15 : 0.0),
+                                            .clear
+                                        ],
+                                        center: .center,
+                                        startRadius: 4,
+                                        endRadius: isActive ? 22 : 15
+                                    )
+                                )
+                                .frame(width: isActive ? 40 : 30, height: isActive ? 40 : 30)
+
+                            // Inner orb
+                            Circle()
+                                .fill(
+                                    RadialGradient(
+                                        colors: [
+                                            scene.tint.opacity(isActive ? 0.95 : 0.35),
+                                            scene.tint.opacity(isActive ? 0.6 : 0.15),
+                                            .clear
+                                        ],
+                                        center: .center,
+                                        startRadius: 0,
+                                        endRadius: isActive ? 10 : 7
+                                    )
+                                )
+                                .frame(width: isActive ? 20 : 14, height: isActive ? 20 : 14)
+
+                            // Bright core
+                            Circle()
+                                .fill(scene.tint.opacity(isActive ? 0.9 * glow : 0.3))
+                                .frame(width: isActive ? 6 : 3, height: isActive ? 6 : 3)
+                                .blur(radius: isActive ? 1.5 : 0.5)
+                        }
+                        .offset(y: float)
+                        .animation(.easeInOut(duration: 0.6), value: isActive)
+                    }
+                    .buttonStyle(.plain)
+                    .onHover { hovering in
+                        if hovering && scene != currentScene {
+                            warmingScenes.insert(scene)
+                        }
+                    }
+                    .accessibilityLabel(scene.displayName)
+                    .accessibilityHint(isActive ? "Currently viewing" : "Switch to \(scene.displayName)")
+                    .accessibilityAddTraits(isActive ? .isSelected : [])
+                }
+            }
+            .padding(.horizontal, 24)
+        }
+        .frame(maxWidth: 700)
+        .padding(.vertical, 14)
+        .background(
+            Capsule()
+                .fill(.black.opacity(0.25))
+                .blur(radius: 20)
+        )
     }
 
     // MARK: - Peer dots

@@ -51,13 +51,49 @@
 		EE000000000000000000001A /* MedievalVillage3DScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE0000000000000000000019 /* MedievalVillage3DScene.swift */; };
 		EE000000000000000000001C /* LateNightRerun3DScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE000000000000000000001B /* LateNightRerun3DScene.swift */; };
 		EE000000000000000000001E /* JeonjuNight3DScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE000000000000000000001D /* JeonjuNight3DScene.swift */; };
-		EE0000000000000000000020 /* OldCarScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE000000000000000000001F /* OldCarScene.swift */; };
-		EE0000000000000000000022 /* OldCar3DScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE0000000000000000000021 /* OldCar3DScene.swift */; };
-		FF0000000000000000000002 /* Ennui3DShaders.metal in Sources */ = {isa = PBXBuildFile; fileRef = FF0000000000000000000001 /* Ennui3DShaders.metal */; };
-		FF0000000000000000000004 /* Metal3DHelpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF0000000000000000000003 /* Metal3DHelpers.swift */; };
+		EE00000000000000000002C /* CosmicDrift3DScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE00000000000000000002B /* CosmicDrift3DScene.swift */; };
+		EE00000000000000000002E /* VoyagerNebula3DScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE00000000000000000002D /* VoyagerNebula3DScene.swift */; };
+		EE000000000000000000030 /* DesertStarscape3DScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE00000000000000000002F /* DesertStarscape3DScene.swift */; };
+		EE000000000000000000032 /* DeepOcean3DScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE000000000000000000031 /* DeepOcean3DScene.swift */; };
+		EE000000000000000000034 /* AncientRuins3DScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE000000000000000000033 /* AncientRuins3DScene.swift */; };
+		EE000000000000000000036 /* LushRuins3DScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE000000000000000000035 /* LushRuins3DScene.swift */; };
+		EE000000000000000000038 /* AuroraBorealis3DScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE000000000000000000037 /* AuroraBorealis3DScene.swift */; };
+		EE00000000000000000003A /* SaltLamp3DScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE000000000000000000039 /* SaltLamp3DScene.swift */; };
+		EE00000000000000000003C /* Conservatory3DScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE00000000000000000003B /* Conservatory3DScene.swift */; };
+		EE00000000000000000003E /* QuietMeal3DScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE00000000000000000003D /* QuietMeal3DScene.swift */; };
+		EE000000000000000000040 /* ArtDecoLA3DScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE00000000000000000003F /* ArtDecoLA3DScene.swift */; };
+		EE000000000000000000042 /* UrbanDreamscape3DScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE000000000000000000041 /* UrbanDreamscape3DScene.swift */; };
+		EE000000000000000000044 /* ShimizuEvening3DScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE000000000000000000043 /* ShimizuEvening3DScene.swift */; };
+		EE000000000000000000046 /* NightTrain3DScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE000000000000000000045 /* NightTrain3DScene.swift */; };
+		EE000000000000000000048 /* OntarioCountryside3DScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE000000000000000000047 /* OntarioCountryside3DScene.swift */; };
+		EE00000000000000000004A /* MinnesotaSmallTown3DScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE000000000000000000049 /* MinnesotaSmallTown3DScene.swift */; };
+		EE00000000000000000004C /* MidnightMotel3DScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE00000000000000000004B /* MidnightMotel3DScene.swift */; };
+		EE00000000000000000004E /* ForgottenLibrary3DScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE00000000000000000004D /* ForgottenLibrary3DScene.swift */; };
+		EE000000000000000000050 /* EnchantedArchives3DScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE00000000000000000004F /* EnchantedArchives3DScene.swift */; };
+		EE000000000000000000052 /* CelestialScrollHall3DScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE000000000000000000051 /* CelestialScrollHall3DScene.swift */; };
+		EE000000000000000000054 /* FloatingKingdom3DScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE000000000000000000053 /* FloatingKingdom3DScene.swift */; };
+		EE000000000000000000056 /* PaperLanternFestival3DScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE000000000000000000055 /* PaperLanternFestival3DScene.swift */; };
+		EE000000000000000000058 /* CaptainStar3DScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE000000000000000000057 /* CaptainStar3DScene.swift */; };
+		EE00000000000000000005A /* GouraudSolarSystem3DScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE000000000000000000059 /* GouraudSolarSystem3DScene.swift */; };
+		EE0000000000000000000020 /* RetroGarden3DScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE000000000000000000001F /* RetroGarden3DScene.swift */; };
+		EE0000000000000000000022 /* CelShadedRainyDay3DScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE0000000000000000000021 /* CelShadedRainyDay3DScene.swift */; };
+		EE0000000000000000000024 /* RetroPS13DScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE0000000000000000000023 /* RetroPS13DScene.swift */; };
+		EE0000000000000000000026 /* GreetingTheDay3DScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE0000000000000000000025 /* GreetingTheDay3DScene.swift */; };
+		EE0000000000000000000028 /* Mystify3DScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE0000000000000000000027 /* Mystify3DScene.swift */; };
+		EE000000000000000000002A /* NonsenseLullabies3DScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE0000000000000000000029 /* NonsenseLullabies3DScene.swift */; };
+		EE00000000000000000005C /* OldCarScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE00000000000000000005B /* OldCarScene.swift */; };
+		EE00000000000000000005E /* OldCar3DScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE00000000000000000005D /* OldCar3DScene.swift */; };
+		EE000000000000000000060 /* InnerLight3DScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE00000000000000000005F /* InnerLight3DScene.swift */; };
+		EE000000000000000000062 /* WireframeCity3DScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE000000000000000000061 /* WireframeCity3DScene.swift */; };
+		EE000000000000000000068 /* PotterGardenScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE000000000000000000067 /* PotterGardenScene.swift */; };
+		EE00000000000000000006A /* PotterGarden3DScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE000000000000000000069 /* PotterGarden3DScene.swift */; };
+		EE000000000000000000064 /* RatingManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE000000000000000000063 /* RatingManager.swift */; };
+		EE000000000000000000066 /* StarRatingOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE000000000000000000065 /* StarRatingOverlay.swift */; };
 		DD0000000000000000000004 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = DD0000000000000000000003 /* PrivacyInfo.xcprivacy */; };
 		EE000000000000000000000C /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = EE000000000000000000000B /* Assets.xcassets */; };
 		BB0000000000000000000001 /* EnnuiUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0000000000000000000010 /* EnnuiUITests.swift */; };
+		FF0000000000000000000002 /* Ennui3DShaders.metal in Sources */ = {isa = PBXBuildFile; fileRef = FF0000000000000000000001 /* Ennui3DShaders.metal */; };
+		FF0000000000000000000004 /* Metal3DHelpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF0000000000000000000003 /* Metal3DHelpers.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -104,10 +140,44 @@
 		EE0000000000000000000019 /* MedievalVillage3DScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MedievalVillage3DScene.swift; sourceTree = "<group>"; };
 		EE000000000000000000001B /* LateNightRerun3DScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LateNightRerun3DScene.swift; sourceTree = "<group>"; };
 		EE000000000000000000001D /* JeonjuNight3DScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JeonjuNight3DScene.swift; sourceTree = "<group>"; };
-		EE000000000000000000001F /* OldCarScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OldCarScene.swift; sourceTree = "<group>"; };
-		EE0000000000000000000021 /* OldCar3DScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OldCar3DScene.swift; sourceTree = "<group>"; };
-		FF0000000000000000000001 /* Ennui3DShaders.metal */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.metal; path = Ennui3DShaders.metal; sourceTree = "<group>"; };
-		FF0000000000000000000003 /* Metal3DHelpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Metal3DHelpers.swift; sourceTree = "<group>"; };
+		EE000000000000000000001F /* RetroGarden3DScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RetroGarden3DScene.swift; sourceTree = "<group>"; };
+		EE0000000000000000000021 /* CelShadedRainyDay3DScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CelShadedRainyDay3DScene.swift; sourceTree = "<group>"; };
+		EE0000000000000000000023 /* RetroPS13DScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RetroPS13DScene.swift; sourceTree = "<group>"; };
+		EE0000000000000000000025 /* GreetingTheDay3DScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GreetingTheDay3DScene.swift; sourceTree = "<group>"; };
+		EE0000000000000000000027 /* Mystify3DScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Mystify3DScene.swift; sourceTree = "<group>"; };
+		EE0000000000000000000029 /* NonsenseLullabies3DScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NonsenseLullabies3DScene.swift; sourceTree = "<group>"; };
+		EE00000000000000000005B /* OldCarScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OldCarScene.swift; sourceTree = "<group>"; };
+		EE00000000000000000005D /* OldCar3DScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OldCar3DScene.swift; sourceTree = "<group>"; };
+		EE00000000000000000005F /* InnerLight3DScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InnerLight3DScene.swift; sourceTree = "<group>"; };
+		EE000000000000000000061 /* WireframeCity3DScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WireframeCity3DScene.swift; sourceTree = "<group>"; };
+		EE000000000000000000067 /* PotterGardenScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PotterGardenScene.swift; sourceTree = "<group>"; };
+		EE000000000000000000069 /* PotterGarden3DScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PotterGarden3DScene.swift; sourceTree = "<group>"; };
+		EE000000000000000000063 /* RatingManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RatingManager.swift; sourceTree = "<group>"; };
+		EE000000000000000000065 /* StarRatingOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StarRatingOverlay.swift; sourceTree = "<group>"; };
+		EE00000000000000000002B /* CosmicDrift3DScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CosmicDrift3DScene.swift; sourceTree = "<group>"; };
+		EE00000000000000000002D /* VoyagerNebula3DScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoyagerNebula3DScene.swift; sourceTree = "<group>"; };
+		EE00000000000000000002F /* DesertStarscape3DScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesertStarscape3DScene.swift; sourceTree = "<group>"; };
+		EE000000000000000000031 /* DeepOcean3DScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeepOcean3DScene.swift; sourceTree = "<group>"; };
+		EE000000000000000000033 /* AncientRuins3DScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AncientRuins3DScene.swift; sourceTree = "<group>"; };
+		EE000000000000000000035 /* LushRuins3DScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LushRuins3DScene.swift; sourceTree = "<group>"; };
+		EE000000000000000000037 /* AuroraBorealis3DScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuroraBorealis3DScene.swift; sourceTree = "<group>"; };
+		EE000000000000000000039 /* SaltLamp3DScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SaltLamp3DScene.swift; sourceTree = "<group>"; };
+		EE00000000000000000003B /* Conservatory3DScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Conservatory3DScene.swift; sourceTree = "<group>"; };
+		EE00000000000000000003D /* QuietMeal3DScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuietMeal3DScene.swift; sourceTree = "<group>"; };
+		EE00000000000000000003F /* ArtDecoLA3DScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArtDecoLA3DScene.swift; sourceTree = "<group>"; };
+		EE000000000000000000041 /* UrbanDreamscape3DScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UrbanDreamscape3DScene.swift; sourceTree = "<group>"; };
+		EE000000000000000000043 /* ShimizuEvening3DScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShimizuEvening3DScene.swift; sourceTree = "<group>"; };
+		EE000000000000000000045 /* NightTrain3DScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NightTrain3DScene.swift; sourceTree = "<group>"; };
+		EE000000000000000000047 /* OntarioCountryside3DScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OntarioCountryside3DScene.swift; sourceTree = "<group>"; };
+		EE000000000000000000049 /* MinnesotaSmallTown3DScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MinnesotaSmallTown3DScene.swift; sourceTree = "<group>"; };
+		EE00000000000000000004B /* MidnightMotel3DScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MidnightMotel3DScene.swift; sourceTree = "<group>"; };
+		EE00000000000000000004D /* ForgottenLibrary3DScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ForgottenLibrary3DScene.swift; sourceTree = "<group>"; };
+		EE00000000000000000004F /* EnchantedArchives3DScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EnchantedArchives3DScene.swift; sourceTree = "<group>"; };
+		EE000000000000000000051 /* CelestialScrollHall3DScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CelestialScrollHall3DScene.swift; sourceTree = "<group>"; };
+		EE000000000000000000053 /* FloatingKingdom3DScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FloatingKingdom3DScene.swift; sourceTree = "<group>"; };
+		EE000000000000000000055 /* PaperLanternFestival3DScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaperLanternFestival3DScene.swift; sourceTree = "<group>"; };
+		EE000000000000000000057 /* CaptainStar3DScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptainStar3DScene.swift; sourceTree = "<group>"; };
+		EE000000000000000000059 /* GouraudSolarSystem3DScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GouraudSolarSystem3DScene.swift; sourceTree = "<group>"; };
 		AA0000000000000000000018 /* MultipeerManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MultipeerManager.swift; sourceTree = "<group>"; };
 		AA000000000000000000001B /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		AA000000000000000000001A /* Ennui.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Ennui.entitlements; sourceTree = "<group>"; };
@@ -116,6 +186,8 @@
 		AA0000000000000000000020 /* Ennui.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Ennui.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		BB0000000000000000000010 /* EnnuiUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EnnuiUITests.swift; sourceTree = "<group>"; };
 		BB0000000000000000000020 /* EnnuiUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = EnnuiUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		FF0000000000000000000001 /* Ennui3DShaders.metal */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.metal; path = Ennui3DShaders.metal; sourceTree = "<group>"; };
+		FF0000000000000000000003 /* Metal3DHelpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Metal3DHelpers.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXContainerItemProxy section */
@@ -173,6 +245,8 @@
 				AA000000000000000000001D /* HaikuOverlay.swift */,
 				DD0000000000000000000001 /* AboutView.swift */,
 				EE0000000000000000000017 /* AmbientAudioEngine.swift */,
+				EE000000000000000000063 /* RatingManager.swift */,
+				EE000000000000000000065 /* StarRatingOverlay.swift */,
 				AA0000000000000000000004 /* Scenes */,
 				AA0000000000000000000005 /* Multiplayer */,
 				AA000000000000000000001B /* Info.plist */,
@@ -222,8 +296,42 @@
 				EE0000000000000000000019 /* MedievalVillage3DScene.swift */,
 				EE000000000000000000001B /* LateNightRerun3DScene.swift */,
 				EE000000000000000000001D /* JeonjuNight3DScene.swift */,
-				EE000000000000000000001F /* OldCarScene.swift */,
-				EE0000000000000000000021 /* OldCar3DScene.swift */,
+				EE00000000000000000002B /* CosmicDrift3DScene.swift */,
+				EE00000000000000000002D /* VoyagerNebula3DScene.swift */,
+				EE00000000000000000002F /* DesertStarscape3DScene.swift */,
+				EE000000000000000000031 /* DeepOcean3DScene.swift */,
+				EE000000000000000000033 /* AncientRuins3DScene.swift */,
+				EE000000000000000000035 /* LushRuins3DScene.swift */,
+				EE000000000000000000037 /* AuroraBorealis3DScene.swift */,
+				EE000000000000000000039 /* SaltLamp3DScene.swift */,
+				EE00000000000000000003B /* Conservatory3DScene.swift */,
+				EE00000000000000000003D /* QuietMeal3DScene.swift */,
+				EE00000000000000000003F /* ArtDecoLA3DScene.swift */,
+				EE000000000000000000041 /* UrbanDreamscape3DScene.swift */,
+				EE000000000000000000043 /* ShimizuEvening3DScene.swift */,
+				EE000000000000000000045 /* NightTrain3DScene.swift */,
+				EE000000000000000000047 /* OntarioCountryside3DScene.swift */,
+				EE000000000000000000049 /* MinnesotaSmallTown3DScene.swift */,
+				EE00000000000000000004B /* MidnightMotel3DScene.swift */,
+				EE00000000000000000004D /* ForgottenLibrary3DScene.swift */,
+				EE00000000000000000004F /* EnchantedArchives3DScene.swift */,
+				EE000000000000000000051 /* CelestialScrollHall3DScene.swift */,
+				EE000000000000000000053 /* FloatingKingdom3DScene.swift */,
+				EE000000000000000000055 /* PaperLanternFestival3DScene.swift */,
+				EE000000000000000000057 /* CaptainStar3DScene.swift */,
+				EE000000000000000000059 /* GouraudSolarSystem3DScene.swift */,
+				EE000000000000000000001F /* RetroGarden3DScene.swift */,
+				EE0000000000000000000021 /* CelShadedRainyDay3DScene.swift */,
+				EE0000000000000000000023 /* RetroPS13DScene.swift */,
+				EE0000000000000000000025 /* GreetingTheDay3DScene.swift */,
+				EE0000000000000000000027 /* Mystify3DScene.swift */,
+				EE0000000000000000000029 /* NonsenseLullabies3DScene.swift */,
+				EE00000000000000000005B /* OldCarScene.swift */,
+				EE00000000000000000005D /* OldCar3DScene.swift */,
+				EE00000000000000000005F /* InnerLight3DScene.swift */,
+				EE000000000000000000061 /* WireframeCity3DScene.swift */,
+				EE000000000000000000067 /* PotterGardenScene.swift */,
+				EE000000000000000000069 /* PotterGarden3DScene.swift */,
 				FF0000000000000000000001 /* Ennui3DShaders.metal */,
 				FF0000000000000000000003 /* Metal3DHelpers.swift */,
 			);
@@ -390,8 +498,44 @@
 				EE000000000000000000001A /* MedievalVillage3DScene.swift in Sources */,
 				EE000000000000000000001C /* LateNightRerun3DScene.swift in Sources */,
 				EE000000000000000000001E /* JeonjuNight3DScene.swift in Sources */,
-				EE0000000000000000000020 /* OldCarScene.swift in Sources */,
-				EE0000000000000000000022 /* OldCar3DScene.swift in Sources */,
+				EE00000000000000000002C /* CosmicDrift3DScene.swift in Sources */,
+				EE00000000000000000002E /* VoyagerNebula3DScene.swift in Sources */,
+				EE000000000000000000030 /* DesertStarscape3DScene.swift in Sources */,
+				EE000000000000000000032 /* DeepOcean3DScene.swift in Sources */,
+				EE000000000000000000034 /* AncientRuins3DScene.swift in Sources */,
+				EE000000000000000000036 /* LushRuins3DScene.swift in Sources */,
+				EE000000000000000000038 /* AuroraBorealis3DScene.swift in Sources */,
+				EE00000000000000000003A /* SaltLamp3DScene.swift in Sources */,
+				EE00000000000000000003C /* Conservatory3DScene.swift in Sources */,
+				EE00000000000000000003E /* QuietMeal3DScene.swift in Sources */,
+				EE000000000000000000040 /* ArtDecoLA3DScene.swift in Sources */,
+				EE000000000000000000042 /* UrbanDreamscape3DScene.swift in Sources */,
+				EE000000000000000000044 /* ShimizuEvening3DScene.swift in Sources */,
+				EE000000000000000000046 /* NightTrain3DScene.swift in Sources */,
+				EE000000000000000000048 /* OntarioCountryside3DScene.swift in Sources */,
+				EE00000000000000000004A /* MinnesotaSmallTown3DScene.swift in Sources */,
+				EE00000000000000000004C /* MidnightMotel3DScene.swift in Sources */,
+				EE00000000000000000004E /* ForgottenLibrary3DScene.swift in Sources */,
+				EE000000000000000000050 /* EnchantedArchives3DScene.swift in Sources */,
+				EE000000000000000000052 /* CelestialScrollHall3DScene.swift in Sources */,
+				EE000000000000000000054 /* FloatingKingdom3DScene.swift in Sources */,
+				EE000000000000000000056 /* PaperLanternFestival3DScene.swift in Sources */,
+				EE000000000000000000058 /* CaptainStar3DScene.swift in Sources */,
+				EE00000000000000000005A /* GouraudSolarSystem3DScene.swift in Sources */,
+				EE0000000000000000000020 /* RetroGarden3DScene.swift in Sources */,
+				EE0000000000000000000022 /* CelShadedRainyDay3DScene.swift in Sources */,
+				EE0000000000000000000024 /* RetroPS13DScene.swift in Sources */,
+				EE0000000000000000000026 /* GreetingTheDay3DScene.swift in Sources */,
+				EE0000000000000000000028 /* Mystify3DScene.swift in Sources */,
+				EE000000000000000000002A /* NonsenseLullabies3DScene.swift in Sources */,
+				EE00000000000000000005C /* OldCarScene.swift in Sources */,
+				EE00000000000000000005E /* OldCar3DScene.swift in Sources */,
+				EE000000000000000000060 /* InnerLight3DScene.swift in Sources */,
+				EE000000000000000000062 /* WireframeCity3DScene.swift in Sources */,
+				EE000000000000000000068 /* PotterGardenScene.swift in Sources */,
+				EE00000000000000000006A /* PotterGarden3DScene.swift in Sources */,
+				EE000000000000000000064 /* RatingManager.swift in Sources */,
+				EE000000000000000000066 /* StarRatingOverlay.swift in Sources */,
 				FF0000000000000000000002 /* Ennui3DShaders.metal in Sources */,
 				FF0000000000000000000004 /* Metal3DHelpers.swift in Sources */,
 			);
@@ -467,7 +611,7 @@
 				CODE_SIGN_ENTITLEMENTS = Ennui/Ennui.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Ennui/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Ennui;
@@ -477,7 +621,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 2.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.ennui.app;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = macosx;
@@ -494,7 +638,7 @@
 				CODE_SIGN_ENTITLEMENTS = Ennui/Ennui.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Ennui/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Ennui;
@@ -504,7 +648,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 2.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.ennui.app;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = macosx;
@@ -517,10 +661,10 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				GENERATE_INFOPLIST_FILE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 2.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.ennui.app.uitests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = macosx;
@@ -533,10 +677,10 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				GENERATE_INFOPLIST_FILE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 2.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.ennui.app.uitests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = macosx;

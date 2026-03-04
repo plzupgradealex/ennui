@@ -3,6 +3,8 @@
 ## Concept
 Ambient world explorer. You just watch, breathe, and drift. Anti-doomscroll.
 Ethereal, mysterious, innocent and kind. Willing to trade usability for beauty and mystery.
+70 total scenes: 34 Canvas (2D) + 36 SceneKit (3D). Each Canvas scene has a 3D
+counterpart, plus two SceneKit-exclusive scenes (Inner Light 3D, Wireframe City 3D).
 
 ## Scenes (v2)
 1. **Cosmic Drift** - warm nebula palette, 300 stars, 14 nebulae, smooth shooting stars, tap ripple effects
@@ -23,11 +25,8 @@ Ethereal, mysterious, innocent and kind. Willing to trade usability for beauty a
 - **Innocent & kind**: haiku prompts emphasize gentleness, wonder, and calm
 
 ## Tech Stack
-- **SwiftUI** + **Canvas** for all rendering (no SpriteKit - portable)
-- **Metal (MTKView)** for all 3D scenes on this branch (replacing SceneKit)
-  — `Ennui3DShaders.metal`: shared Blinn-Phong vertex/fragment/particle shaders
-  — `Metal3DHelpers.swift`: geometry builders, matrix math, pipeline factory
-  — Each 3D scene wraps MTKView in NSViewRepresentable with a Coordinator/MTKViewDelegate
+- **SwiftUI** + **Canvas** for 2D rendering (34 Canvas scenes, Metal GPU compositing)
+- **SceneKit** (`SCNView` via `NSViewRepresentable`) for 36 3D scenes — low-poly dioramas built procedurally (no model files), ambient lighting, particle systems, orbiting camera
 - **MultipeerConnectivity** for P2P sharing nearby (encryption: `.required` for App Store compliance)
 - **FoundationModels** for on-device AI haiku (Apple Neural Engine)
 - **NSViewRepresentable** (`MouseTrackingView`) for cursor hover detection on macOS
