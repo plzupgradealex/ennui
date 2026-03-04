@@ -53,6 +53,8 @@
 		EE000000000000000000001E /* JeonjuNight3DScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE000000000000000000001D /* JeonjuNight3DScene.swift */; };
 		EE0000000000000000000020 /* OldCarScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE000000000000000000001F /* OldCarScene.swift */; };
 		EE0000000000000000000022 /* OldCar3DScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE0000000000000000000021 /* OldCar3DScene.swift */; };
+		FF0000000000000000000002 /* Ennui3DShaders.metal in Sources */ = {isa = PBXBuildFile; fileRef = FF0000000000000000000001 /* Ennui3DShaders.metal */; };
+		FF0000000000000000000004 /* Metal3DHelpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF0000000000000000000003 /* Metal3DHelpers.swift */; };
 		DD0000000000000000000004 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = DD0000000000000000000003 /* PrivacyInfo.xcprivacy */; };
 		EE000000000000000000000C /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = EE000000000000000000000B /* Assets.xcassets */; };
 		BB0000000000000000000001 /* EnnuiUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0000000000000000000010 /* EnnuiUITests.swift */; };
@@ -104,6 +106,8 @@
 		EE000000000000000000001D /* JeonjuNight3DScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JeonjuNight3DScene.swift; sourceTree = "<group>"; };
 		EE000000000000000000001F /* OldCarScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OldCarScene.swift; sourceTree = "<group>"; };
 		EE0000000000000000000021 /* OldCar3DScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OldCar3DScene.swift; sourceTree = "<group>"; };
+		FF0000000000000000000001 /* Ennui3DShaders.metal */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.metal; path = Ennui3DShaders.metal; sourceTree = "<group>"; };
+		FF0000000000000000000003 /* Metal3DHelpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Metal3DHelpers.swift; sourceTree = "<group>"; };
 		AA0000000000000000000018 /* MultipeerManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MultipeerManager.swift; sourceTree = "<group>"; };
 		AA000000000000000000001B /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		AA000000000000000000001A /* Ennui.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Ennui.entitlements; sourceTree = "<group>"; };
@@ -220,6 +224,8 @@
 				EE000000000000000000001D /* JeonjuNight3DScene.swift */,
 				EE000000000000000000001F /* OldCarScene.swift */,
 				EE0000000000000000000021 /* OldCar3DScene.swift */,
+				FF0000000000000000000001 /* Ennui3DShaders.metal */,
+				FF0000000000000000000003 /* Metal3DHelpers.swift */,
 			);
 			path = Scenes;
 			sourceTree = "<group>";
@@ -386,6 +392,8 @@
 				EE000000000000000000001E /* JeonjuNight3DScene.swift in Sources */,
 				EE0000000000000000000020 /* OldCarScene.swift in Sources */,
 				EE0000000000000000000022 /* OldCar3DScene.swift in Sources */,
+				FF0000000000000000000002 /* Ennui3DShaders.metal in Sources */,
+				FF0000000000000000000004 /* Metal3DHelpers.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

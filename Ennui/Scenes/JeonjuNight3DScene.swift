@@ -1,10 +1,10 @@
-// JeonjuNight3DScene — SceneKit Korean neighbourhood at night.
-// Hanok houses with warm windows, convenience store, sodium street lamp,
-// telephone wires, moths, a cat on a wall. Camera drifts slowly down the street.
-// Tap to toggle windows. Sodium lighting: warm orange-yellow atmosphere.
+// JeonjuNight3DScene — Metal 3D Korean neighbourhood at night.
+// Hanok houses with warm windows, a sodium street lamp, telephone wires,
+// moths drifting, a cat on a wall. Camera drifts slowly down the street.
+// Tap to toggle a window light. Rendered in Metal (MTKView) — no SceneKit.
 
 import SwiftUI
-import SceneKit
+import MetalKit
 
 struct JeonjuNight3DScene: View {
     @ObservedObject var interaction: InteractionState
@@ -20,622 +20,440 @@ private struct JeonjuNight3DRepresentable: NSViewRepresentable {
     var interaction: InteractionState
     var tapCount: Int
 
-    final class Coordinator {
-        var windowLights: [SCNNode] = []
-        var windowPlanes: [SCNNode] = []
+    // MARK: Coordinator / Renderer
+
+    final class Coordinator: NSObject, MTKViewDelegate {
+
+        // MARK: Metal core
+        let device:           MTLDevice
+        let commandQueue:     MTLCommandQueue
+        var opaquePipeline:   MTLRenderPipelineState?
+        var glowPipeline:     MTLRenderPipelineState?
+        var particlePipeline: MTLRenderPipelineState?
+        var depthState:       MTLDepthStencilState?
+        var depthROState:     MTLDepthStencilState?
+
+        // MARK: Scene geometry
+        struct DrawCall {
+            var buffer:      MTLBuffer
+            var count:       Int
+            var model:       simd_float4x4
+            var emissiveCol: SIMD3<Float>
+            var emissiveMix: Float
+            var opacity:     Float = 1
+        }
+        var opaqueCalls:      [DrawCall] = []
+        var transparentCalls: [DrawCall] = []
+
+        // MARK: Window state (tap to toggle)
+        struct WindowState {
+            var isLit: Bool
+            var intensity: Float  // 0..1, animated
+            var emissiveCol: SIMD3<Float>
+            var drawIndex: Int     // index into transparentCalls
+        }
+        var windows: [WindowState] = []
+
+        // MARK: Moths
+        var mothPositions: [SIMD3<Float>] = []
+        var mothPhases:    [Float] = []
+
+        // MARK: Stars
+        var starPositions: [SIMD3<Float>] = []
+        var starPhases:    [Float] = []
+
+        // MARK: Interaction
         var lastTapCount = 0
+
+        // MARK: Animation
+        var startTime: CFTimeInterval = CACurrentMediaTime()
+        var aspect: Float = 1
+
+        // MARK: - Init
+
+        override init() {
+            device       = MTLCreateSystemDefaultDevice()!
+            commandQueue = device.makeCommandQueue()!
+            super.init()
+            do {
+                opaquePipeline   = try makeOpaquePipeline(device: device)
+                glowPipeline     = try makeAlphaBlendPipeline(device: device)
+                particlePipeline = try makeParticlePipeline(device: device)
+            } catch {
+                print("JeonjuNight3D Metal pipeline error: \(error)")
+            }
+            depthState   = makeDepthState(device: device)
+            depthROState = makeDepthReadOnlyState(device: device)
+            buildScene()
+        }
+
+        // MARK: - Helpers
+
+        private func addOpaque(_ v: [Vertex3D], model: simd_float4x4) {
+            guard let buf = makeVertexBuffer(v, device: device) else { return }
+            opaqueCalls.append(DrawCall(buffer: buf, count: v.count,
+                                        model: model, emissiveCol: .zero, emissiveMix: 0))
+        }
+
+        private func addGlowCall(_ v: [Vertex3D], model: simd_float4x4,
+                                  emissive: SIMD3<Float>, opacity: Float = 0.9) -> Int {
+            guard let buf = makeVertexBuffer(v, device: device) else { return -1 }
+            let idx = transparentCalls.count
+            transparentCalls.append(DrawCall(buffer: buf, count: v.count,
+                                             model: model, emissiveCol: emissive,
+                                             emissiveMix: 1.0, opacity: opacity))
+            return idx
+        }
+
+        // MARK: - Build scene
+
+        private func buildScene() {
+            buildGroundAndRoad()
+            buildMountains()
+            buildMoon()
+            buildHouses()
+            buildConvenienceStore()
+            buildStreetLamp()
+            buildTelephoneWires()
+            buildCat()
+            buildMoths()
+            buildStars()
+        }
+
+        private func buildGroundAndRoad() {
+            addOpaque(buildPlane(w: 30, d: 30, color: [0.06, 0.05, 0.08, 1]),
+                      model: matrix_identity_float4x4)
+            addOpaque(buildBox(w: 3.0, h: 0.005, d: 20, color: [0.10, 0.08, 0.12, 1]),
+                      model: m4Translation(0, 0.003, 0))
+            // Road dashes
+            var dz: Float = -9.0
+            while dz < 9.0 {
+                addOpaque(buildBox(w: 0.08, h: 0.003, d: 0.4, color: [0.35, 0.30, 0.25, 0.3]),
+                          model: m4Translation(0, 0.006, dz))
+                dz += 1.2
+            }
+            // Narrow footpath on left side
+            addOpaque(buildBox(w: 0.8, h: 0.002, d: 18, color: [0.14, 0.11, 0.09, 1]),
+                      model: m4Translation(-2.0, 0.002, 0))
+        }
+
+        private func buildMountains() {
+            var rng = SplitMix64(seed: 7777)
+            for _ in 0..<8 {
+                let mx = Float(Double.random(in: -12...12, using: &rng))
+                let mh = Float(2.0 + Double.random(in: 0..<4, using: &rng))
+                let mw = Float(2.0 + Double.random(in: 0..<3, using: &rng))
+                addOpaque(buildBox(w: mw, h: mh, d: 2, color: [0.06, 0.05, 0.12, 1]),
+                          model: m4Translation(mx, mh/2, -12))
+            }
+        }
+
+        private func buildMoon() {
+            // Moon sphere (emissive)
+            let moonVerts = buildSphere(radius: 1.2, rings: 10, segments: 16, color: [1, 1, 1, 1])
+            _ = addGlowCall(moonVerts, model: m4Translation(8, 18, -15),
+                            emissive: [0.95, 0.92, 0.80], opacity: 1.0)
+            // Crescent shadow (dark sphere slightly offset — leaves sliver of moon)
+            addOpaque(buildSphere(radius: 1.15, rings: 8, segments: 12, color: [0.02, 0.015, 0.04, 1]),
+                      model: m4Translation(8.6, 18.1, -14.8))
+            // Halo glow
+            let haloVerts = buildSphere(radius: 2.5, rings: 6, segments: 10, color: [1, 1, 1, 1])
+            _ = addGlowCall(haloVerts, model: m4Translation(8, 18, -15),
+                            emissive: [0.75, 0.72, 0.55], opacity: 0.07)
+        }
+
+        private func buildHouses() {
+            var rng = SplitMix64(seed: 1988)
+
+            struct HouseSpec { let x, z, w, h, d: Float; let isHanok: Bool }
+            let specs: [HouseSpec] = [
+                HouseSpec(x: -4.5, z: -2.0, w: 1.4, h: 1.2, d: 1.0, isHanok: true),
+                HouseSpec(x: -2.8, z: -2.5, w: 1.2, h: 1.0, d: 0.9, isHanok: true),
+                HouseSpec(x: -1.2, z: -2.2, w: 1.3, h: 1.1, d: 1.0, isHanok: true),
+                HouseSpec(x:  2.0, z: -2.3, w: 1.1, h: 1.05, d: 0.85, isHanok: false),
+                HouseSpec(x:  3.5, z: -1.8, w: 1.5, h: 1.3, d: 1.1, isHanok: true),
+                HouseSpec(x:  5.0, z: -2.5, w: 1.2, h: 1.0, d: 0.9, isHanok: true),
+            ]
+
+            for spec in specs {
+                let wc: SIMD4<Float> = spec.isHanok
+                    ? [0.85*0.25, 0.78*0.22, 0.65*0.20, 1]
+                    : [0.5*0.25,  0.48*0.22, 0.45*0.20, 1]
+                addOpaque(buildBox(w: spec.w, h: spec.h, d: spec.d, color: wc),
+                          model: m4Translation(spec.x, spec.h/2, spec.z))
+
+                let ov: Float = spec.isHanok ? 0.25 : 0.08
+                let rh = spec.h * 0.25
+                let rc: SIMD4<Float> = spec.isHanok
+                    ? [0.25, 0.20, 0.18, 1] : [0.35, 0.30, 0.32, 1]
+                addOpaque(buildPyramid(bw: spec.w + ov*2, bd: spec.d + ov*2, h: rh, color: rc),
+                          model: m4Translation(spec.x, spec.h, spec.z))
+
+                // Windows
+                let winCount = 2 + Int(Double.random(in: 0..<1.5, using: &rng))
+                for wi in 0..<winCount {
+                    let nx = (Float(wi) + 0.5) / Float(winCount)
+                    let isLit = Double.random(in: 0...1, using: &rng) > 0.35
+                    let warmth = Float(0.6 + Double.random(in: 0..<0.4, using: &rng))
+                    let wx = spec.x + (nx - 0.5) * spec.w
+                    let wy = spec.h * 0.5
+                    let wz = spec.z + spec.d/2 + 0.01
+                    let amber: SIMD3<Float> = [0.95*warmth, 0.78*warmth, 0.35*warmth]
+                    let amberA: SIMD4<Float> = [amber.x, amber.y, amber.z, 1]
+                    let winW = spec.w * 0.15, winH = spec.h * 0.22
+                    let model = m4Translation(wx, wy, wz)
+                    let idx = addGlowCall(buildQuad(w: winW, h: winH, color: amberA),
+                                         model: model, emissive: amber, opacity: 0.9)
+                    windows.append(WindowState(isLit: isLit,
+                                               intensity: isLit ? 1.0 : 0.0,
+                                               emissiveCol: amber,
+                                               drawIndex: idx))
+                }
+            }
+        }
+
+        private func buildConvenienceStore() {
+            // Boxy 90s Korean convenience store — bright neon sign
+            addOpaque(buildBox(w: 2.5, h: 1.4, d: 1.2, color: [0.18, 0.14, 0.10, 1]),
+                      model: m4Translation(0.5, 0.7, -2.8))
+            // Awning
+            addOpaque(buildBox(w: 2.7, h: 0.08, d: 0.4, color: [0.7, 0.12, 0.08, 1]),
+                      model: m4Translation(0.5, 1.44, -2.42))
+            // Front window (warm bright interior)
+            _ = addGlowCall(buildQuad(w: 1.6, h: 0.9, color: [1,1,1,1]),
+                            model: m4Translation(0.5, 0.7, -2.21),
+                            emissive: [0.90, 0.75, 0.50], opacity: 0.95)
+            // Neon sign above door
+            _ = addGlowCall(buildBox(w: 0.6, h: 0.12, d: 0.03, color: [1,1,1,1]),
+                            model: m4Translation(0.5, 1.5, -2.20),
+                            emissive: [0.2, 0.9, 1.0], opacity: 1.0)
+        }
+
+        private func buildStreetLamp() {
+            // Pole
+            addOpaque(buildCylinder(radius: 0.04, height: 3.5, segments: 8, color: [0.22, 0.20, 0.18, 1]),
+                      model: m4Translation(-1.5, 1.75, -1.0))
+            // Arm
+            addOpaque(buildCylinder(radius: 0.02, height: 0.8, segments: 6, color: [0.22, 0.20, 0.18, 1]),
+                      model: m4Translation(-1.5, 3.35, -1.0) * m4RotZ(.pi/2)
+                               * m4Translation(0.4, 0, 0))
+            // Lamp head (sodium orange glow)
+            _ = addGlowCall(buildBox(w: 0.20, h: 0.08, d: 0.20, color: [1,1,1,1]),
+                            model: m4Translation(-1.1, 3.35, -1.0),
+                            emissive: [1.0, 0.65, 0.10], opacity: 1.0)
+            // Light cone under lamp
+            _ = addGlowCall(buildCone(radius: 0.9, height: 1.6, segments: 12, color: [1, 0.65, 0.1, 0.07]),
+                            model: m4Translation(-1.1, 2.55, -1.0),
+                            emissive: [1.0, 0.65, 0.10], opacity: 0.07)
+        }
+
+        private func buildTelephoneWires() {
+            // Telephone poles and a wire spanning the street
+            for side in [-1, 1] {
+                let px = Float(side) * 4.5
+                addOpaque(buildCylinder(radius: 0.04, height: 4, segments: 6, color: [0.18, 0.12, 0.08, 1]),
+                          model: m4Translation(px, 2.0, -3.0))
+                // Cross arm
+                addOpaque(buildCylinder(radius: 0.025, height: 1.2, segments: 6, color: [0.18, 0.12, 0.08, 1]),
+                          model: m4Translation(px, 3.85, -3.0) * m4RotZ(.pi/2))
+            }
+            // Wires (thin dark cylinders spanning between poles)
+            for i in 0..<3 {
+                let wireY: Float = 3.9 - Float(i) * 0.15
+                let wireCol: SIMD4<Float> = [0.10, 0.08, 0.06, 0.7]
+                addOpaque(buildCylinder(radius: 0.008, height: 9, segments: 4, color: wireCol),
+                          model: m4Translation(0, wireY, -3.0) * m4RotZ(.pi/2))
+            }
+        }
+
+        private func buildCat() {
+            // Simple cat silhouette on top of right wall
+            let catCol: SIMD4<Float> = [0.08, 0.06, 0.10, 1]
+            addOpaque(buildBox(w: 0.25, h: 0.20, d: 0.20, color: catCol),
+                      model: m4Translation(3.8, 1.0, -1.5))
+            // Head
+            addOpaque(buildSphere(radius: 0.10, rings: 5, segments: 8, color: catCol),
+                      model: m4Translation(3.8, 1.22, -1.5))
+            // Ears (tiny pyramids)
+            addOpaque(buildPyramid(bw: 0.06, bd: 0.04, h: 0.08, color: catCol),
+                      model: m4Translation(3.73, 1.31, -1.5))
+            addOpaque(buildPyramid(bw: 0.06, bd: 0.04, h: 0.08, color: catCol),
+                      model: m4Translation(3.87, 1.31, -1.5))
+            // Tail
+            addOpaque(buildCylinder(radius: 0.02, height: 0.30, segments: 6, color: catCol),
+                      model: m4Translation(3.95, 0.92, -1.5) * m4RotZ(.pi / 4))
+        }
+
+        private func buildMoths() {
+            var rng = SplitMix64(seed: 4444)
+            for _ in 0..<20 {
+                let mx = Float(Double.random(in: -3...3, using: &rng))
+                let my = Float(1.5 + Double.random(in: 0...2, using: &rng))
+                let mz = Float(-3 + Double.random(in: 0...1, using: &rng))
+                mothPositions.append([mx, my, mz])
+                mothPhases.append(Float(Double.random(in: 0...2*Double.pi, using: &rng)))
+            }
+        }
+
+        private func buildStars() {
+            var rng = SplitMix64(seed: 8888)
+            for _ in 0..<60 {
+                let sx = Float(Double.random(in: -15...15, using: &rng))
+                let sy = Float(8 + Double.random(in: 0..<12, using: &rng))
+                let sz = Float(-10 + Double.random(in: -5..<0, using: &rng))
+                starPositions.append([sx, sy, sz])
+                starPhases.append(Float(Double.random(in: 0...2*Double.pi, using: &rng)))
+            }
+        }
+
+        // MARK: - Tap interaction
+
+        func toggleRandomWindow() {
+            guard !windows.isEmpty else { return }
+            let idx = Int.random(in: 0..<windows.count)
+            windows[idx].isLit.toggle()
+        }
+
+        // MARK: - MTKViewDelegate
+
+        func mtkView(_ view: MTKView, drawableSizeWillChange size: CGSize) {
+            aspect = size.width > 0 ? Float(size.width / size.height) : 1
+        }
+
+        func draw(in view: MTKView) {
+            guard let pipeline = opaquePipeline,
+                  let drawable  = view.currentDrawable,
+                  let rpDesc    = view.currentRenderPassDescriptor,
+                  let cmdBuf    = commandQueue.makeCommandBuffer(),
+                  let encoder   = cmdBuf.makeRenderCommandEncoder(descriptor: rpDesc)
+            else { return }
+
+            let t = Float(CACurrentMediaTime() - startTime)
+
+            // Animate window intensities toward target
+            for i in windows.indices {
+                let target: Float = windows[i].isLit ? 1.0 : 0.0
+                windows[i].intensity += (target - windows[i].intensity) * 0.05
+            }
+
+            // Camera drifts slowly along the street (Z from +8 toward -4 over ~40 s, then loops)
+            let driftT = t.truncatingRemainder(dividingBy: 40.0)
+            let camZ = 8.0 - driftT * (12.0 / 40.0)
+            let eye: SIMD3<Float> = [0.3, 1.55, camZ]
+            let center: SIMD3<Float> = [0.3, 1.35, camZ - 5]
+            let view4 = m4LookAt(eye: eye, center: center, up: [0, 1, 0])
+            let proj4 = m4Perspective(fovyRad: 55 * .pi / 180, aspect: aspect, near: 0.05, far: 50)
+            let vp    = proj4 * view4
+
+            var su = SceneUniforms3D(
+                viewProjection: vp,
+                sunDirection:   SIMD4<Float>(simd_normalize([-0.4, -0.8, -0.2]), 0),
+                sunColor:       SIMD4<Float>([0.25, 0.28, 0.45], 0),
+                ambientColor:   SIMD4<Float>([0.08, 0.06, 0.14], t),
+                fogParams:      SIMD4<Float>(10, 40, 0, 0),
+                fogColor:       SIMD4<Float>([0.04, 0.03, 0.06], 0),
+                cameraWorldPos: SIMD4<Float>(eye, 0)
+            )
+
+            encoder.setRenderPipelineState(pipeline)
+            encoder.setDepthStencilState(depthState)
+            encoder.setCullMode(.back)
+            encoder.setVertexBytes(&su, length: MemoryLayout<SceneUniforms3D>.size, index: 1)
+            encoder.setFragmentBytes(&su, length: MemoryLayout<SceneUniforms3D>.size, index: 1)
+
+            // Opaque geometry
+            for call in opaqueCalls {
+                encodeDraw(encoder: encoder,
+                           vertexBuffer: call.buffer, vertexCount: call.count,
+                           model: call.model)
+            }
+
+            // Glow / transparent pass
+            if let gp = glowPipeline {
+                encoder.setRenderPipelineState(gp)
+                encoder.setDepthStencilState(depthROState)
+
+                // Static transparent draw calls (moon, neon, etc.)
+                for (i, call) in transparentCalls.enumerated() {
+                    // Check if this draw index belongs to a window
+                    if let win = windows.first(where: { $0.drawIndex == i }) {
+                        let intensity = win.intensity
+                        guard intensity > 0.01 else { continue }
+                        encodeDraw(encoder: encoder,
+                                   vertexBuffer: call.buffer, vertexCount: call.count,
+                                   model: call.model,
+                                   emissiveColor: call.emissiveCol * intensity,
+                                   emissiveMix: 1.0,
+                                   opacity: call.opacity * intensity)
+                    } else {
+                        encodeDraw(encoder: encoder,
+                                   vertexBuffer: call.buffer, vertexCount: call.count,
+                                   model: call.model,
+                                   emissiveColor: call.emissiveCol,
+                                   emissiveMix: call.emissiveMix,
+                                   opacity: call.opacity)
+                    }
+                }
+            }
+
+            // Moths and stars as particles
+            if let ppipe = particlePipeline {
+                var particles: [ParticleVertex3D] = []
+
+                // Moths — orbit near the street lamp
+                for i in mothPositions.indices {
+                    let ph = mothPhases[i]
+                    let orbitR: Float = 0.3 + 0.2 * abs(sin(ph))
+                    let mx = mothPositions[i].x + orbitR * sin(t * 2.1 + ph)
+                    let my = mothPositions[i].y + 0.15 * cos(t * 1.7 + ph * 1.3)
+                    let mz = mothPositions[i].z + orbitR * cos(t * 1.9 + ph * 0.7)
+                    let bright = 0.3 + 0.7 * abs(sin(t * 3.0 + ph))
+                    let col: SIMD4<Float> = [0.8 * Float(bright), 0.6 * Float(bright),
+                                              0.3 * Float(bright), Float(bright) * 0.7]
+                    particles.append(ParticleVertex3D(position: [mx, my, mz], color: col, size: 4))
+                }
+
+                // Stars
+                for i in starPositions.indices {
+                    let ph = starPhases[i]
+                    let bright = 0.5 + 0.5 * sin(t * 0.3 + ph)
+                    let col: SIMD4<Float> = [0.9 * Float(bright), 0.85 * Float(bright),
+                                              0.7 * Float(bright), Float(bright) * 0.8]
+                    particles.append(ParticleVertex3D(position: starPositions[i], color: col, size: 3))
+                }
+
+                if !particles.isEmpty, let pbuf = makeParticleBuffer(particles, device: device) {
+                    encoder.setRenderPipelineState(ppipe)
+                    encoder.setDepthStencilState(depthROState)
+                    encoder.setVertexBuffer(pbuf, offset: 0, index: 0)
+                    encoder.setVertexBytes(&su, length: MemoryLayout<SceneUniforms3D>.size, index: 1)
+                    encoder.drawPrimitives(type: .point, vertexStart: 0, vertexCount: particles.count)
+                }
+            }
+
+            encoder.endEncoding()
+            cmdBuf.present(drawable)
+            cmdBuf.commit()
+        }
     }
 
     func makeCoordinator() -> Coordinator { Coordinator() }
 
-    func makeNSView(context: Context) -> SCNView {
-        let view = SCNView()
-        let scene = SCNScene()
-        view.scene = scene
-        view.backgroundColor = .black
-        view.antialiasingMode = .multisampling4X
-        view.isPlaying = true
+    func makeNSView(context: Context) -> MTKView {
+        let view = MTKView(frame: .zero, device: context.coordinator.device)
+        view.delegate              = context.coordinator
+        view.colorPixelFormat      = .bgra8Unorm
+        view.depthStencilPixelFormat = .depth32Float
+        view.clearColor            = MTLClearColor(red: 0.02, green: 0.015, blue: 0.04, alpha: 1)
         view.preferredFramesPerSecond = 60
-        view.allowsCameraControl = false
-
-        buildScene(scene, coord: context.coordinator)
+        view.autoResizeDrawable    = true
         return view
     }
 
-    func updateNSView(_ nsView: SCNView, context: Context) {
+    func updateNSView(_ nsView: MTKView, context: Context) {
         let c = context.coordinator
         guard tapCount != c.lastTapCount else { return }
         c.lastTapCount = tapCount
-
-        // Toggle a random window
-        guard !c.windowLights.isEmpty else { return }
-        let idx = Int.random(in: 0..<c.windowLights.count)
-        let isLit = (c.windowLights[idx].light?.intensity ?? 0) > 10
-
-        SCNTransaction.begin()
-        SCNTransaction.animationDuration = 1.5
-        if isLit {
-            c.windowLights[idx].light?.intensity = 0
-            if idx < c.windowPlanes.count {
-                c.windowPlanes[idx].geometry?.firstMaterial?.emission.contents = NSColor.black
-            }
-        } else {
-            c.windowLights[idx].light?.intensity = 180
-            let warm = NSColor(red: 0.95, green: 0.78, blue: 0.35, alpha: 1)
-            if idx < c.windowPlanes.count {
-                c.windowPlanes[idx].geometry?.firstMaterial?.emission.contents = warm
-            }
-        }
-        SCNTransaction.commit()
-    }
-
-    // MARK: - Scene construction
-
-    private func buildScene(_ scene: SCNScene, coord: Coordinator) {
-        scene.fogStartDistance = 10
-        scene.fogEndDistance = 40
-        scene.fogColor = NSColor(red: 0.04, green: 0.03, blue: 0.06, alpha: 1)
-        scene.background.contents = NSColor(red: 0.02, green: 0.015, blue: 0.04, alpha: 1)
-
-        addLighting(to: scene)
-        addGround(to: scene)
-        addMountain(to: scene)
-        addMoon(to: scene)
-        addStars(to: scene)
-        addHouses(to: scene, coord: coord)
-        addConvenienceStore(to: scene)
-        addStreetLamp(to: scene)
-        addTelephoneWires(to: scene)
-        addCat(to: scene)
-        addMoths(to: scene)
-        addCamera(to: scene)
-    }
-
-    // MARK: - Lighting
-
-    private func addLighting(to scene: SCNScene) {
-        // Dim ambient — night
-        let ambient = SCNNode()
-        ambient.light = SCNLight()
-        ambient.light!.type = .ambient
-        ambient.light!.intensity = 35
-        ambient.light!.color = NSColor(red: 0.08, green: 0.06, blue: 0.14, alpha: 1)
-        scene.rootNode.addChildNode(ambient)
-
-        // Moonlight — faint blue directional
-        let moonLight = SCNNode()
-        moonLight.light = SCNLight()
-        moonLight.light!.type = .directional
-        moonLight.light!.intensity = 50
-        moonLight.light!.color = NSColor(red: 0.25, green: 0.28, blue: 0.45, alpha: 1)
-        moonLight.light!.castsShadow = true
-        moonLight.light!.shadowRadius = 3
-        moonLight.eulerAngles = SCNVector3(-Float.pi / 3, Float.pi / 6, 0)
-        scene.rootNode.addChildNode(moonLight)
-    }
-
-    // MARK: - Ground
-
-    private func addGround(to scene: SCNScene) {
-        // Dark ground plane
-        let ground = SCNFloor()
-        ground.reflectivity = 0.04
-        ground.firstMaterial?.diffuse.contents = NSColor(red: 0.06, green: 0.05, blue: 0.08, alpha: 1)
-        scene.rootNode.addChildNode(SCNNode(geometry: ground))
-
-        // Road (slightly lighter strip)
-        let road = SCNBox(width: 3.0, height: 0.005, length: 20, chamferRadius: 0)
-        road.firstMaterial?.diffuse.contents = NSColor(red: 0.10, green: 0.08, blue: 0.12, alpha: 1)
-        let roadNode = SCNNode(geometry: road)
-        roadNode.position = SCNVector3(0, 0.003, 0)
-        scene.rootNode.addChildNode(roadNode)
-
-        // Center dashes
-        var rng = SplitMix64(seed: 3333)
-        var dz: Float = -9.0
-        while dz < 9.0 {
-            let dash = SCNBox(width: 0.08, height: 0.002, length: 0.4, chamferRadius: 0)
-            dash.firstMaterial?.diffuse.contents = NSColor(red: 0.35, green: 0.30, blue: 0.25, alpha: 0.25)
-            let dNode = SCNNode(geometry: dash)
-            dNode.position = SCNVector3(0, 0.006, dz)
-            scene.rootNode.addChildNode(dNode)
-            dz += 1.2
-        }
-    }
-
-    // MARK: - Mountain
-
-    private func addMountain(to scene: SCNScene) {
-        // Large dark box in background representing the distant mountain range
-        var rng = SplitMix64(seed: 7777)
-        for _ in 0..<8 {
-            let mx = Float(Double.random(in: -12...12, using: &rng))
-            let mh = Float(2.0 + Double.random(in: 0..<4, using: &rng))
-            let mw = Float(2.0 + Double.random(in: 0..<3, using: &rng))
-            let peak = SCNBox(width: CGFloat(mw), height: CGFloat(mh), length: 2, chamferRadius: 0.3)
-            peak.firstMaterial?.diffuse.contents = NSColor(red: 0.06, green: 0.05, blue: 0.12, alpha: 1)
-            let pNode = SCNNode(geometry: peak)
-            pNode.position = SCNVector3(mx, mh / 2, -12)
-            scene.rootNode.addChildNode(pNode)
-        }
-    }
-
-    // MARK: - Moon
-
-    private func addMoon(to scene: SCNScene) {
-        let moonGeo = SCNSphere(radius: 1.2)
-        let moonMat = SCNMaterial()
-        moonMat.diffuse.contents = NSColor.black
-        moonMat.emission.contents = NSColor(red: 0.95, green: 0.92, blue: 0.80, alpha: 1)
-        moonMat.emission.intensity = 2.0
-        moonMat.lightingModel = .constant
-        moonGeo.firstMaterial = moonMat
-
-        let moonNode = SCNNode(geometry: moonGeo)
-        moonNode.position = SCNVector3(8, 18, -15)
-        moonNode.castsShadow = false
-        scene.rootNode.addChildNode(moonNode)
-
-        // Crescent shadow (dark sphere overlapping to create crescent shape)
-        let shadow = SCNSphere(radius: 1.15)
-        let sMat = SCNMaterial()
-        sMat.diffuse.contents = NSColor(red: 0.02, green: 0.015, blue: 0.04, alpha: 1)
-        sMat.lightingModel = .constant
-        shadow.firstMaterial = sMat
-        let sNode = SCNNode(geometry: shadow)
-        sNode.position = SCNVector3(8.6, 18.1, -14.8)
-        sNode.castsShadow = false
-        scene.rootNode.addChildNode(sNode)
-
-        // Halo glow
-        let haloGeo = SCNSphere(radius: 2.5)
-        let hMat = SCNMaterial()
-        hMat.diffuse.contents = NSColor.clear
-        hMat.emission.contents = NSColor(red: 0.75, green: 0.72, blue: 0.55, alpha: 1)
-        hMat.emission.intensity = 0.08
-        hMat.lightingModel = .constant
-        hMat.isDoubleSided = true
-        hMat.transparency = 0.08
-        haloGeo.firstMaterial = hMat
-        let hNode = SCNNode(geometry: haloGeo)
-        hNode.position = SCNVector3(8, 18, -15)
-        hNode.castsShadow = false
-        scene.rootNode.addChildNode(hNode)
-    }
-
-    // MARK: - Stars
-
-    private func addStars(to scene: SCNScene) {
-        var rng = SplitMix64(seed: 8888)
-        for _ in 0..<60 {
-            let sx = Float(Double.random(in: -15...15, using: &rng))
-            let sy = Float(8 + Double.random(in: 0..<12, using: &rng))
-            let sz = Float(-10 + Double.random(in: -5..<0, using: &rng))
-            let size = CGFloat(0.03 + Double.random(in: 0..<0.05, using: &rng))
-
-            let star = SCNPlane(width: size, height: size)
-            let sMat = SCNMaterial()
-            sMat.emission.contents = NSColor(red: 0.9, green: 0.85, blue: 0.7, alpha: 1)
-            sMat.emission.intensity = 0.6
-            sMat.diffuse.contents = NSColor.black
-            sMat.lightingModel = .constant
-            sMat.isDoubleSided = true
-            star.firstMaterial = sMat
-
-            let sNode = SCNNode(geometry: star)
-            sNode.position = SCNVector3(sx, sy, sz)
-            // Billboard constraint so stars always face camera
-            let billboard = SCNBillboardConstraint()
-            sNode.constraints = [billboard]
-            scene.rootNode.addChildNode(sNode)
-        }
-    }
-
-    // MARK: - Hanok houses
-
-    private func addHouses(to scene: SCNScene, coord: Coordinator) {
-        var rng = SplitMix64(seed: 1988)
-
-        struct HouseSpec {
-            let x: Float; let z: Float
-            let w: Float; let h: Float; let d: Float
-            let isHanok: Bool
-        }
-
-        let specs: [HouseSpec] = [
-            HouseSpec(x: -4.5, z: -2.0, w: 1.4, h: 1.2, d: 1.0, isHanok: true),
-            HouseSpec(x: -2.8, z: -2.5, w: 1.2, h: 1.0, d: 0.9, isHanok: true),
-            HouseSpec(x: -1.2, z: -2.2, w: 1.3, h: 1.1, d: 1.0, isHanok: true),
-            HouseSpec(x: 2.0,  z: -2.3, w: 1.1, h: 1.05, d: 0.85, isHanok: false),
-            HouseSpec(x: 3.5,  z: -1.8, w: 1.5, h: 1.3, d: 1.1, isHanok: true),
-            HouseSpec(x: 5.0,  z: -2.5, w: 1.2, h: 1.0, d: 0.9, isHanok: true),
-        ]
-
-        for spec in specs {
-            let isHanok = spec.isHanok
-            let wallR = isHanok ? 0.85 * 0.25 : 0.5 * 0.25
-            let wallG = isHanok ? 0.78 * 0.22 : 0.48 * 0.22
-            let wallB = isHanok ? 0.65 * 0.20 : 0.45 * 0.20
-
-            // Wall
-            let wall = SCNBox(width: CGFloat(spec.w), height: CGFloat(spec.h),
-                              length: CGFloat(spec.d), chamferRadius: 0)
-            wall.firstMaterial?.diffuse.contents = NSColor(red: wallR, green: wallG, blue: wallB, alpha: 1)
-            let wallNode = SCNNode(geometry: wall)
-            wallNode.position = SCNVector3(spec.x, spec.h / 2, spec.z)
-            wallNode.castsShadow = true
-            scene.rootNode.addChildNode(wallNode)
-
-            // Roof — hanok has wider overhang
-            let overhang: Float = isHanok ? 0.25 : 0.08
-            let roofH: Float = spec.h * 0.25
-            let roofR = isHanok ? 0.25 : 0.35
-            let roofG = isHanok ? 0.20 : 0.30
-            let roofB = isHanok ? 0.18 : 0.32
-            let pyramid = SCNPyramid(width: CGFloat(spec.w + overhang * 2),
-                                     height: CGFloat(roofH),
-                                     length: CGFloat(spec.d + overhang * 2))
-            pyramid.firstMaterial?.diffuse.contents = NSColor(red: roofR, green: roofG, blue: roofB, alpha: 1)
-            let roofNode = SCNNode(geometry: pyramid)
-            roofNode.position = SCNVector3(spec.x, spec.h + roofH / 2, spec.z)
-            roofNode.castsShadow = true
-            scene.rootNode.addChildNode(roofNode)
-
-            // 2-3 windows per house
-            let winCount = 2 + Int(Double.random(in: 0..<1.5, using: &rng))
-            for wi in 0..<winCount {
-                let nx = Float(Double(wi) + 0.5) / Float(winCount)
-                let isLit = Double.random(in: 0...1, using: &rng) > 0.35
-
-                let winW: CGFloat = CGFloat(spec.w * 0.15)
-                let winH: CGFloat = CGFloat(spec.h * 0.22)
-                let warmth = 0.6 + Double.random(in: 0..<0.4, using: &rng)
-
-                let winGeo = SCNPlane(width: winW, height: winH)
-                let warmColor = NSColor(red: 0.95 * warmth, green: 0.78 * warmth, blue: 0.35 * warmth, alpha: 1)
-                let winMat = SCNMaterial()
-                winMat.emission.contents = isLit ? warmColor : NSColor.black
-                winMat.diffuse.contents = NSColor.black
-                winMat.isDoubleSided = true
-                winGeo.firstMaterial = winMat
-
-                let wx = spec.x - spec.w / 2 + nx * spec.w
-                let wy = spec.h * 0.45
-                let wz = spec.z + spec.d / 2 + 0.01
-                let winNode = SCNNode(geometry: winGeo)
-                winNode.position = SCNVector3(wx, wy, wz)
-                scene.rootNode.addChildNode(winNode)
-                coord.windowPlanes.append(winNode)
-
-                // Window cross frame
-                let crossH = SCNBox(width: winW, height: 0.01, length: 0.005, chamferRadius: 0)
-                crossH.firstMaterial?.diffuse.contents = NSColor(red: 0.10, green: 0.08, blue: 0.12, alpha: 1)
-                let chNode = SCNNode(geometry: crossH)
-                chNode.position = SCNVector3(wx, wy, wz + 0.005)
-                scene.rootNode.addChildNode(chNode)
-                let crossV = SCNBox(width: 0.01, height: winH, length: 0.005, chamferRadius: 0)
-                crossV.firstMaterial?.diffuse.contents = NSColor(red: 0.10, green: 0.08, blue: 0.12, alpha: 1)
-                let cvNode = SCNNode(geometry: crossV)
-                cvNode.position = SCNVector3(wx, wy, wz + 0.005)
-                scene.rootNode.addChildNode(cvNode)
-
-                // Light
-                let light = SCNNode()
-                light.light = SCNLight()
-                light.light!.type = .omni
-                light.light!.intensity = isLit ? 180 : 0
-                light.light!.color = warmColor
-                light.light!.attenuationStartDistance = 0
-                light.light!.attenuationEndDistance = 2.0
-                light.position = SCNVector3(wx, wy, wz + 0.15)
-                scene.rootNode.addChildNode(light)
-                coord.windowLights.append(light)
-            }
-
-            // TV antenna on some houses
-            if Double.random(in: 0...1, using: &rng) > 0.5 {
-                let pole = SCNCylinder(radius: 0.01, height: CGFloat(spec.h * 0.35))
-                pole.firstMaterial?.diffuse.contents = NSColor(red: 0.25, green: 0.22, blue: 0.30, alpha: 1)
-                let poleNode = SCNNode(geometry: pole)
-                poleNode.position = SCNVector3(spec.x + spec.w * 0.3,
-                                               spec.h + roofH + spec.h * 0.175,
-                                               spec.z)
-                scene.rootNode.addChildNode(poleNode)
-
-                // Arms
-                let arm = SCNBox(width: CGFloat(spec.w * 0.3), height: 0.01, length: 0.01, chamferRadius: 0)
-                arm.firstMaterial?.diffuse.contents = NSColor(red: 0.25, green: 0.22, blue: 0.30, alpha: 1)
-                let aNode = SCNNode(geometry: arm)
-                aNode.position = SCNVector3(spec.x + spec.w * 0.3,
-                                            spec.h + roofH + spec.h * 0.35,
-                                            spec.z)
-                scene.rootNode.addChildNode(aNode)
-            }
-        }
-    }
-
-    // MARK: - Convenience store
-
-    private func addConvenienceStore(to scene: SCNScene) {
-        let sx: Float = 0.8, sz: Float = -2.4
-        let sw: Float = 1.5, sh: Float = 1.3, sd: Float = 1.0
-
-        // Building
-        let building = SCNBox(width: CGFloat(sw), height: CGFloat(sh), length: CGFloat(sd), chamferRadius: 0)
-        building.firstMaterial?.diffuse.contents = NSColor(red: 0.30, green: 0.32, blue: 0.34, alpha: 1)
-        let bNode = SCNNode(geometry: building)
-        bNode.position = SCNVector3(sx, sh / 2, sz)
-        bNode.castsShadow = true
-        scene.rootNode.addChildNode(bNode)
-
-        // Fluorescent sign
-        let sign = SCNBox(width: CGFloat(sw - 0.1), height: 0.18, length: 0.04, chamferRadius: 0)
-        let signMat = SCNMaterial()
-        signMat.emission.contents = NSColor(red: 0.3, green: 0.7, blue: 0.95, alpha: 1)
-        signMat.emission.intensity = 1.2
-        signMat.diffuse.contents = NSColor.black
-        signMat.lightingModel = .constant
-        sign.firstMaterial = signMat
-        let signNode = SCNNode(geometry: sign)
-        signNode.position = SCNVector3(sx, sh + 0.1, sz + sd / 2 + 0.02)
-        scene.rootNode.addChildNode(signNode)
-
-        // Sign flicker
-        signNode.runAction(.repeatForever(.sequence([
-            .customAction(duration: 0.8) { node, elapsed in
-                let flicker = sin(Double(elapsed) * 12.0) > -0.8 ? 1.0 : 0.3
-                node.geometry?.firstMaterial?.emission.intensity = CGFloat(flicker * 1.2)
-            },
-        ])))
-
-        // Store window (brighter interior)
-        let storeWin = SCNPlane(width: CGFloat(sw - 0.2), height: CGFloat(sh - 0.3))
-        let winMat = SCNMaterial()
-        winMat.emission.contents = NSColor(red: 0.55, green: 0.68, blue: 0.72, alpha: 1)
-        winMat.emission.intensity = 0.3
-        winMat.diffuse.contents = NSColor.black
-        winMat.isDoubleSided = true
-        storeWin.firstMaterial = winMat
-        let winNode = SCNNode(geometry: storeWin)
-        winNode.position = SCNVector3(sx, sh * 0.45, sz + sd / 2 + 0.01)
-        scene.rootNode.addChildNode(winNode)
-
-        // Fluorescent interior light
-        let fluoro = SCNNode()
-        fluoro.light = SCNLight()
-        fluoro.light!.type = .omni
-        fluoro.light!.intensity = 120
-        fluoro.light!.color = NSColor(red: 0.6, green: 0.75, blue: 0.85, alpha: 1)
-        fluoro.light!.attenuationStartDistance = 0
-        fluoro.light!.attenuationEndDistance = 3
-        fluoro.position = SCNVector3(sx, sh + 0.3, sz + sd / 2 + 0.3)
-        scene.rootNode.addChildNode(fluoro)
-
-        // Ground light spill
-        let spill = SCNNode()
-        spill.light = SCNLight()
-        spill.light!.type = .omni
-        spill.light!.intensity = 30
-        spill.light!.color = NSColor(red: 0.5, green: 0.65, blue: 0.75, alpha: 1)
-        spill.light!.attenuationStartDistance = 0
-        spill.light!.attenuationEndDistance = 2.5
-        spill.position = SCNVector3(sx, 0.1, sz + sd / 2 + 0.5)
-        scene.rootNode.addChildNode(spill)
-    }
-
-    // MARK: - Sodium street lamp
-
-    private func addStreetLamp(to scene: SCNScene) {
-        let lx: Float = 2.5, lz: Float = 0.5
-        let poleH: Float = 3.2
-
-        // Pole
-        let pole = SCNCylinder(radius: 0.04, height: CGFloat(poleH))
-        pole.firstMaterial?.diffuse.contents = NSColor(red: 0.22, green: 0.20, blue: 0.28, alpha: 1)
-        let poleNode = SCNNode(geometry: pole)
-        poleNode.position = SCNVector3(lx, poleH / 2, lz)
-        scene.rootNode.addChildNode(poleNode)
-
-        // Lamp head (horizontal arm + housing)
-        let arm = SCNCylinder(radius: 0.02, height: 0.5)
-        arm.firstMaterial?.diffuse.contents = NSColor(red: 0.22, green: 0.20, blue: 0.28, alpha: 1)
-        let armNode = SCNNode(geometry: arm)
-        armNode.eulerAngles = SCNVector3(0, 0, Float.pi / 2)
-        armNode.position = SCNVector3(lx - 0.2, poleH, lz)
-        scene.rootNode.addChildNode(armNode)
-
-        let housing = SCNBox(width: 0.25, height: 0.08, length: 0.12, chamferRadius: 0.02)
-        housing.firstMaterial?.diffuse.contents = NSColor(red: 0.28, green: 0.25, blue: 0.32, alpha: 1)
-        let housingNode = SCNNode(geometry: housing)
-        housingNode.position = SCNVector3(lx - 0.45, poleH - 0.04, lz)
-        scene.rootNode.addChildNode(housingNode)
-
-        // Sodium bulb (warm amber emissive)
-        let bulb = SCNSphere(radius: 0.03)
-        let bulbMat = SCNMaterial()
-        bulbMat.emission.contents = NSColor(red: 0.95, green: 0.75, blue: 0.3, alpha: 1)
-        bulbMat.emission.intensity = 2.0
-        bulbMat.diffuse.contents = NSColor.black
-        bulbMat.lightingModel = .constant
-        bulb.firstMaterial = bulbMat
-        let bulbNode = SCNNode(geometry: bulb)
-        bulbNode.position = SCNVector3(lx - 0.45, poleH - 0.09, lz)
-        scene.rootNode.addChildNode(bulbNode)
-
-        // SODIUM LIGHT — the defining character of this scene
-        // Warm orange-yellow, characteristic of sodium vapour lamps
-        let sodium = SCNNode()
-        sodium.light = SCNLight()
-        sodium.light!.type = .spot
-        sodium.light!.intensity = 600
-        sodium.light!.color = NSColor(red: 0.95, green: 0.75, blue: 0.3, alpha: 1)
-        sodium.light!.castsShadow = true
-        sodium.light!.shadowRadius = 4
-        sodium.light!.shadowSampleCount = 4
-        sodium.light!.attenuationStartDistance = 0
-        sodium.light!.attenuationEndDistance = 8
-        sodium.light!.spotInnerAngle = 35
-        sodium.light!.spotOuterAngle = 70
-        sodium.position = SCNVector3(lx - 0.45, poleH - 0.1, lz)
-        sodium.eulerAngles = SCNVector3(-Float.pi / 2, 0, 0)
-        scene.rootNode.addChildNode(sodium)
-
-        // Secondary wider sodium fill for ambient warmth
-        let fill = SCNNode()
-        fill.light = SCNLight()
-        fill.light!.type = .omni
-        fill.light!.intensity = 80
-        fill.light!.color = NSColor(red: 0.90, green: 0.65, blue: 0.25, alpha: 1)
-        fill.light!.attenuationStartDistance = 0
-        fill.light!.attenuationEndDistance = 6
-        fill.position = SCNVector3(lx - 0.45, poleH - 0.2, lz)
-        scene.rootNode.addChildNode(fill)
-
-        // Subtle flicker
-        sodium.runAction(.repeatForever(.sequence([
-            .customAction(duration: 3.0) { node, elapsed in
-                let flicker = 580.0 + sin(Double(elapsed) * 7.1) * 15.0 + sin(Double(elapsed) * 11.3) * 8.0
-                node.light?.intensity = CGFloat(flicker)
-            },
-        ])))
-    }
-
-    // MARK: - Telephone wires
-
-    private func addTelephoneWires(to scene: SCNScene) {
-        let wireColor = NSColor(red: 0.12, green: 0.10, blue: 0.16, alpha: 1)
-
-        for i in 0..<3 {
-            let baseY = Float(3.4) + Float(i) * 0.12
-            // Each wire is a series of thin box segments approximating a catenary
-            let segments = 20
-            let startX: Float = -8, endX: Float = 8
-            let sagAmount: Float = 0.15 + Float(i) * 0.05
-            for s in 0..<segments {
-                let frac1 = Float(s) / Float(segments)
-                let frac2 = Float(s + 1) / Float(segments)
-                let x1 = startX + frac1 * (endX - startX)
-                let x2 = startX + frac2 * (endX - startX)
-                let y1 = baseY + sin(Float.pi * frac1) * sagAmount
-                let y2 = baseY + sin(Float.pi * frac2) * sagAmount
-                let midX = (x1 + x2) / 2
-                let midY = (y1 + y2) / 2 - sagAmount
-                let length = sqrt(pow(x2 - x1, 2) + pow(y2 - y1, 2))
-
-                let seg = SCNBox(width: CGFloat(length), height: 0.008, length: 0.008, chamferRadius: 0)
-                seg.firstMaterial?.diffuse.contents = wireColor
-                let segNode = SCNNode(geometry: seg)
-                segNode.position = SCNVector3(midX, midY + sagAmount, -2.0)
-                let angle = atan2(y2 - y1, x2 - x1)
-                segNode.eulerAngles = SCNVector3(0, 0, angle)
-                scene.rootNode.addChildNode(segNode)
-            }
-        }
-    }
-
-    // MARK: - Cat
-
-    private func addCat(to scene: SCNScene) {
-        // Cat sitting on the wall of the last house
-        let cx: Float = 5.5, cy: Float = 1.25, cz: Float = -1.95
-
-        // Body
-        let body = SCNBox(width: 0.12, height: 0.08, length: 0.06, chamferRadius: 0.01)
-        body.firstMaterial?.diffuse.contents = NSColor(red: 0.15, green: 0.13, blue: 0.20, alpha: 1)
-        let bNode = SCNNode(geometry: body)
-        bNode.position = SCNVector3(cx, cy, cz)
-        scene.rootNode.addChildNode(bNode)
-
-        // Head
-        let head = SCNBox(width: 0.07, height: 0.07, length: 0.05, chamferRadius: 0.01)
-        head.firstMaterial?.diffuse.contents = NSColor(red: 0.15, green: 0.13, blue: 0.20, alpha: 1)
-        let hNode = SCNNode(geometry: head)
-        hNode.position = SCNVector3(cx + 0.05, cy + 0.06, cz)
-        scene.rootNode.addChildNode(hNode)
-
-        // Ears (two tiny pyramids)
-        for side in [-1.0, 1.0] {
-            let ear = SCNPyramid(width: 0.02, height: 0.03, length: 0.02)
-            ear.firstMaterial?.diffuse.contents = NSColor(red: 0.15, green: 0.13, blue: 0.20, alpha: 1)
-            let eNode = SCNNode(geometry: ear)
-            eNode.position = SCNVector3(cx + 0.05, cy + 0.11, cz + Float(side) * 0.02)
-            scene.rootNode.addChildNode(eNode)
-        }
-
-        // Eyes (tiny green emissive spheres)
-        for side in [-1.0, 1.0] {
-            let eye = SCNSphere(radius: 0.006)
-            let eyeMat = SCNMaterial()
-            eyeMat.emission.contents = NSColor(red: 0.5, green: 0.8, blue: 0.3, alpha: 1)
-            eyeMat.emission.intensity = 0.7
-            eyeMat.diffuse.contents = NSColor.black
-            eyeMat.lightingModel = .constant
-            eye.firstMaterial = eyeMat
-            let eNode = SCNNode(geometry: eye)
-            eNode.position = SCNVector3(cx + 0.08, cy + 0.065, cz + Float(side) * 0.015)
-            scene.rootNode.addChildNode(eNode)
-        }
-
-        // Tail
-        let tail = SCNCylinder(radius: 0.01, height: 0.12)
-        tail.firstMaterial?.diffuse.contents = NSColor(red: 0.15, green: 0.13, blue: 0.20, alpha: 1)
-        let tNode = SCNNode(geometry: tail)
-        tNode.eulerAngles = SCNVector3(0, 0, Float.pi / 4)
-        tNode.position = SCNVector3(cx - 0.08, cy + 0.04, cz)
-        scene.rootNode.addChildNode(tNode)
-    }
-
-    // MARK: - Moths (particle system near sodium lamp)
-
-    private func addMoths(to scene: SCNScene) {
-        let moths = SCNParticleSystem()
-        moths.birthRate = 4
-        moths.particleLifeSpan = 5
-        moths.particleSize = 0.015
-        moths.particleColor = NSColor(red: 0.8, green: 0.75, blue: 0.6, alpha: 0.7)
-        moths.particleColorVariation = SCNVector4(0.05, 0.05, 0, 0.2)
-        moths.blendMode = .additive
-        moths.spreadingAngle = 360
-        moths.emittingDirection = SCNVector3(0, 0, 0)
-        moths.particleVelocity = 0.15
-        moths.particleVelocityVariation = 0.1
-        moths.particleAngularVelocity = 2.0
-        moths.emitterShape = SCNSphere(radius: 0.3)
-
-        let emitter = SCNNode()
-        emitter.position = SCNVector3(2.05, 3.0, 0.5)
-        emitter.addParticleSystem(moths)
-        scene.rootNode.addChildNode(emitter)
-    }
-
-    // MARK: - Camera
-
-    private func addCamera(to scene: SCNScene) {
-        let camera = SCNCamera()
-        camera.fieldOfView = 52
-        camera.zNear = 0.1
-        camera.zFar = 60
-        camera.wantsHDR = true
-        camera.bloomIntensity = 0.35
-        camera.bloomThreshold = 0.75
-
-        let camNode = SCNNode()
-        camNode.camera = camera
-        camNode.position = SCNVector3(0, 2.0, 4.0)
-        camNode.look(at: SCNVector3(0, 1.0, -2.0))
-
-        let dolly = SCNNode()
-        dolly.addChildNode(camNode)
-        scene.rootNode.addChildNode(dolly)
-
-        // Very slow drift along the street
-        dolly.runAction(.repeatForever(.sequence([
-            .customAction(duration: 60.0) { node, elapsed in
-                let t = Double(elapsed)
-                let x = Float(sin(t / 60 * .pi * 2) * 2.5)
-                let z = Float(cos(t / 60 * .pi * 2) * 1.5 + 4.0)
-                node.position = SCNVector3(x, 0, z)
-            },
-        ])))
+        c.toggleRandomWindow()
     }
 }

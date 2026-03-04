@@ -1,12 +1,10 @@
-// OldCar3DScene — SceneKit version of the vintage car snowstorm.
-// First-person view from inside a 1950s land yacht: bench seat like a
-// church pew, big chrome-knobbed radio, incandescent dash lights, a wide
-// windshield with sweeping wiper blades. Snow rushes at the glass.
-// Utility poles and barn silhouettes pass in the dark.
-// Tap to flash the dash lights (honk) and release a burst of snow.
+// OldCar3DScene — Metal 3D view from inside a 1950s land yacht in a blizzard.
+// Bench seat, wide windshield with sweeping wipers, amber dash glow, chrome
+// radio knobs, snow rushing at the glass. Utility poles scroll past.
+// Tap to flash the dash (horn honk). Rendered in Metal (MTKView) — no SceneKit.
 
 import SwiftUI
-import SceneKit
+import MetalKit
 
 struct OldCar3DScene: View {
     @ObservedObject var interaction: InteractionState
@@ -21,600 +19,385 @@ struct OldCar3DScene: View {
 private struct OldCar3DRepresentable: NSViewRepresentable {
     @ObservedObject var interaction: InteractionState
 
-    final class Coordinator {
+    // MARK: Coordinator / Renderer
+
+    final class Coordinator: NSObject, MTKViewDelegate {
+
+        // MARK: Metal core
+        let device:           MTLDevice
+        let commandQueue:     MTLCommandQueue
+        var opaquePipeline:   MTLRenderPipelineState?
+        var glowPipeline:     MTLRenderPipelineState?
+        var particlePipeline: MTLRenderPipelineState?
+        var depthState:       MTLDepthStencilState?
+        var depthROState:     MTLDepthStencilState?
+
+        // MARK: Scene geometry
+        struct DrawCall {
+            var buffer:      MTLBuffer
+            var count:       Int
+            var model:       simd_float4x4
+            var emissiveCol: SIMD3<Float>
+            var emissiveMix: Float
+            var opacity:     Float = 1
+        }
+        var opaqueCalls:      [DrawCall] = []
+        var transparentCalls: [DrawCall] = []
+
+        // MARK: Wiper animation
+        var wiperAngle: Float = 0        // oscillates between -0.6 and +0.6
+        var wiperDir:   Float = 1
+
+        // MARK: Dash brightness (tap to flash)
+        var dashBrightness: Float = 1.0
+        var dashTarget:     Float = 1.0
+        var honkT:          Float = -999   // time of last honk
+
+        // MARK: Snow particles
+        var snowPositions: [SIMD3<Float>] = []
+        var snowPhases:    [Float] = []
+        var snowVelocities:[SIMD3<Float>] = []
+        var snowSizes:     [Float] = []
+
+        // MARK: Utility poles scroll
+        var poleOffsets: [Float] = []
+
+        // MARK: Interaction
         var lastTapCount = 0
-        var dashLight: SCNNode?
-        var wiperLeft: SCNNode?
-        var wiperRight: SCNNode?
-        var snowSystem: SCNNode?
+
+        // MARK: Animation
+        var startTime: CFTimeInterval = CACurrentMediaTime()
+        var aspect:    Float = 1
+
+        // MARK: - Init
+
+        override init() {
+            device       = MTLCreateSystemDefaultDevice()!
+            commandQueue = device.makeCommandQueue()!
+            super.init()
+            do {
+                opaquePipeline   = try makeOpaquePipeline(device: device)
+                glowPipeline     = try makeAlphaBlendPipeline(device: device)
+                particlePipeline = try makeParticlePipeline(device: device)
+            } catch {
+                print("OldCar3D Metal pipeline error: \(error)")
+            }
+            depthState   = makeDepthState(device: device)
+            depthROState = makeDepthReadOnlyState(device: device)
+            buildScene()
+        }
+
+        // MARK: - Helpers
+
+        private func addOpaque(_ v: [Vertex3D], model: simd_float4x4,
+                               emissive: SIMD3<Float> = .zero, mix: Float = 0) {
+            guard let buf = makeVertexBuffer(v, device: device) else { return }
+            opaqueCalls.append(DrawCall(buffer: buf, count: v.count, model: model,
+                                        emissiveCol: emissive, emissiveMix: mix))
+        }
+
+        private func addGlow(_ v: [Vertex3D], model: simd_float4x4,
+                              emissive: SIMD3<Float>, opacity: Float = 0.9) {
+            guard let buf = makeVertexBuffer(v, device: device) else { return }
+            transparentCalls.append(DrawCall(buffer: buf, count: v.count, model: model,
+                                             emissiveCol: emissive, emissiveMix: 1.0,
+                                             opacity: opacity))
+        }
+
+        // MARK: - Build scene
+
+        private func buildScene() {
+            buildExterior()
+            buildCarInterior()
+            buildWindshield()
+            buildDashboard()
+            buildRadio()
+            buildBenchSeat()
+            buildSnow()
+        }
+
+        private func buildExterior() {
+            // Sky dome (stormy dark)
+            addOpaque(buildSphere(radius: 40, rings: 6, segments: 12, color: [0.04, 0.04, 0.07, 1]),
+                      model: matrix_identity_float4x4)
+
+            // Road
+            addOpaque(buildBox(w: 12, h: 0.01, d: 80, color: [0.14, 0.13, 0.12, 1]),
+                      model: m4Translation(0, -1.5, -18))
+
+            // Snow-covered road overlay
+            addGlow(buildBox(w: 12, h: 0.005, d: 80, color: [1,1,1,0.35]),
+                    model: m4Translation(0, -1.48, -18),
+                    emissive: [0.55, 0.55, 0.60], opacity: 0.35)
+
+            // Utility pole initial positions (scroll in render loop)
+            var rng = SplitMix64(seed: 5501)
+            for i in 0..<6 {
+                poleOffsets.append(Float(-4 - i * 8))
+                _ = rng  // suppress warning
+            }
+
+            // Barn silhouettes (static)
+            addOpaque(buildBox(w: 6, h: 4, d: 0.5, color: [0.06, 0.04, 0.03, 1]),
+                      model: m4Translation(-14, 0.5, -30))
+            addOpaque(buildPyramid(bw: 6.2, bd: 0.6, h: 2, color: [0.05, 0.03, 0.02, 1]),
+                      model: m4Translation(-14, 4.5, -30))
+            addOpaque(buildBox(w: 5, h: 4.5, d: 0.5, color: [0.06, 0.04, 0.03, 1]),
+                      model: m4Translation(18, 1.0, -45))
+        }
+
+        private func buildCarInterior() {
+            let interiorCol: SIMD4<Float> = [0.08, 0.05, 0.03, 1]
+            // A-pillars (sides of windshield)
+            addOpaque(buildBox(w: 0.12, h: 0.9, d: 0.1, color: interiorCol),
+                      model: m4Translation(-1.05, 0.35, -0.6))
+            addOpaque(buildBox(w: 0.12, h: 0.9, d: 0.1, color: interiorCol),
+                      model: m4Translation( 1.05, 0.35, -0.6))
+            // Headliner (inside roof)
+            addOpaque(buildBox(w: 2.2, h: 0.05, d: 1.5, color: [0.12, 0.09, 0.07, 1]),
+                      model: m4Translation(0, 0.85, 0.1))
+            // Door panels
+            addOpaque(buildBox(w: 0.05, h: 0.8, d: 1.5, color: interiorCol),
+                      model: m4Translation(-1.1, 0.2, 0.1))
+            addOpaque(buildBox(w: 0.05, h: 0.8, d: 1.5, color: interiorCol),
+                      model: m4Translation( 1.1, 0.2, 0.1))
+        }
+
+        private func buildWindshield() {
+            // Windshield glass (semi-transparent, facing forward)
+            addGlow(buildQuad(w: 2.1, h: 0.9, color: [1,1,1,1]),
+                    model: m4Translation(0, 0.35, -0.65) * m4RotX(.pi * 0.12),
+                    emissive: [0.03, 0.04, 0.07], opacity: 0.18)
+            // Windshield frame
+            addOpaque(buildBox(w: 2.2, h: 0.06, d: 0.06, color: [0.06, 0.04, 0.03, 1]),
+                      model: m4Translation(0, 0.81, -0.63))   // top
+            addOpaque(buildBox(w: 2.2, h: 0.06, d: 0.06, color: [0.06, 0.04, 0.03, 1]),
+                      model: m4Translation(0, -0.10, -0.63))  // bottom (dashboard top)
+        }
+
+        private func buildDashboard() {
+            // Dashboard panel
+            addOpaque(buildBox(w: 2.3, h: 0.28, d: 0.30, color: [0.10, 0.06, 0.04, 1]),
+                      model: m4Translation(0, -0.06, -0.6))
+            // Instrument cluster (emissive amber — dash glow)
+            addGlow(buildQuad(w: 0.6, h: 0.14, color: [1,1,1,1]),
+                    model: m4Translation(-0.4, 0.0, -0.46),
+                    emissive: [0.85, 0.55, 0.15], opacity: 0.9)
+            // Glove box
+            addOpaque(buildBox(w: 0.5, h: 0.16, d: 0.02, color: [0.12, 0.07, 0.04, 1]),
+                      model: m4Translation(0.65, -0.06, -0.47))
+            // Steering wheel rim
+            addOpaque(buildCylinder(radius: 0.23, height: 0.015, segments: 16,
+                                    color: [0.25, 0.20, 0.15, 1]),
+                      model: m4Translation(-0.3, -0.02, -0.52) * m4RotX(.pi * 0.15))
+            // Steering column
+            addOpaque(buildCylinder(radius: 0.025, height: 0.35, segments: 8,
+                                    color: [0.18, 0.14, 0.10, 1]),
+                      model: m4Translation(-0.3, -0.20, -0.55) * m4RotX(.pi * 0.05))
+        }
+
+        private func buildRadio() {
+            // Radio faceplate
+            addOpaque(buildBox(w: 0.30, h: 0.10, d: 0.02, color: [0.08, 0.06, 0.04, 1]),
+                      model: m4Translation(0.2, 0.02, -0.47))
+            // AM/FM dial (emissive amber strip)
+            addGlow(buildQuad(w: 0.18, h: 0.035, color: [1,1,1,1]),
+                    model: m4Translation(0.17, 0.035, -0.461),
+                    emissive: [0.90, 0.70, 0.25], opacity: 0.85)
+            // Two chrome knobs
+            for side in [-1.0, 1.0] {
+                addOpaque(buildCylinder(radius: 0.016, height: 0.025, segments: 8,
+                                        color: [0.45, 0.40, 0.35, 1]),
+                          model: m4Translation(Float(0.2 + side * 0.09), 0.02, -0.462))
+            }
+        }
+
+        private func buildBenchSeat() {
+            // Seat cushion (viewer sits here)
+            addOpaque(buildBox(w: 2.0, h: 0.14, d: 0.55, color: [0.30, 0.16, 0.10, 1]),
+                      model: m4Translation(0, -0.33, 0.4))
+            // Seat back
+            addOpaque(buildBox(w: 2.0, h: 0.60, d: 0.08, color: [0.28, 0.14, 0.09, 1]),
+                      model: m4Translation(0, -0.01, 0.65))
+            // Centre armrest divider
+            addOpaque(buildBox(w: 0.09, h: 0.16, d: 0.50, color: [0.14, 0.08, 0.05, 1]),
+                      model: m4Translation(0, -0.17, 0.4))
+        }
+
+        private func buildSnow() {
+            var rng = SplitMix64(seed: 7700)
+            for _ in 0..<200 {
+                let sx = Float(Double.random(in: -1.5...1.5, using: &rng))
+                let sy = Float(Double.random(in: -0.3...1.0, using: &rng))
+                let sz = Float(Double.random(in: -5...0, using: &rng))
+                snowPositions.append([sx, sy, sz])
+                snowPhases.append(Float(Double.random(in: 0...2*Double.pi, using: &rng)))
+                let vx = Float(Double.random(in: -0.15...0.15, using: &rng))
+                let vy = Float(-0.4 - Double.random(in: 0...0.4, using: &rng))
+                let vz = Float(4.0 + Double.random(in: 0...3, using: &rng))
+                snowVelocities.append([vx, vy, vz])
+                snowSizes.append(Float(3 + Double.random(in: 0...4, using: &rng)))
+            }
+        }
+
+        // MARK: - Interaction
+
+        func triggerHonk(time: Float) {
+            honkT = time
+        }
+
+        // MARK: - MTKViewDelegate
+
+        func mtkView(_ view: MTKView, drawableSizeWillChange size: CGSize) {
+            aspect = size.width > 0 ? Float(size.width / size.height) : 1
+        }
+
+        func draw(in view: MTKView) {
+            guard let pipeline = opaquePipeline,
+                  let drawable  = view.currentDrawable,
+                  let rpDesc    = view.currentRenderPassDescriptor,
+                  let cmdBuf    = commandQueue.makeCommandBuffer(),
+                  let encoder   = cmdBuf.makeRenderCommandEncoder(descriptor: rpDesc)
+            else { return }
+
+            let t = Float(CACurrentMediaTime() - startTime)
+
+            // Wiper sweep: oscillates ±35°
+            wiperAngle += wiperDir * 0.018
+            if wiperAngle > 0.60 { wiperDir = -1 }
+            if wiperAngle < -0.60 { wiperDir = 1 }
+
+            // Dash brightness (honk flash then fade)
+            let sincHonk = t - honkT
+            if sincHonk < 0.5 {
+                dashBrightness = 2.5 - sincHonk * 3.0
+            } else {
+                dashBrightness = max(1.0, dashBrightness - 0.05)
+            }
+
+            // Camera: fixed interior viewpoint, slightly above the seat
+            let eye: SIMD3<Float>    = [0, 0.15, 0.35]
+            let center: SIMD3<Float> = [0, 0.1, -1.0]
+            let view4 = m4LookAt(eye: eye, center: center, up: [0, 1, 0])
+            let proj4 = m4Perspective(fovyRad: 72 * .pi / 180, aspect: aspect, near: 0.02, far: 80)
+            let vp    = proj4 * view4
+
+            // Ambient from dash glow
+            let dashAmb: SIMD3<Float> = [0.80, 0.50, 0.15] * dashBrightness * 0.1
+            var su = SceneUniforms3D(
+                viewProjection: vp,
+                sunDirection:   SIMD4<Float>([0, -1, 0.3], 0),  // headlights pointing forward
+                sunColor:       SIMD4<Float>([0.30, 0.25, 0.20] * dashBrightness * 0.5, 0),
+                ambientColor:   SIMD4<Float>(dashAmb, t),
+                fogParams:      SIMD4<Float>(20, 60, 0, 0),
+                fogColor:       SIMD4<Float>([0.04, 0.04, 0.06], 0),
+                cameraWorldPos: SIMD4<Float>(eye, 0)
+            )
+
+            encoder.setRenderPipelineState(pipeline)
+            encoder.setDepthStencilState(depthState)
+            encoder.setCullMode(.none)  // interior geometry needs both sides
+            encoder.setVertexBytes(&su, length: MemoryLayout<SceneUniforms3D>.size, index: 1)
+            encoder.setFragmentBytes(&su, length: MemoryLayout<SceneUniforms3D>.size, index: 1)
+
+            // Opaque geometry
+            for call in opaqueCalls {
+                encodeDraw(encoder: encoder,
+                           vertexBuffer: call.buffer, vertexCount: call.count,
+                           model: call.model,
+                           emissiveColor: call.emissiveCol, emissiveMix: call.emissiveMix)
+            }
+
+            // Wiper blades (dynamic model matrices)
+            let wiperVerts = buildBox(w: 0.015, h: 0.012, d: 0.60, color: [0.10, 0.09, 0.08, 1])
+            if let wBuf = makeVertexBuffer(wiperVerts, device: device) {
+                // Left wiper
+                let lWiperModel = m4Translation(-0.35, -0.12, -0.68) * m4RotZ(wiperAngle)
+                                  * m4Translation(0, 0.30, 0)
+                encodeDraw(encoder: encoder, vertexBuffer: wBuf, vertexCount: wiperVerts.count,
+                           model: lWiperModel)
+                // Right wiper (opposite phase)
+                let rWiperModel = m4Translation( 0.35, -0.12, -0.68) * m4RotZ(-wiperAngle)
+                                  * m4Translation(0, 0.30, 0)
+                encodeDraw(encoder: encoder, vertexBuffer: wBuf, vertexCount: wiperVerts.count,
+                           model: rWiperModel)
+            }
+
+            // Utility poles scrolling
+            for i in poleOffsets.indices {
+                let pz2 = (Float(-4 - i * 8) + t * 2.5).truncatingRemainder(dividingBy: 48) - 48/2
+                let poleVerts = buildCylinder(radius: 0.06, height: 7.0, segments: 6,
+                                              color: [0.15, 0.12, 0.10, 1])
+                if let pBuf = makeVertexBuffer(poleVerts, device: device) {
+                    encodeDraw(encoder: encoder, vertexBuffer: pBuf, vertexCount: poleVerts.count,
+                               model: m4Translation(5.5, -1.5 + 3.5, pz2))
+                }
+            }
+
+            // Glow pass
+            if let gp = glowPipeline {
+                encoder.setRenderPipelineState(gp)
+                encoder.setDepthStencilState(depthROState)
+                for call in transparentCalls {
+                    encodeDraw(encoder: encoder,
+                               vertexBuffer: call.buffer, vertexCount: call.count,
+                               model: call.model,
+                               emissiveColor: call.emissiveCol * dashBrightness,
+                               emissiveMix: call.emissiveMix,
+                               opacity: call.opacity)
+                }
+            }
+
+            // Snow particles (rushing at windshield)
+            if let ppipe = particlePipeline {
+                var particles: [ParticleVertex3D] = []
+                for i in snowPositions.indices {
+                    let ph = snowPhases[i]
+                    // Positions drift forward (toward camera) and wrap
+                    let progress = t * 1.5
+                    let vz = snowVelocities[i].z
+                    let baseZ = snowPositions[i].z
+                    let sz = baseZ + (progress * vz).truncatingRemainder(dividingBy: 5.5)
+                    let sx = snowPositions[i].x + 0.05 * sin(t * 2 + ph)
+                    let sy = snowPositions[i].y + snowVelocities[i].y * fmod(progress, 1.5) * 0.3
+                    let alpha: Float = sz < -0.2 ? 0.7 : max(0, 0.7 * (-sz / 0.2))
+                    let col: SIMD4<Float> = [0.85, 0.88, 0.95, alpha]
+                    particles.append(ParticleVertex3D(position: [sx, sy, sz],
+                                                      color: col, size: snowSizes[i]))
+                }
+                if let pbuf = makeParticleBuffer(particles, device: device) {
+                    encoder.setRenderPipelineState(ppipe)
+                    encoder.setDepthStencilState(depthROState)
+                    encoder.setVertexBuffer(pbuf, offset: 0, index: 0)
+                    encoder.setVertexBytes(&su, length: MemoryLayout<SceneUniforms3D>.size, index: 1)
+                    encoder.drawPrimitives(type: .point, vertexStart: 0, vertexCount: particles.count)
+                }
+            }
+
+            encoder.endEncoding()
+            cmdBuf.present(drawable)
+            cmdBuf.commit()
+        }
     }
 
     func makeCoordinator() -> Coordinator { Coordinator() }
 
-    func makeNSView(context: Context) -> SCNView {
-        let view = SCNView()
-        let scene = SCNScene()
-        view.scene = scene
-        view.backgroundColor = .black
-        view.antialiasingMode = .multisampling4X
-        view.isPlaying = true
+    func makeNSView(context: Context) -> MTKView {
+        let view = MTKView(frame: .zero, device: context.coordinator.device)
+        view.delegate              = context.coordinator
+        view.colorPixelFormat      = .bgra8Unorm
+        view.depthStencilPixelFormat = .depth32Float
+        view.clearColor            = MTLClearColor(red: 0.04, green: 0.04, blue: 0.06, alpha: 1)
         view.preferredFramesPerSecond = 60
-        view.allowsCameraControl = false
-
-        buildScene(scene, coord: context.coordinator)
+        view.autoResizeDrawable    = true
         return view
     }
 
-    func updateNSView(_ nsView: SCNView, context: Context) {
+    func updateNSView(_ nsView: MTKView, context: Context) {
         let c = context.coordinator
         guard interaction.tapCount != c.lastTapCount else { return }
         c.lastTapCount = interaction.tapCount
-        // Horn flash — briefly brighten dash light
-        if let dl = c.dashLight {
-            SCNTransaction.begin()
-            SCNTransaction.animationDuration = 0.0
-            dl.light?.intensity = 320
-            SCNTransaction.commit()
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                SCNTransaction.begin()
-                SCNTransaction.animationDuration = 0.4
-                dl.light?.intensity = 80
-                SCNTransaction.commit()
-            }
-        }
-    }
-
-    // MARK: - Scene construction
-
-    private func buildScene(_ scene: SCNScene, coord: Coordinator) {
-        scene.background.contents = NSColor(red: 0.04, green: 0.04, blue: 0.06, alpha: 1)
-        addExteriorEnvironment(to: scene)
-        addCarInterior(to: scene, coord: coord)
-        addWindshieldAndWipers(to: scene, coord: coord)
-        addDashboard(to: scene, coord: coord)
-        addRadio(to: scene)
-        addBenchSeat(to: scene)
-        addSnowParticles(to: scene, coord: coord)
-        addLighting(to: scene, coord: coord)
-        addCamera(to: scene)
-    }
-
-    // MARK: - Exterior (stormy sky, road, poles, barn)
-
-    private func addExteriorEnvironment(to scene: SCNScene) {
-        // Sky dome — dark stormy blue-black
-        let skyDome = SCNSphere(radius: 40)
-        skyDome.segmentCount = 24
-        let skyMat = SCNMaterial()
-        skyMat.diffuse.contents = NSColor(red: 0.04, green: 0.04, blue: 0.07, alpha: 1)
-        skyMat.isDoubleSided = true
-        skyDome.firstMaterial = skyMat
-        let skyNode = SCNNode(geometry: skyDome)
-        scene.rootNode.addChildNode(skyNode)
-
-        // Cloud masses — large dark translucent planes
-        for i in 0..<8 {
-            let angle = Double(i) / 8.0 * .pi * 2
-            let r: CGFloat = 20
-            let cloud = SCNPlane(width: 14, height: 6)
-            let cloudMat = SCNMaterial()
-            cloudMat.diffuse.contents = NSColor(red: 0.06, green: 0.06, blue: 0.09, alpha: 0.45)
-            cloudMat.isDoubleSided = true
-            cloudMat.blendMode = .alpha
-            cloud.firstMaterial = cloudMat
-            let cloudNode = SCNNode(geometry: cloud)
-            cloudNode.position = SCNVector3(
-                CGFloat(cos(angle)) * r,
-                CGFloat.random(in: 3...8),
-                CGFloat(sin(angle)) * r
-            )
-            cloudNode.eulerAngles = SCNVector3(CGFloat(-0.2), CGFloat(angle), 0)
-            scene.rootNode.addChildNode(cloudNode)
-
-            // Slow drift animation
-            let drift = SCNAction.repeatForever(.sequence([
-                .moveBy(x: 0.3, y: 0, z: 0, duration: 8),
-                .moveBy(x: -0.3, y: 0, z: 0, duration: 8),
-            ]))
-            cloudNode.runAction(drift)
-        }
-
-        // Road — long flat plane stretching ahead
-        let road = SCNPlane(width: 12, height: 80)
-        let roadMat = SCNMaterial()
-        roadMat.diffuse.contents = NSColor(red: 0.14, green: 0.13, blue: 0.12, alpha: 1)
-        road.firstMaterial = roadMat
-        let roadNode = SCNNode(geometry: road)
-        roadNode.eulerAngles = SCNVector3(-CGFloat.pi / 2, 0, 0)
-        roadNode.position = SCNVector3(0, -1.5, -18)
-        scene.rootNode.addChildNode(roadNode)
-
-        // Road centre dashes — scroll toward viewer
-        for i in 0..<12 {
-            let dash = SCNBox(width: 0.15, height: 0.01, length: 1.5, chamferRadius: 0)
-            dash.firstMaterial?.diffuse.contents = NSColor(red: 0.80, green: 0.76, blue: 0.60, alpha: 0.55)
-            let dashNode = SCNNode(geometry: dash)
-            dashNode.position = SCNVector3(0, -1.49, CGFloat(-3 - i * 5))
-            scene.rootNode.addChildNode(dashNode)
-
-            // Scroll animation: move from z=-3 to z=10 then teleport back
-            let scroll = SCNAction.repeatForever(.sequence([
-                .moveBy(x: 0, y: 0, z: 58, duration: 4.5),
-                .move(to: SCNVector3(0, -1.49, CGFloat(-3 - i * 5)), duration: 0),
-            ]))
-            dashNode.runAction(scroll)
-        }
-
-        // Snowy road surface overlay — white tint on road
-        let snowRoad = SCNPlane(width: 12, height: 80)
-        let snowMat = SCNMaterial()
-        snowMat.diffuse.contents = NSColor(red: 0.55, green: 0.55, blue: 0.60, alpha: 0.35)
-        snowMat.blendMode = .alpha
-        snowRoad.firstMaterial = snowMat
-        let snowRoadNode = SCNNode(geometry: snowRoad)
-        snowRoadNode.eulerAngles = SCNVector3(-CGFloat.pi / 2, 0, 0)
-        snowRoadNode.position = SCNVector3(0, -1.48, -18)
-        scene.rootNode.addChildNode(snowRoadNode)
-
-        // Utility poles on right shoulder, scrolling past
-        for i in 0..<6 {
-            addUtilityPole(to: scene, at: SCNVector3(5.5, -1.5, CGFloat(-4 - i * 8)), index: i)
-        }
-
-        // Barn silhouettes far left and right
-        addBarnSilhouette(to: scene, at: SCNVector3(-14, 0, -30))
-        addBarnSilhouette(to: scene, at: SCNVector3(18, 2, -45))
-        addSiloSilhouette(to: scene, at: SCNVector3(-22, 1, -38))
-    }
-
-    private func addUtilityPole(to scene: SCNScene, at position: SCNVector3, index: Int) {
-        let poleH: CGFloat = 7.0
-        let pole = SCNCylinder(radius: 0.06, height: CGFloat(poleH))
-        pole.firstMaterial?.diffuse.contents = NSColor(red: 0.15, green: 0.12, blue: 0.10, alpha: 1)
-        let poleNode = SCNNode(geometry: pole)
-        poleNode.position = SCNVector3(position.x, position.y + poleH / 2, position.z)
-        scene.rootNode.addChildNode(poleNode)
-
-        // Cross-arm
-        let arm = SCNCylinder(radius: 0.04, height: 1.4)
-        arm.firstMaterial?.diffuse.contents = NSColor(red: 0.15, green: 0.12, blue: 0.10, alpha: 1)
-        let armNode = SCNNode(geometry: arm)
-        armNode.eulerAngles = SCNVector3(0, 0, CGFloat.pi / 2)
-        armNode.position = SCNVector3(position.x, position.y + poleH - 0.8, position.z)
-        scene.rootNode.addChildNode(armNode)
-
-        // Wires to vanishing point
-        for w in 0..<3 {
-            let wireGeo = SCNCylinder(radius: 0.012, height: 18)
-            wireGeo.firstMaterial?.diffuse.contents = NSColor(red: 0.12, green: 0.10, blue: 0.08, alpha: 0.7)
-            let wireNode = SCNNode(geometry: wireGeo)
-            let wireOffX = CGFloat(-0.5 + Double(w) * 0.5)
-            let wireStartY = position.y + poleH - 0.6 - CGFloat(w) * 0.3
-            wireNode.position = SCNVector3(wireOffX, wireStartY, 0)
-            wireNode.eulerAngles = SCNVector3(CGFloat.pi / 6, 0, 0)
-            scene.rootNode.addChildNode(wireNode)
-        }
-
-        // Scroll toward viewer
-        let cycleDur = 5.0 + Double(index) * 0.3
-        let scroll = SCNAction.repeatForever(.sequence([
-            .moveBy(x: 0, y: 0, z: 55, duration: cycleDur),
-            .move(to: SCNVector3(position.x, position.y, position.z - 6), duration: 0),
-        ]))
-        poleNode.runAction(scroll)
-        armNode.runAction(scroll.copy() as! SCNAction)
-    }
-
-    private func addBarnSilhouette(to scene: SCNScene, at position: SCNVector3) {
-        let barnW: CGFloat = 8, barnH: CGFloat = 4
-        let body = SCNBox(width: CGFloat(barnW), height: CGFloat(barnH), length: 2, chamferRadius: 0)
-        body.firstMaterial?.diffuse.contents = NSColor(red: 0.06, green: 0.05, blue: 0.05, alpha: 1)
-        let bodyNode = SCNNode(geometry: body)
-        bodyNode.position = SCNVector3(position.x, position.y + barnH / 2, position.z)
-        scene.rootNode.addChildNode(bodyNode)
-
-        // Peaked roof
-        let roof = SCNPyramid(width: CGFloat(barnW * 1.1), height: 3, length: 2.2)
-        roof.firstMaterial?.diffuse.contents = NSColor(red: 0.06, green: 0.05, blue: 0.05, alpha: 1)
-        let roofNode = SCNNode(geometry: roof)
-        roofNode.position = SCNVector3(position.x, position.y + barnH + 1.5, position.z)
-        scene.rootNode.addChildNode(roofNode)
-    }
-
-    private func addSiloSilhouette(to scene: SCNScene, at position: SCNVector3) {
-        let siloH: CGFloat = 10, siloR: CGFloat = 1.5
-        let silo = SCNCylinder(radius: CGFloat(siloR), height: CGFloat(siloH))
-        silo.firstMaterial?.diffuse.contents = NSColor(red: 0.06, green: 0.05, blue: 0.05, alpha: 1)
-        let siloNode = SCNNode(geometry: silo)
-        siloNode.position = SCNVector3(position.x, position.y + siloH / 2, position.z)
-        scene.rootNode.addChildNode(siloNode)
-
-        let dome = SCNSphere(radius: CGFloat(siloR * 1.1))
-        dome.firstMaterial?.diffuse.contents = NSColor(red: 0.06, green: 0.05, blue: 0.05, alpha: 1)
-        let domeNode = SCNNode(geometry: dome)
-        domeNode.position = SCNVector3(position.x, position.y + siloH, position.z)
-        scene.rootNode.addChildNode(domeNode)
-    }
-
-    // MARK: - Car interior
-
-    private func addCarInterior(to scene: SCNScene, coord: Coordinator) {
-        let headlinerColor = NSColor(red: 0.08, green: 0.07, blue: 0.06, alpha: 1)
-        let panelColor     = NSColor(red: 0.09, green: 0.07, blue: 0.06, alpha: 1)
-
-        // Headliner (ceiling fabric)
-        let headliner = SCNBox(width: 6, height: 0.06, length: 4, chamferRadius: 0.04)
-        headliner.firstMaterial?.diffuse.contents = headlinerColor
-        let headNode = SCNNode(geometry: headliner)
-        headNode.position = SCNVector3(0, 1.5, 0.5)
-        scene.rootNode.addChildNode(headNode)
-
-        // Left door panel
-        let leftDoor = SCNBox(width: 0.06, height: 1.8, length: 3.5, chamferRadius: 0.02)
-        leftDoor.firstMaterial?.diffuse.contents = panelColor
-        let leftNode = SCNNode(geometry: leftDoor)
-        leftNode.position = SCNVector3(-2.98, 0.2, 0.5)
-        scene.rootNode.addChildNode(leftNode)
-
-        // Right door panel
-        let rightDoor = SCNBox(width: 0.06, height: 1.8, length: 3.5, chamferRadius: 0.02)
-        rightDoor.firstMaterial?.diffuse.contents = panelColor
-        let rightNode = SCNNode(geometry: rightDoor)
-        rightNode.position = SCNVector3(2.98, 0.2, 0.5)
-        scene.rootNode.addChildNode(rightNode)
-
-        // A-pillars (thick, angled toward windshield)
-        for side: Float in [-1, 1] {
-            let pillar = SCNBox(width: 0.18, height: 1.8, length: 0.18, chamferRadius: 0.04)
-            pillar.firstMaterial?.diffuse.contents = NSColor(red: 0.07, green: 0.06, blue: 0.05, alpha: 1)
-            let pNode = SCNNode(geometry: pillar)
-            pNode.position = SCNVector3(side * 2.5, 0.6, -1.2)
-            pNode.eulerAngles = SCNVector3(0.35, 0, 0)
-            scene.rootNode.addChildNode(pNode)
-        }
-    }
-
-    // MARK: - Windshield and wiper blades
-
-    private func addWindshieldAndWipers(to scene: SCNScene, coord: Coordinator) {
-        // Glass — semi-transparent dark blue-grey plane
-        let glass = SCNPlane(width: 5.4, height: 2.4)
-        let glassMat = SCNMaterial()
-        glassMat.diffuse.contents  = NSColor(red: 0.04, green: 0.05, blue: 0.07, alpha: 0.12)
-        glassMat.emission.contents = NSColor(red: 0.02, green: 0.02, blue: 0.03, alpha: 1)
-        glassMat.isDoubleSided = true
-        glassMat.blendMode = .alpha
-        glass.firstMaterial = glassMat
-        let glassNode = SCNNode(geometry: glass)
-        glassNode.position = SCNVector3(0, 0.55, -1.35)
-        glassNode.eulerAngles = SCNVector3(-0.28, 0, 0)
-        scene.rootNode.addChildNode(glassNode)
-
-        // Wiper left
-        let leftPivot = SCNNode()
-        leftPivot.position = SCNVector3(-1.2, -0.6, -1.28)
-        scene.rootNode.addChildNode(leftPivot)
-        let leftBlade = buildWiperBlade(length: 1.4)
-        leftBlade.position = SCNVector3(0, 0, 0)
-        leftPivot.addChildNode(leftBlade)
-        coord.wiperLeft = leftPivot
-
-        // Wiper right
-        let rightPivot = SCNNode()
-        rightPivot.position = SCNVector3(1.2, -0.6, -1.28)
-        scene.rootNode.addChildNode(rightPivot)
-        let rightBlade = buildWiperBlade(length: 1.4)
-        rightBlade.position = SCNVector3(0, 0, 0)
-        rightPivot.addChildNode(rightBlade)
-        coord.wiperRight = rightPivot
-
-        // Wiper sweep animations (ping-pong)
-        let swingLeft = SCNAction.repeatForever(.sequence([
-            .rotateTo(x: 0, y: 0, z: -0.9, duration: 0.65, usesShortestUnitArc: true),
-            .rotateTo(x: 0, y: 0, z:  0.4, duration: 0.65, usesShortestUnitArc: true),
-        ]))
-        leftPivot.runAction(swingLeft)
-
-        let swingRight = SCNAction.repeatForever(.sequence([
-            .rotateTo(x: 0, y: 0, z:  0.9, duration: 0.65, usesShortestUnitArc: true),
-            .rotateTo(x: 0, y: 0, z: -0.4, duration: 0.65, usesShortestUnitArc: true),
-        ]))
-        rightPivot.runAction(swingRight)
-    }
-
-    private func buildWiperBlade(length: CGFloat) -> SCNNode {
-        let arm = SCNCylinder(radius: 0.018, height: length)
-        arm.firstMaterial?.diffuse.contents = NSColor(red: 0.18, green: 0.14, blue: 0.12, alpha: 1)
-        let armNode = SCNNode(geometry: arm)
-        // Pivot at bottom of arm: offset arm so it rotates from one end
-        armNode.position = SCNVector3(0, length / 2, 0)
-        return armNode
-    }
-
-    // MARK: - Dashboard
-
-    private func addDashboard(to scene: SCNScene, coord: Coordinator) {
-        // Main dash body
-        let dash = SCNBox(width: 6.2, height: 0.55, length: 0.80, chamferRadius: 0.06)
-        let dashMat = SCNMaterial()
-        dashMat.diffuse.contents = NSColor(red: 0.08, green: 0.07, blue: 0.06, alpha: 1)
-        dashMat.specular.contents = NSColor(white: 0.12, alpha: 1)
-        dash.firstMaterial = dashMat
-        let dashNode = SCNNode(geometry: dash)
-        dashNode.position = SCNVector3(0, -0.72, -0.85)
-        scene.rootNode.addChildNode(dashNode)
-
-        // Padded top rail
-        let rail = SCNBox(width: 6.2, height: 0.09, length: 0.12, chamferRadius: 0.04)
-        rail.firstMaterial?.diffuse.contents = NSColor(red: 0.12, green: 0.10, blue: 0.08, alpha: 1)
-        let railNode = SCNNode(geometry: rail)
-        railNode.position = SCNVector3(0, -0.47, -0.85)
-        scene.rootNode.addChildNode(railNode)
-
-        // Instrument cluster housing — behind glass
-        let cluster = SCNBox(width: 2.0, height: 0.38, length: 0.12, chamferRadius: 0.04)
-        cluster.firstMaterial?.diffuse.contents = NSColor(red: 0.06, green: 0.05, blue: 0.04, alpha: 1)
-        let clusterNode = SCNNode(geometry: cluster)
-        clusterNode.position = SCNVector3(-0.8, -0.60, -0.52)
-        scene.rootNode.addChildNode(clusterNode)
-
-        // Gauge glass faces (emissive amber)
-        for gx: Float in [-1.45, -0.60] {
-            let face = SCNPlane(width: 0.50, height: 0.38)
-            let faceMat = SCNMaterial()
-            faceMat.diffuse.contents  = NSColor(red: 0.04, green: 0.03, blue: 0.02, alpha: 1)
-            faceMat.emission.contents = NSColor(red: 0.55, green: 0.35, blue: 0.10, alpha: 1)
-            faceMat.isDoubleSided = true
-            face.firstMaterial = faceMat
-            let faceNode = SCNNode(geometry: face)
-            faceNode.position = SCNVector3(gx, -0.60, -0.46)
-            scene.rootNode.addChildNode(faceNode)
-        }
-
-        // Incandescent dash light (diffuse, warm)
-        let dashLight = SCNNode()
-        dashLight.light = SCNLight()
-        dashLight.light!.type = .omni
-        dashLight.light!.intensity = 80
-        dashLight.light!.color = NSColor(red: 0.85, green: 0.55, blue: 0.20, alpha: 1)
-        dashLight.light!.attenuationStartDistance = 0
-        dashLight.light!.attenuationEndDistance = 2.5
-        dashLight.position = SCNVector3(0, -0.50, -0.55)
-        scene.rootNode.addChildNode(dashLight)
-        coord.dashLight = dashLight
-
-        // Gentle pulse on dash light (bulb flicker)
-        let flicker = SCNAction.repeatForever(.customAction(duration: 3.0) { node, t in
-            let wobble = CGFloat(1.0 + 0.06 * sin(Double(t) * 11.0) + 0.03 * sin(Double(t) * 7.3))
-            node.light?.intensity = 80 * wobble
-        })
-        dashLight.runAction(flicker)
-
-        // Steering column
-        let column = SCNCylinder(radius: 0.05, height: 1.0)
-        column.firstMaterial?.diffuse.contents = NSColor(red: 0.12, green: 0.10, blue: 0.09, alpha: 1)
-        let columnNode = SCNNode(geometry: column)
-        columnNode.position = SCNVector3(-0.3, -1.0, -0.65)
-        columnNode.eulerAngles = SCNVector3(0.55, 0, 0)
-        scene.rootNode.addChildNode(columnNode)
-
-        // Steering wheel
-        addSteeringWheel(to: scene, at: SCNVector3(-0.3, -0.45, -1.05))
-    }
-
-    private func addSteeringWheel(to scene: SCNScene, at position: SCNVector3) {
-        let rimColor = NSColor(red: 0.13, green: 0.10, blue: 0.08, alpha: 1)
-        let outerR: CGFloat = 0.38
-        let segments = 32
-
-        // Rim — torus approximated with thin torus geometry
-        let rim = SCNTorus(ringRadius: outerR, pipeRadius: 0.025)
-        rim.firstMaterial?.diffuse.contents = rimColor
-        let rimNode = SCNNode(geometry: rim)
-        rimNode.position = position
-        rimNode.eulerAngles = SCNVector3(-0.30, 0, 0)
-        scene.rootNode.addChildNode(rimNode)
-        _ = segments
-
-        // Three spokes
-        for s in 0..<3 {
-            let a = Double(s) * (2 * .pi / 3) - .pi / 2
-            let spoke = SCNCylinder(radius: 0.018, height: outerR * 0.92)
-            spoke.firstMaterial?.diffuse.contents = rimColor
-            let spokeNode = SCNNode(geometry: spoke)
-            let midX = CGFloat(cos(a)) * (outerR * 0.46)
-            let midY = CGFloat(sin(a)) * (outerR * 0.46)
-            spokeNode.position = SCNVector3(position.x + midX, position.y + midY, position.z)
-            spokeNode.eulerAngles = SCNVector3(-0.30, 0, CGFloat(a + .pi / 2))
-            scene.rootNode.addChildNode(spokeNode)
-        }
-
-        // Hub
-        let hub = SCNCylinder(radius: 0.07, height: 0.04)
-        hub.firstMaterial?.diffuse.contents = NSColor(red: 0.10, green: 0.08, blue: 0.07, alpha: 1)
-        let hubNode = SCNNode(geometry: hub)
-        hubNode.position = SCNVector3(position.x, position.y, position.z + 0.01)
-        hubNode.eulerAngles = SCNVector3(-0.30, 0, 0)
-        scene.rootNode.addChildNode(hubNode)
-
-        // Gentle sway
-        let sway = SCNAction.repeatForever(.sequence([
-            .rotateTo(x: -0.30, y: -0.015, z: 0, duration: 3.0, usesShortestUnitArc: true),
-            .rotateTo(x: -0.30, y:  0.015, z: 0, duration: 3.0, usesShortestUnitArc: true),
-        ]))
-        rimNode.runAction(sway)
-    }
-
-    // MARK: - Radio
-
-    private func addRadio(to scene: SCNScene) {
-        // Radio body
-        let body = SCNBox(width: 1.20, height: 0.28, length: 0.14, chamferRadius: 0.025)
-        let bodyMat = SCNMaterial()
-        bodyMat.diffuse.contents  = NSColor(red: 0.10, green: 0.08, blue: 0.07, alpha: 1)
-        bodyMat.specular.contents = NSColor(white: 0.30, alpha: 1)
-        body.firstMaterial = bodyMat
-        let bodyNode = SCNNode(geometry: body)
-        bodyNode.position = SCNVector3(0.85, -0.72, -0.52)
-        scene.rootNode.addChildNode(bodyNode)
-
-        // Tuner window — amber emissive
-        let tuner = SCNBox(width: 0.64, height: 0.12, length: 0.02, chamferRadius: 0.01)
-        let tunerMat = SCNMaterial()
-        tunerMat.diffuse.contents  = NSColor(red: 0.20, green: 0.12, blue: 0.04, alpha: 1)
-        tunerMat.emission.contents = NSColor(red: 0.82, green: 0.58, blue: 0.14, alpha: 1)
-        tuner.firstMaterial = tunerMat
-        let tunerNode = SCNNode(geometry: tuner)
-        tunerNode.position = SCNVector3(0.85, -0.68, -0.46)
-        scene.rootNode.addChildNode(tunerNode)
-
-        // Tuner glow light
-        let tunerLight = SCNNode()
-        tunerLight.light = SCNLight()
-        tunerLight.light!.type = .omni
-        tunerLight.light!.intensity = 30
-        tunerLight.light!.color = NSColor(red: 0.85, green: 0.58, blue: 0.14, alpha: 1)
-        tunerLight.light!.attenuationStartDistance = 0
-        tunerLight.light!.attenuationEndDistance = 0.8
-        tunerLight.position = SCNVector3(0.85, -0.68, -0.40)
-        scene.rootNode.addChildNode(tunerLight)
-
-        // Chrome knobs
-        for kx: Float in [0.20, 1.50] {
-            addChromeKnob(to: scene, at: SCNVector3(kx, -0.76, -0.46))
-        }
-
-        // Chrome trim border
-        let trim = SCNBox(width: 1.22, height: 0.30, length: 0.06, chamferRadius: 0.02)
-        let trimMat = SCNMaterial()
-        trimMat.diffuse.contents  = NSColor(red: 0.50, green: 0.45, blue: 0.40, alpha: 1)
-        trimMat.specular.contents = NSColor(white: 0.80, alpha: 1)
-        trimMat.metalness.contents = NSNumber(value: 0.9)
-        trim.firstMaterial = trimMat
-        let trimNode = SCNNode(geometry: trim)
-        trimNode.position = SCNVector3(0.85, -0.72, -0.48)
-        scene.rootNode.addChildNode(trimNode)
-    }
-
-    private func addChromeKnob(to scene: SCNScene, at position: SCNVector3) {
-        let knob = SCNCylinder(radius: 0.07, height: 0.06)
-        let mat = SCNMaterial()
-        mat.diffuse.contents  = NSColor(red: 0.45, green: 0.40, blue: 0.35, alpha: 1)
-        mat.specular.contents = NSColor(white: 0.95, alpha: 1)
-        mat.metalness.contents = NSNumber(value: 0.95)
-        mat.roughness.contents = NSNumber(value: 0.15)
-        knob.firstMaterial = mat
-        let knobNode = SCNNode(geometry: knob)
-        knobNode.position = position
-        knobNode.eulerAngles = SCNVector3(CGFloat.pi / 2, 0, 0)
-        scene.rootNode.addChildNode(knobNode)
-    }
-
-    // MARK: - Bench seat
-
-    private func addBenchSeat(to scene: SCNScene) {
-        let seatColor = NSColor(red: 0.09, green: 0.07, blue: 0.06, alpha: 1)
-
-        // Seat cushion
-        let cushion = SCNBox(width: 5.8, height: 0.22, length: 1.80, chamferRadius: 0.06)
-        cushion.firstMaterial?.diffuse.contents = seatColor
-        let cushionNode = SCNNode(geometry: cushion)
-        cushionNode.position = SCNVector3(0, -1.30, 1.2)
-        scene.rootNode.addChildNode(cushionNode)
-
-        // Seat back
-        let back = SCNBox(width: 5.8, height: 0.85, length: 0.14, chamferRadius: 0.06)
-        back.firstMaterial?.diffuse.contents = seatColor
-        let backNode = SCNNode(geometry: back)
-        backNode.position = SCNVector3(0, -0.85, 1.95)
-        scene.rootNode.addChildNode(backNode)
-
-        // Horizontal pleat lines on seat back
-        for i in 0..<4 {
-            let pleat = SCNBox(width: 5.82, height: 0.012, length: 0.012, chamferRadius: 0)
-            pleat.firstMaterial?.diffuse.contents = NSColor(red: 0.13, green: 0.10, blue: 0.09, alpha: 1)
-            let pleatNode = SCNNode(geometry: pleat)
-            pleatNode.position = SCNVector3(0, -1.14 + Float(i) * 0.14, 1.955)
-            scene.rootNode.addChildNode(pleatNode)
-        }
-    }
-
-    // MARK: - Snow particles
-
-    private func addSnowParticles(to scene: SCNScene, coord: Coordinator) {
-        let snow = SCNParticleSystem()
-        snow.birthRate             = 900
-        snow.emitterShape          = SCNPlane(width: 12, height: 8)
-        snow.particleLifeSpan      = 1.6
-        snow.particleLifeSpanVariation = 0.6
-        snow.particleVelocity      = 18
-        snow.particleVelocityVariation = 6
-        snow.particleSize          = 0.04
-        snow.particleSizeVariation = 0.03
-        snow.particleColor         = NSColor(red: 0.88, green: 0.90, blue: 0.98, alpha: 0.80)
-        snow.particleColorVariation = SCNVector4(0, 0, 0.1, 0.15)
-        snow.isAffectedByGravity   = false
-        snow.stretchFactor         = 0.12
-        snow.blendMode             = .additive
-
-        let snowNode = SCNNode()
-        snowNode.position = SCNVector3(0, 1, -18)
-        snowNode.eulerAngles = SCNVector3(CGFloat.pi / 2, 0, 0)
-        snowNode.addParticleSystem(snow)
-        scene.rootNode.addChildNode(snowNode)
-        coord.snowSystem = snowNode
-    }
-
-    // MARK: - Lighting
-
-    private func addLighting(to scene: SCNScene, coord: Coordinator) {
-        // Dim ambient (very dark — we want the dash and snow to be the main light)
-        let ambient = SCNNode()
-        ambient.light = SCNLight()
-        ambient.light!.type = .ambient
-        ambient.light!.intensity = 8
-        ambient.light!.color = NSColor(red: 0.05, green: 0.05, blue: 0.08, alpha: 1)
-        scene.rootNode.addChildNode(ambient)
-
-        // Faint moonlight from above-front
-        let moon = SCNNode()
-        moon.light = SCNLight()
-        moon.light!.type = .directional
-        moon.light!.intensity = 12
-        moon.light!.color = NSColor(red: 0.30, green: 0.35, blue: 0.55, alpha: 1)
-        moon.eulerAngles = SCNVector3(-CGFloat.pi / 4, 0.3, 0)
-        scene.rootNode.addChildNode(moon)
-    }
-
-    // MARK: - Camera
-
-    private func addCamera(to scene: SCNScene) {
-        let camera = SCNCamera()
-        camera.fieldOfView = 72
-        camera.zNear = 0.05
-        camera.zFar  = 80
-        camera.wantsHDR = true
-        camera.bloomIntensity = 0.5
-        camera.bloomThreshold = 0.6
-
-        let camNode = SCNNode()
-        camNode.camera = camera
-        // Seated in the car, looking forward through the windshield
-        camNode.position = SCNVector3(0, 0.10, 0.85)
-        camNode.look(at: SCNVector3(0, 0.05, -20))
-        scene.rootNode.addChildNode(camNode)
-
-        // Gentle road-vibration sway
-        let sway = SCNAction.repeatForever(.sequence([
-            .customAction(duration: 4.0) { node, t in
-                let bump = 0.008 * sin(Double(t) * 13.5) + 0.004 * sin(Double(t) * 7.2)
-                node.position = SCNVector3(
-                    Float(0.005 * sin(Double(t) * 4.3)),
-                    Float(0.10 + bump),
-                    0.85
-                )
-            }
-        ]))
-        camNode.runAction(sway)
+        let t = Float(CACurrentMediaTime() - c.startTime)
+        c.triggerHonk(time: t)
     }
 }

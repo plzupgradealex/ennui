@@ -23,7 +23,11 @@ Ethereal, mysterious, innocent and kind. Willing to trade usability for beauty a
 - **Innocent & kind**: haiku prompts emphasize gentleness, wonder, and calm
 
 ## Tech Stack
-- **SwiftUI** + **Canvas** for all rendering (no SpriteKit, no Metal - portable)
+- **SwiftUI** + **Canvas** for all rendering (no SpriteKit - portable)
+- **Metal (MTKView)** for all 3D scenes on this branch (replacing SceneKit)
+  — `Ennui3DShaders.metal`: shared Blinn-Phong vertex/fragment/particle shaders
+  — `Metal3DHelpers.swift`: geometry builders, matrix math, pipeline factory
+  — Each 3D scene wraps MTKView in NSViewRepresentable with a Coordinator/MTKViewDelegate
 - **MultipeerConnectivity** for P2P sharing nearby (encryption: `.required` for App Store compliance)
 - **FoundationModels** for on-device AI haiku (Apple Neural Engine)
 - **NSViewRepresentable** (`MouseTrackingView`) for cursor hover detection on macOS

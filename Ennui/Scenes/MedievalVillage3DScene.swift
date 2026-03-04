@@ -1,10 +1,10 @@
-// MedievalVillage3DScene — SceneKit experiment.
-// Low-poly diorama of the same medieval hamlet, viewed from above.
-// Camera slowly orbits. Warm point lights in windows. Tap to snuff a light.
-// Fireflies drift. Fog rolls in. Moon casts blue directional light.
+// MedievalVillage3DScene — Metal 3D diorama of the medieval hamlet.
+// Low-poly buildings viewed from an orbiting camera above. Warm amber windows
+// that tap-extinguish one by one. Firefly particles. Moon directional light.
+// Rendered entirely in Metal (MTKView) — no SceneKit.
 
 import SwiftUI
-import SceneKit
+import MetalKit
 
 struct MedievalVillage3DScene: View {
     @ObservedObject var interaction: InteractionState
@@ -19,319 +19,342 @@ struct MedievalVillage3DScene: View {
 private struct MedievalVillage3DRepresentable: NSViewRepresentable {
     @ObservedObject var interaction: InteractionState
 
-    final class Coordinator {
-        var windowLights: [SCNNode] = []
-        var windowGlows: [SCNNode] = []  // emissive planes paired with lights
-        var ambientLight: SCNNode?
-        var moonLight: SCNNode?
+    // MARK: Coordinator / Renderer
+
+    final class Coordinator: NSObject, MTKViewDelegate {
+
+        // MARK: Metal core
+        let device:         MTLDevice
+        let commandQueue:   MTLCommandQueue
+        var opaquePipeline: MTLRenderPipelineState?
+        var glowPipeline:   MTLRenderPipelineState?   // alpha-blend for window glow
+        var particlePipeline: MTLRenderPipelineState?
+        var depthState:     MTLDepthStencilState?
+        var depthROState:   MTLDepthStencilState?     // read-only for transparent pass
+
+        // MARK: Scene geometry buffers
+        struct DrawCall {
+            var buffer:      MTLBuffer
+            var count:       Int
+            var model:       simd_float4x4
+            var emissiveCol: SIMD3<Float>
+            var emissiveMix: Float
+            var opacity:     Float = 1
+        }
+
+        var opaqueCalls:      [DrawCall] = []
+        var transparentCalls: [DrawCall] = []  // window glow quads
+
+        // MARK: Window glow state (tap to extinguish one by one)
+        var windowGlowIntensities: [Float] = []   // 1 = lit, 0 = dark
+        var extinguishedCount = 0
         var lastTapCount = 0
-        var extinguishedIndex = 0
+
+        // MARK: Ambient fade (dim as windows go out)
+        var ambientIntensity: Float = 1.0   // 0..1 multiplier
+        var moonIntensity:    Float = 1.0
+
+        // MARK: Firefly particles
+        var fireflyBase: [SIMD3<Float>] = []    // spawn positions
+        var fireflyPhase: [Float]       = []    // per-firefly phase offset
+
+        // MARK: Animation
+        var startTime: CFTimeInterval = CACurrentMediaTime()
+        var aspect: Float = 1
+
+        // MARK: Geometry parameters (mirrors SceneKit scene)
+        struct Building {
+            var x, z, w, h, d: Float
+            var isChurch: Bool
+            var windowCount: Int   // total windows for this building
+            var firstWindowIndex: Int
+        }
+        var buildings: [Building] = []
+
+        // MARK: - Init
+
+        override init() {
+            device       = MTLCreateSystemDefaultDevice()!
+            commandQueue = device.makeCommandQueue()!
+            super.init()
+            do {
+                opaquePipeline   = try makeOpaquePipeline(device: device)
+                glowPipeline     = try makeAlphaBlendPipeline(device: device)
+                particlePipeline = try makeParticlePipeline(device: device)
+            } catch {
+                print("MedievalVillage3D Metal pipeline error: \(error)")
+            }
+            depthState   = makeDepthState(device: device)
+            depthROState = makeDepthReadOnlyState(device: device)
+            buildScene()
+        }
+
+        // MARK: - Build scene geometry
+
+        private func buildScene() {
+            var rng = SplitMix64(seed: 1350)
+
+            // Ground
+            let groundColor: SIMD4<Float> = [0.06, 0.10, 0.04, 1]
+            addOpaque(buildPlane(w: 30, d: 30, color: groundColor),
+                      model: matrix_identity_float4x4)
+
+            // Path
+            let pathColor: SIMD4<Float> = [0.12, 0.09, 0.06, 1]
+            addOpaque(buildBox(w: 1.0, h: 0.01, d: 14, color: pathColor),
+                      model: m4Translation(0, 0.005, 0))
+
+            // Buildings
+            let wallCol: SIMD4<Float> = [0.20, 0.16, 0.10, 1]
+            let roofCol: SIMD4<Float> = [0.28, 0.18, 0.08, 1]
+
+            struct Spot { let x: Float; let z: Float; let s: Float; let isChurch: Bool }
+            let spots: [Spot] = [
+                Spot(x: -3.2, z: -2.0, s: 1.0,  isChurch: false),
+                Spot(x: -1.0, z: -3.2, s: 0.8,  isChurch: false),
+                Spot(x:  1.2, z: -2.5, s: 1.1,  isChurch: false),
+                Spot(x:  3.0, z: -1.0, s: 0.9,  isChurch: false),
+                Spot(x: -2.2, z:  1.2, s: 0.85, isChurch: false),
+                Spot(x:  0.5, z:  0.5, s: 1.15, isChurch: true),
+                Spot(x:  2.5, z:  1.8, s: 0.95, isChurch: false),
+            ]
+
+            var windowIndex = 0
+
+            for spot in spots {
+                let bh = Float(spot.isChurch ? 2.8 : (1.0 + Double.random(in: 0...0.7, using: &rng)))
+                let bw = Float(spot.isChurch ? 1.3 : (0.7 + Double.random(in: 0...0.5, using: &rng)))
+                let bd = Float(spot.isChurch ? 1.3 : (0.6 + Double.random(in: 0...0.4, using: &rng)))
+                let sw = bw * spot.s, sh = bh * spot.s, sd = bd * spot.s
+
+                // Body
+                addOpaque(buildBox(w: sw, h: sh, d: sd, color: wallCol),
+                          model: m4Translation(spot.x, sh / 2, spot.z))
+
+                // Roof
+                let roofH = 0.55 * spot.s
+                addOpaque(buildPyramid(bw: sw + 0.15, bd: sd + 0.15, h: roofH, color: roofCol),
+                          model: m4Translation(spot.x, sh, spot.z))
+
+                // Windows (emissive quads on front face)
+                let winCols = 2, winRows = spot.isChurch ? 2 : 1
+                let winW = sw * 0.12, winH = sh * 0.13
+                let amber: SIMD3<Float> = [0.95, 0.70, 0.30]
+                let amberA: SIMD4<Float> = [amber.x, amber.y, amber.z, 1.0]
+                let firstIdx = windowIndex
+
+                for row in 0..<winRows {
+                    for col in 0..<winCols {
+                        let xFrac = Float(col + 1) / Float(winCols + 1)
+                        let yFrac = Float(row + 1) / Float(winRows + 1)
+                        let wx = spot.x + (xFrac - 0.5) * sw
+                        let wy = yFrac * sh
+                        let wz = spot.z + sd / 2 + 0.005
+
+                        let winVerts = buildQuad(w: winW, h: winH, color: amberA)
+                        let model = m4Translation(wx, wy, wz)
+                        // Window glow is a transparent draw call
+                        if let buf = makeVertexBuffer(winVerts, device: device) {
+                            transparentCalls.append(DrawCall(
+                                buffer:      buf,
+                                count:       winVerts.count,
+                                model:       model,
+                                emissiveCol: amber,
+                                emissiveMix: 1.0
+                            ))
+                        }
+                        windowGlowIntensities.append(1.0)
+                        windowIndex += 1
+                    }
+                }
+
+                buildings.append(Building(x: spot.x, z: spot.z,
+                                          w: sw, h: sh, d: sd,
+                                          isChurch: spot.isChurch,
+                                          windowCount: winRows * winCols,
+                                          firstWindowIndex: firstIdx))
+            }
+
+            // Trees
+            var rng2 = SplitMix64(seed: 1351)
+            let trunkCol: SIMD4<Float> = [0.18, 0.10, 0.05, 1]
+            let leafCol:  SIMD4<Float> = [0.05, 0.14, 0.05, 1]
+            for _ in 0..<12 {
+                let tx = Float(Double.random(in: -6...6, using: &rng2))
+                let tz = Float(Double.random(in: -5...5, using: &rng2))
+                let ts = Float(0.5 + Double.random(in: 0...0.5, using: &rng2))
+                addOpaque(buildCylinder(radius: 0.06*ts, height: 0.5*ts,
+                                        segments: 8, color: trunkCol),
+                          model: m4Translation(tx, 0.25*ts, tz))
+                addOpaque(buildCone(radius: 0.4*ts, height: 0.9*ts,
+                                    segments: 8, color: leafCol),
+                          model: m4Translation(tx, 0.95*ts, tz))
+            }
+
+            // Firefly spawn positions
+            var rng3 = SplitMix64(seed: 1352)
+            for _ in 0..<60 {
+                let fx = Float(Double.random(in: -5...5, using: &rng3))
+                let fz = Float(Double.random(in: -4...4, using: &rng3))
+                let fy = Float(0.4 + Double.random(in: 0...1.2, using: &rng3))
+                fireflyBase.append([fx, fy, fz])
+                fireflyPhase.append(Float(Double.random(in: 0...2*Double.pi, using: &rng3)))
+            }
+        }
+
+        private func addOpaque(_ verts: [Vertex3D], model: simd_float4x4) {
+            guard let buf = makeVertexBuffer(verts, device: device) else { return }
+            opaqueCalls.append(DrawCall(buffer: buf, count: verts.count,
+                                        model: model,
+                                        emissiveCol: .zero, emissiveMix: 0))
+        }
+
+        // MARK: - Tap interaction
+
+        func handleTap() {
+            guard extinguishedCount < windowGlowIntensities.count else { return }
+            // Fade the next window to dark over ~2 seconds (driven by render loop)
+            windowGlowIntensities[extinguishedCount] = -1  // sentinel: fading out
+            extinguishedCount += 1
+
+            // Dim overall ambient proportionally
+            let remaining = windowGlowIntensities.count - extinguishedCount
+            let frac = Float(remaining) / Float(max(1, windowGlowIntensities.count))
+            ambientIntensity = 0.14 + 0.86 * frac
+            moonIntensity    = 0.31 + 0.69 * frac
+        }
+
+        // MARK: - MTKViewDelegate
+
+        func mtkView(_ view: MTKView, drawableSizeWillChange size: CGSize) {
+            aspect = size.width > 0 ? Float(size.width / size.height) : 1
+        }
+
+        func draw(in view: MTKView) {
+            guard let pipeline = opaquePipeline,
+                  let drawable  = view.currentDrawable,
+                  let rpDesc    = view.currentRenderPassDescriptor,
+                  let cmdBuf    = commandQueue.makeCommandBuffer(),
+                  let encoder   = cmdBuf.makeRenderCommandEncoder(descriptor: rpDesc)
+            else { return }
+
+            let t = Float(CACurrentMediaTime() - startTime)
+
+            // Fade extinguishing windows over 2 seconds
+            for i in windowGlowIntensities.indices {
+                if windowGlowIntensities[i] < 0 {
+                    // Already fading — value stored as negative progress
+                    let progress = -windowGlowIntensities[i]
+                    if progress >= 2.0 {
+                        windowGlowIntensities[i] = 0
+                    } else {
+                        windowGlowIntensities[i] = -(progress + 1/60.0)
+                    }
+                }
+            }
+
+            // Camera — slow orbit 120 s/rev, angled down
+            let orbitAngle = t * (2 * Float.pi / 120.0)
+            let orbitR: Float = 13.0, orbitY: Float = 7.0
+            let eye: SIMD3<Float> = [orbitR * sin(orbitAngle), orbitY, orbitR * cos(orbitAngle)]
+            let center: SIMD3<Float> = [0, 0.5, 0]
+            let view4 = m4LookAt(eye: eye, center: center, up: [0, 1, 0])
+            let proj4 = m4Perspective(fovyRad: 48 * .pi / 180, aspect: aspect, near: 0.1, far: 80)
+            let vp    = proj4 * view4
+
+            // Moon direction (fixed)
+            let moonDir: SIMD3<Float> = simd_normalize([-0.5, -0.85, -0.3])
+            let moonCol = SIMD3<Float>(0.40, 0.45, 0.70)
+            let ambBase = SIMD3<Float>(0.15, 0.12, 0.25)
+
+            var su = SceneUniforms3D(
+                viewProjection: vp,
+                sunDirection:   SIMD4<Float>(moonDir, 0),
+                sunColor:       SIMD4<Float>(moonCol * moonIntensity, 0),
+                ambientColor:   SIMD4<Float>(ambBase * ambientIntensity, t),
+                fogParams:      SIMD4<Float>(12, 35, 0, 0),
+                fogColor:       SIMD4<Float>(0.03, 0.03, 0.06, 0),
+                cameraWorldPos: SIMD4<Float>(eye, 0)
+            )
+
+            encoder.setRenderPipelineState(pipeline)
+            encoder.setDepthStencilState(depthState)
+            encoder.setCullMode(.back)
+            encoder.setVertexBytes(&su, length: MemoryLayout<SceneUniforms3D>.size, index: 1)
+            encoder.setFragmentBytes(&su, length: MemoryLayout<SceneUniforms3D>.size, index: 1)
+
+            // Opaque pass
+            for call in opaqueCalls {
+                encodeDraw(encoder: encoder,
+                           vertexBuffer: call.buffer, vertexCount: call.count,
+                           model: call.model,
+                           emissiveColor: call.emissiveCol, emissiveMix: call.emissiveMix)
+            }
+
+            // Window glow (blended, depth read-only)
+            if let glowPL = glowPipeline {
+                encoder.setRenderPipelineState(glowPL)
+                encoder.setDepthStencilState(depthROState)
+                for (i, call) in transparentCalls.enumerated() {
+                    let raw = windowGlowIntensities[i]
+                    let intensity: Float = raw >= 0 ? raw : max(0, 1 - (-raw) / 2.0)
+                    guard intensity > 0.01 else { continue }
+                    // Billboard — face camera (simple Y-rotation only, sufficient here)
+                    encodeDraw(encoder: encoder,
+                               vertexBuffer: call.buffer, vertexCount: call.count,
+                               model: call.model,
+                               emissiveColor: call.emissiveCol * intensity,
+                               emissiveMix: 1.0,
+                               opacity: intensity * 0.85)
+                }
+            }
+
+            // Firefly particles
+            if let ppipe = particlePipeline {
+                var particles: [ParticleVertex3D] = []
+                for i in fireflyBase.indices {
+                    let ph = fireflyPhase[i]
+                    let blink = max(0, sin(t * 1.8 + ph))
+                    if blink < 0.1 { continue }
+                    let wx = fireflyBase[i].x + 0.3 * sin(t * 0.7 + ph)
+                    let wy = fireflyBase[i].y + 0.15 * sin(t * 1.1 + ph * 1.3)
+                    let wz = fireflyBase[i].z + 0.3 * cos(t * 0.5 + ph * 0.9)
+                    let col: SIMD4<Float> = [0.9, 0.8, 0.3, Float(blink) * 0.85]
+                    particles.append(ParticleVertex3D(position: [wx, wy, wz], color: col, size: 6))
+                }
+                if !particles.isEmpty,
+                   let pbuf = makeParticleBuffer(particles, device: device) {
+                    encoder.setRenderPipelineState(ppipe)
+                    encoder.setDepthStencilState(depthROState)
+                    encoder.setVertexBuffer(pbuf, offset: 0, index: 0)
+                    encoder.setVertexBytes(&su, length: MemoryLayout<SceneUniforms3D>.size, index: 1)
+                    encoder.drawPrimitives(type: .point, vertexStart: 0, vertexCount: particles.count)
+                }
+            }
+
+            encoder.endEncoding()
+            cmdBuf.present(drawable)
+            cmdBuf.commit()
+        }
     }
 
     func makeCoordinator() -> Coordinator { Coordinator() }
 
-    func makeNSView(context: Context) -> SCNView {
-        let view = SCNView()
-        let scene = SCNScene()
-        view.scene = scene
-        view.backgroundColor = .black
-        view.antialiasingMode = .multisampling4X
-        view.isPlaying = true
+    func makeNSView(context: Context) -> MTKView {
+        let view = MTKView(frame: .zero, device: context.coordinator.device)
+        view.delegate              = context.coordinator
+        view.colorPixelFormat      = .bgra8Unorm
+        view.depthStencilPixelFormat = .depth32Float
+        view.clearColor            = MTLClearColor(red: 0.015, green: 0.015, blue: 0.04, alpha: 1)
         view.preferredFramesPerSecond = 60
-        view.allowsCameraControl = false
-
-        buildScene(scene, coord: context.coordinator)
+        view.autoResizeDrawable    = true
         return view
     }
 
-    func updateNSView(_ nsView: SCNView, context: Context) {
+    func updateNSView(_ nsView: MTKView, context: Context) {
         let c = context.coordinator
         guard interaction.tapCount != c.lastTapCount else { return }
         c.lastTapCount = interaction.tapCount
-        guard c.extinguishedIndex < c.windowLights.count else { return }
-
-        let light = c.windowLights[c.extinguishedIndex]
-        let glow = c.extinguishedIndex < c.windowGlows.count ? c.windowGlows[c.extinguishedIndex] : nil
-
-        // Dim the light over 2 seconds
-        SCNTransaction.begin()
-        SCNTransaction.animationDuration = 2.0
-        light.light?.intensity = 0
-        glow?.geometry?.firstMaterial?.emission.contents = NSColor.black
-        SCNTransaction.commit()
-
-        // After the dim, spawn a small smoke puff
-        let smokePos = light.position
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.8) {
-            guard let scene = nsView.scene else { return }
-            let smoke = SCNParticleSystem()
-            smoke.birthRate = 40
-            smoke.particleLifeSpan = 1.5
-            smoke.particleSize = 0.04
-            smoke.particleSizeVariation = 0.02
-            smoke.particleColor = NSColor(white: 0.5, alpha: 0.5)
-            smoke.particleColorVariation = SCNVector4(0, 0, 0, 0.2)
-            smoke.blendMode = .alpha
-            smoke.spreadingAngle = 30
-            smoke.emittingDirection = SCNVector3(0, 1, 0)
-            smoke.particleVelocity = 0.15
-            smoke.particleVelocityVariation = 0.05
-            smoke.emitterShape = SCNSphere(radius: 0.02)
-            smoke.birthRateVariation = 10
-            smoke.loops = false
-            smoke.emissionDuration = 0.4
-            smoke.particleAngularVelocity = 0.5
-
-            let smokeNode = SCNNode()
-            smokeNode.position = SCNVector3(smokePos.x, smokePos.y + 0.15, smokePos.z)
-            smokeNode.addParticleSystem(smoke)
-            scene.rootNode.addChildNode(smokeNode)
-
-            // Clean up the smoke node after particles expire
-            DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
-                smokeNode.removeFromParentNode()
-            }
-        }
-
-        c.extinguishedIndex += 1
-
-        // Progressively dim ambient and moonlight as windows go out
-        let total = c.windowLights.count
-        let remaining = max(0, total - c.extinguishedIndex)
-        let fraction = total > 0 ? Double(remaining) / Double(total) : 0
-        let minAmbient: CGFloat = 5
-        let maxAmbient: CGFloat = 35
-        let newAmbient = minAmbient + (maxAmbient - minAmbient) * CGFloat(fraction)
-        let minMoon: CGFloat = 25
-        let maxMoon: CGFloat = 80
-        let newMoon = minMoon + (maxMoon - minMoon) * CGFloat(fraction)
-        SCNTransaction.begin()
-        SCNTransaction.animationDuration = 2.0
-        c.ambientLight?.light?.intensity = newAmbient
-        c.moonLight?.light?.intensity = newMoon
-        SCNTransaction.commit()
-    }
-
-    // MARK: - Scene construction
-
-    private func buildScene(_ scene: SCNScene, coord: Coordinator) {
-        // Atmosphere
-        scene.fogStartDistance = 12
-        scene.fogEndDistance = 35
-        scene.fogColor = NSColor(red: 0.03, green: 0.03, blue: 0.06, alpha: 1)
-        scene.background.contents = NSColor(red: 0.015, green: 0.015, blue: 0.04, alpha: 1)
-
-        addLighting(to: scene, coord: coord)
-        addGround(to: scene)
-        addBuildings(to: scene, coord: coord)
-        addTrees(to: scene)
-        addFireflies(to: scene)
-        addCamera(to: scene)
-    }
-
-    // MARK: - Lighting
-
-    private func addLighting(to scene: SCNScene, coord: Coordinator) {
-        // Warm ambient — village is alive at the start, windows glowing
-        let ambient = SCNNode()
-        ambient.light = SCNLight()
-        ambient.light!.type = .ambient
-        ambient.light!.intensity = 35
-        ambient.light!.color = NSColor(red: 0.15, green: 0.12, blue: 0.25, alpha: 1)
-        scene.rootNode.addChildNode(ambient)
-        coord.ambientLight = ambient
-
-        // Moonlight — blue-silver wash, bright enough to see the village
-        let moon = SCNNode()
-        moon.light = SCNLight()
-        moon.light!.type = .directional
-        moon.light!.intensity = 80
-        moon.light!.color = NSColor(red: 0.40, green: 0.45, blue: 0.70, alpha: 1)
-        moon.light!.castsShadow = true
-        moon.light!.shadowRadius = 3
-        moon.light!.shadowSampleCount = 4
-        moon.eulerAngles = SCNVector3(-Float.pi / 3.5, Float.pi / 5, 0)
-        scene.rootNode.addChildNode(moon)
-        coord.moonLight = moon
-    }
-
-    // MARK: - Ground
-
-    private func addGround(to scene: SCNScene) {
-        let ground = SCNFloor()
-        ground.reflectivity = 0.02
-        ground.firstMaterial?.diffuse.contents = NSColor(red: 0.06, green: 0.10, blue: 0.04, alpha: 1)
-        scene.rootNode.addChildNode(SCNNode(geometry: ground))
-
-        // Slight path through village (flattened box)
-        let path = SCNBox(width: 1.0, height: 0.01, length: 14, chamferRadius: 0)
-        path.firstMaterial?.diffuse.contents = NSColor(red: 0.12, green: 0.09, blue: 0.06, alpha: 1)
-        let pathNode = SCNNode(geometry: path)
-        pathNode.position = SCNVector3(0, 0.005, 0)
-        scene.rootNode.addChildNode(pathNode)
-    }
-
-    // MARK: - Buildings
-
-    private func addBuildings(to scene: SCNScene, coord: Coordinator) {
-        var rng = SplitMix64(seed: 1350)
-
-        struct Spot { let x: Float; let z: Float; let s: Float; let isChurch: Bool }
-        let spots: [Spot] = [
-            Spot(x: -3.2, z: -2.0, s: 1.0, isChurch: false),
-            Spot(x: -1.0, z: -3.2, s: 0.8, isChurch: false),
-            Spot(x:  1.2, z: -2.5, s: 1.1, isChurch: false),
-            Spot(x:  3.0, z: -1.0, s: 0.9, isChurch: false),
-            Spot(x: -2.2, z:  1.2, s: 0.85, isChurch: false),
-            Spot(x:  0.5, z:  0.5, s: 1.15, isChurch: true),
-            Spot(x:  2.5, z:  1.8, s: 0.95, isChurch: false),
-        ]
-
-        let wallColor = NSColor(red: 0.20, green: 0.16, blue: 0.10, alpha: 1)
-        let roofColor = NSColor(red: 0.28, green: 0.18, blue: 0.08, alpha: 1)
-
-        for spot in spots {
-            let h = Float(spot.isChurch ? 2.8 : (1.0 + Double.random(in: 0...0.7, using: &rng)))
-            let w = Float(spot.isChurch ? 1.3 : (0.7 + Double.random(in: 0...0.5, using: &rng)))
-            let d = Float(spot.isChurch ? 1.3 : (0.6 + Double.random(in: 0...0.4, using: &rng)))
-            let sw = w * spot.s
-            let sh = h * spot.s
-            let sd = d * spot.s
-
-            // Body
-            let box = SCNBox(width: CGFloat(sw), height: CGFloat(sh),
-                             length: CGFloat(sd), chamferRadius: 0.02)
-            box.firstMaterial?.diffuse.contents = wallColor
-            let body = SCNNode(geometry: box)
-            body.position = SCNVector3(spot.x, sh / 2, spot.z)
-            body.castsShadow = true
-            scene.rootNode.addChildNode(body)
-
-            // Roof
-            let roofH: Float = 0.55 * spot.s
-            let pyramid = SCNPyramid(width: CGFloat(sw + 0.15),
-                                     height: CGFloat(roofH),
-                                     length: CGFloat(sd + 0.15))
-            pyramid.firstMaterial?.diffuse.contents = roofColor
-            let roof = SCNNode(geometry: pyramid)
-            roof.position = SCNVector3(spot.x, sh + roofH / 2, spot.z)
-            roof.castsShadow = true
-            scene.rootNode.addChildNode(roof)
-
-            // Windows — small panes, multiple per building, warm amber glow
-            let winCols = 2
-            let winRows = spot.isChurch ? 2 : 1
-            let windowW: CGFloat = CGFloat(sw * 0.12)
-            let windowH: CGFloat = CGFloat(sh * 0.13)
-            let warmAmber = NSColor(red: 0.95, green: 0.7, blue: 0.3, alpha: 1)
-
-            for row in 0..<winRows {
-                for col in 0..<winCols {
-                    let xFrac = (Double(col) + 1.0) / Double(winCols + 1)
-                    let yFrac = (Double(row) + 1.0) / Double(winRows + 1)
-                    let wx = spot.x + Float(xFrac - 0.5) * sw
-                    let wy = Float(yFrac) * sh
-
-                    let winGeo = SCNPlane(width: windowW, height: windowH)
-                    winGeo.firstMaterial?.emission.contents = warmAmber
-                    winGeo.firstMaterial?.diffuse.contents = NSColor.black
-                    winGeo.firstMaterial?.isDoubleSided = true
-                    let winNode = SCNNode(geometry: winGeo)
-                    winNode.position = SCNVector3(wx, wy, spot.z + sd / 2 + 0.01)
-                    scene.rootNode.addChildNode(winNode)
-
-                    // Point light bleeding from window
-                    let light = SCNNode()
-                    light.light = SCNLight()
-                    light.light!.type = .omni
-                    light.light!.intensity = 200
-                    light.light!.color = warmAmber
-                    light.light!.attenuationStartDistance = 0
-                    light.light!.attenuationEndDistance = 2.5
-                    light.position = SCNVector3(wx, wy, spot.z + sd / 2 + 0.15)
-                    scene.rootNode.addChildNode(light)
-                    coord.windowLights.append(light)
-                    coord.windowGlows.append(winNode)
-                }
-            }
-        }
-    }
-
-    // MARK: - Trees
-
-    private func addTrees(to scene: SCNScene) {
-        var rng = SplitMix64(seed: 1351)
-        let trunkColor = NSColor(red: 0.18, green: 0.10, blue: 0.05, alpha: 1)
-        let leafColor = NSColor(red: 0.05, green: 0.14, blue: 0.05, alpha: 1)
-
-        for _ in 0..<12 {
-            let tx = Float(Double.random(in: -6...6, using: &rng))
-            let tz = Float(Double.random(in: -5...5, using: &rng))
-            let ts = Float(0.5 + Double.random(in: 0...0.5, using: &rng))
-
-            let trunk = SCNCylinder(radius: CGFloat(0.06 * ts), height: CGFloat(0.5 * ts))
-            trunk.firstMaterial?.diffuse.contents = trunkColor
-            let trunkNode = SCNNode(geometry: trunk)
-            trunkNode.position = SCNVector3(tx, 0.25 * ts, tz)
-            scene.rootNode.addChildNode(trunkNode)
-
-            let canopy = SCNCone(topRadius: 0,
-                                 bottomRadius: CGFloat(0.4 * ts),
-                                 height: CGFloat(0.9 * ts))
-            canopy.firstMaterial?.diffuse.contents = leafColor
-            let canopyNode = SCNNode(geometry: canopy)
-            canopyNode.position = SCNVector3(tx, 0.5 * ts + 0.45 * ts, tz)
-            canopyNode.castsShadow = true
-            scene.rootNode.addChildNode(canopyNode)
-        }
-    }
-
-    // MARK: - Fireflies (particle system)
-
-    private func addFireflies(to scene: SCNScene) {
-        let sys = SCNParticleSystem()
-        sys.birthRate = 3
-        sys.particleLifeSpan = 7
-        sys.particleSize = 0.025
-        sys.particleColor = NSColor(red: 0.9, green: 0.8, blue: 0.3, alpha: 0.85)
-        sys.particleColorVariation = SCNVector4(0.05, 0.1, 0, 0.15)
-        sys.blendMode = .additive
-        sys.spreadingAngle = 180
-        sys.emittingDirection = SCNVector3(0, 1, 0)
-        sys.particleVelocity = 0.08
-        sys.particleVelocityVariation = 0.04
-        sys.emitterShape = SCNBox(width: 10, height: 0.5, length: 8, chamferRadius: 0)
-
-        let emitter = SCNNode()
-        emitter.position = SCNVector3(0, 0.8, 0)
-        emitter.addParticleSystem(sys)
-        scene.rootNode.addChildNode(emitter)
-    }
-
-    // MARK: - Camera (slow orbit)
-
-    private func addCamera(to scene: SCNScene) {
-        let camera = SCNCamera()
-        camera.fieldOfView = 48
-        camera.zNear = 0.1
-        camera.zFar = 80
-        // Slight bloom for a dreamy feel
-        camera.wantsHDR = true
-        camera.bloomIntensity = 0.3
-        camera.bloomThreshold = 0.8
-
-        let camNode = SCNNode()
-        camNode.camera = camera
-        camNode.position = SCNVector3(0, 7, 11)
-        camNode.look(at: SCNVector3(0, 0.5, 0))
-
-        let orbit = SCNNode()
-        orbit.addChildNode(camNode)
-        scene.rootNode.addChildNode(orbit)
-
-        // Full revolution in 120 seconds — glacially slow
-        orbit.runAction(.repeatForever(
-            .rotateBy(x: 0, y: .pi * 2, z: 0, duration: 120)
-        ))
+        c.handleTap()
     }
 }

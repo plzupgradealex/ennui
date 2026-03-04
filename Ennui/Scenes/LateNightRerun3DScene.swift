@@ -1,10 +1,10 @@
-// LateNightRerun3DScene — SceneKit experiment.
-// First-person view from bed in a 90s bedroom. CRT TV flickers colored light
-// across the walls. Lava lamp glows. Glow stars on the ceiling.
-// Tap to change the channel (TV color shifts). Cozy, warm, sleepy.
+// LateNightRerun3DScene — Metal 3D nineties bedroom scene.
+// First-person view from bed. CRT TV flickers coloured light across walls.
+// Glow-in-the-dark stars on the ceiling. Lava lamp pulses. Pan to look around.
+// Tap to change the channel. Rendered entirely in Metal (MTKView) — no SceneKit.
 
 import SwiftUI
-import SceneKit
+import MetalKit
 
 struct LateNightRerun3DScene: View {
     @ObservedObject var interaction: InteractionState
@@ -19,664 +19,433 @@ struct LateNightRerun3DScene: View {
 private struct LateNightRerun3DRepresentable: NSViewRepresentable {
     @ObservedObject var interaction: InteractionState
 
-    final class Coordinator: NSObject {
-        var tvLight: SCNNode?
-        var tvScreen: SCNNode?
-        var scanlineNode: SCNNode?
-        var camNode: SCNNode?
-        var camYaw: CGFloat = 0      // horizontal look (radians)
-        var camPitch: CGFloat = 0    // vertical look (radians)
-        var lastDragPoint: CGPoint = .zero
-        var lastTapCount = 0
-        var channel = 0
-        let channelColors: [NSColor] = [
-            NSColor(red: 0.30, green: 0.35, blue: 0.80, alpha: 1),  // Late show blue
-            NSColor(red: 0.20, green: 0.20, blue: 0.20, alpha: 1),  // Static gray
-            NSColor(red: 0.80, green: 0.75, blue: 0.20, alpha: 1),  // Color bars
-            NSColor(red: 0.12, green: 0.45, blue: 0.12, alpha: 1),  // X-Files green
-            NSColor(red: 0.75, green: 0.50, blue: 0.20, alpha: 1),  // Poirot warm
+    // MARK: Coordinator / Renderer
+
+    final class Coordinator: NSObject, MTKViewDelegate {
+
+        // MARK: Metal core
+        let device:         MTLDevice
+        let commandQueue:   MTLCommandQueue
+        var opaquePipeline: MTLRenderPipelineState?
+        var glowPipeline:   MTLRenderPipelineState?
+        var particlePipeline: MTLRenderPipelineState?
+        var depthState:     MTLDepthStencilState?
+        var depthROState:   MTLDepthStencilState?
+
+        // MARK: Channel colours (TV)
+        let channelColors: [SIMD3<Float>] = [
+            [0.30, 0.35, 0.80],   // Late-show blue
+            [0.20, 0.20, 0.20],   // Static grey
+            [0.80, 0.75, 0.20],   // Colour bars
+            [0.12, 0.45, 0.12],   // X-Files green
+            [0.75, 0.50, 0.20],   // Poirot warm
         ]
+        var channel = 0
+        var tvColor: SIMD3<Float> = [0.30, 0.35, 0.80]
+        var targetTvColor: SIMD3<Float> = [0.30, 0.35, 0.80]
 
-        @objc func handlePan(_ gesture: NSPanGestureRecognizer) {
-            guard let cam = camNode else { return }
-            let sensitivity: CGFloat = 0.003
-            let delta = gesture.translation(in: gesture.view)
+        // MARK: Scene geometry
+        struct DrawCall {
+            var buffer:      MTLBuffer
+            var count:       Int
+            var model:       simd_float4x4
+            var emissiveCol: SIMD3<Float>
+            var emissiveMix: Float
+            var opacity:     Float = 1
+        }
+        var opaqueCalls:      [DrawCall] = []
+        var transparentCalls: [DrawCall] = []
 
-            camYaw  -= delta.x * sensitivity
-            camPitch -= delta.y * sensitivity
+        // TV screen buffer (needs colour update each frame for channel shimmer)
+        var tvScreenBuffer:   MTLBuffer?
+        var tvScreenCount = 0
 
-            // Clamp: can look ~70° left/right, ~40° up, ~25° down
+        // Lava lamp blobs
+        var lavaPhases: [Float] = []
+        var lavaColors: [SIMD3<Float>] = []
+
+        // Ceiling star positions
+        var starPositions: [SIMD3<Float>] = []
+        var starPhases:    [Float] = []
+
+        // MARK: Camera look-around (pan gesture)
+        var camYaw:   Float = 0   // radians, horizontal
+        var camPitch: Float = 0   // radians, vertical
+
+        // MARK: Animation
+        var startTime: CFTimeInterval = CACurrentMediaTime()
+        var lastTapCount = 0
+        var aspect: Float = 1
+
+        // MARK: - Init
+
+        override init() {
+            device       = MTLCreateSystemDefaultDevice()!
+            commandQueue = device.makeCommandQueue()!
+            super.init()
+            do {
+                opaquePipeline   = try makeOpaquePipeline(device: device)
+                glowPipeline     = try makeAlphaBlendPipeline(device: device)
+                particlePipeline = try makeParticlePipeline(device: device)
+            } catch {
+                print("LateNightRerun3D Metal pipeline error: \(error)")
+            }
+            depthState   = makeDepthState(device: device)
+            depthROState = makeDepthReadOnlyState(device: device)
+            buildScene()
+        }
+
+        // MARK: - Build scene geometry
+
+        private func buildScene() {
+            buildRoom()
+            buildTV()
+            buildFurniture()
+            buildDecorations()
+            buildLavaLamp()
+            buildCeilingStars()
+        }
+
+        private func addOpaque(_ v: [Vertex3D], model: simd_float4x4,
+                               emissive: SIMD3<Float> = .zero, mix: Float = 0) {
+            guard let buf = makeVertexBuffer(v, device: device) else { return }
+            opaqueCalls.append(DrawCall(buffer: buf, count: v.count, model: model,
+                                        emissiveCol: emissive, emissiveMix: mix))
+        }
+
+        private func addGlow(_ v: [Vertex3D], model: simd_float4x4,
+                              emissive: SIMD3<Float>, opacity: Float = 0.9) {
+            guard let buf = makeVertexBuffer(v, device: device) else { return }
+            transparentCalls.append(DrawCall(buffer: buf, count: v.count, model: model,
+                                             emissiveCol: emissive, emissiveMix: 1.0,
+                                             opacity: opacity))
+        }
+
+        private func buildRoom() {
+            let wallCol: SIMD4<Float>   = [0.10, 0.08, 0.13, 1]
+            let floorCol: SIMD4<Float>  = [0.14, 0.09, 0.07, 1]
+            let ceilCol: SIMD4<Float>   = [0.07, 0.06, 0.09, 1]
+
+            // Floor (plane)
+            addOpaque(buildPlane(w: 6, d: 6, color: floorCol),
+                      model: matrix_identity_float4x4)
+
+            // Back wall (facing +Z toward camera)
+            addOpaque(buildQuad(w: 6, h: 3, color: wallCol, normal: [0, 0, 1]),
+                      model: m4Translation(0, 1.5, -3))
+
+            // Left wall
+            addOpaque(buildQuad(w: 6, h: 3, color: wallCol, normal: [1, 0, 0]),
+                      model: m4Translation(-3, 1.5, 0) * m4RotY(.pi/2))
+
+            // Right wall
+            addOpaque(buildQuad(w: 6, h: 3, color: wallCol, normal: [-1, 0, 0]),
+                      model: m4Translation(3, 1.5, 0) * m4RotY(-.pi/2))
+
+            // Ceiling
+            addOpaque(buildQuad(w: 6, h: 6, color: ceilCol, normal: [0, -1, 0]),
+                      model: m4Translation(0, 3, 0) * m4RotX(-.pi/2))
+        }
+
+        private func buildTV() {
+            // TV stand / dresser
+            addOpaque(buildBox(w: 1.2, h: 0.5, d: 0.6, color: [0.18, 0.12, 0.08, 1]),
+                      model: m4Translation(0, 0.25, -2.6))
+
+            // VHS tapes on dresser
+            let tapeColors: [SIMD4<Float>] = [
+                [0.10, 0.10, 0.12, 1], [0.12, 0.08, 0.06, 1], [0.07, 0.07, 0.10, 1]
+            ]
+            for (i, col) in tapeColors.enumerated() {
+                addOpaque(buildBox(w: 0.19, h: 0.03, d: 0.12, color: col),
+                          model: m4Translation(0.42, 0.52 + Float(i)*0.035, -2.55)
+                            * m4RotY(Float(i)*0.08 - 0.04))
+            }
+
+            // CRT body
+            addOpaque(buildBox(w: 0.70, h: 0.55, d: 0.50, color: [0.08, 0.07, 0.07, 1]),
+                      model: m4Translation(0, 0.78, -2.6))
+
+            // TV screen (emissive, updated each frame)
+            let screenVerts = buildQuad(w: 0.52, h: 0.38, color: [1, 1, 1, 1])
+            tvScreenBuffer = makeVertexBuffer(screenVerts, device: device)
+            tvScreenCount  = screenVerts.count
+        }
+
+        private func buildFurniture() {
+            let wood: SIMD4<Float> = [0.16, 0.10, 0.07, 1]
+
+            // Mattress
+            addOpaque(buildBox(w: 1.8, h: 0.25, d: 2.0, color: [0.25, 0.12, 0.10, 1]),
+                      model: m4Translation(0, 0.3, 1.0))
+            // Bed frame
+            addOpaque(buildBox(w: 1.9, h: 0.15, d: 2.1, color: wood),
+                      model: m4Translation(0, 0.1, 1.0))
+            // Pillow
+            addOpaque(buildBox(w: 0.5, h: 0.10, d: 0.35, color: [0.85, 0.80, 0.75, 1]),
+                      model: m4Translation(0, 0.48, 1.7))
+            // Nightstand
+            addOpaque(buildBox(w: 0.4, h: 0.5, d: 0.35, color: wood),
+                      model: m4Translation(1.1, 0.25, 0.8))
+            // Alarm clock
+            addOpaque(buildBox(w: 0.10, h: 0.07, d: 0.05, color: [0.06, 0.06, 0.06, 1]),
+                      model: m4Translation(1.05, 0.535, 0.75))
+            // Clock face (red LED glow)
+            addGlow(buildQuad(w: 0.07, h: 0.035, color: [1, 1, 1, 1]),
+                    model: m4Translation(1.05, 0.535, 0.73),
+                    emissive: [0.9, 0.15, 0.1])
+        }
+
+        private func buildDecorations() {
+            // Posters on left wall
+            addGlow(buildQuad(w: 0.5, h: 0.7, color: [1,1,1,1]),
+                    model: m4Translation(-2.99, 1.6, -0.5) * m4RotY(.pi/2),
+                    emissive: [0.06, 0.04, 0.07], opacity: 0.7)
+            addGlow(buildQuad(w: 0.35, h: 0.5, color: [1,1,1,1]),
+                    model: m4Translation(-2.99, 1.5,  0.8) * m4RotY(.pi/2),
+                    emissive: [0.04, 0.03, 0.06], opacity: 0.7)
+
+            // Bookshelf on right wall
+            addOpaque(buildBox(w: 0.8, h: 0.03, d: 0.2, color: [0.14, 0.09, 0.06, 1]),
+                      model: m4Translation(2.88, 1.3, 0))
+            // Books
+            let bookCols: [SIMD4<Float>] = [
+                [0.15, 0.08, 0.06, 1], [0.08, 0.06, 0.14, 1], [0.06, 0.12, 0.06, 1],
+                [0.14, 0.10, 0.04, 1], [0.10, 0.04, 0.04, 1],
+            ]
+            var bx: Float = 2.62
+            var rng = SplitMix64(seed: 9900)
+            for col in bookCols {
+                let bw = Float(0.04 + Double.random(in: 0...0.04, using: &rng))
+                let bh = Float(0.15 + Double.random(in: 0...0.07, using: &rng))
+                addOpaque(buildBox(w: bw, h: bh, d: 0.12, color: col),
+                          model: m4Translation(bx + bw/2, 1.315 + bh/2, 0))
+                bx += bw + 0.01
+            }
+
+            // Rug
+            addOpaque(buildBox(w: 1.5, h: 0.005, d: 1.0, color: [0.30, 0.12, 0.12, 1]),
+                      model: m4Translation(0, 0.003, -0.5))
+
+            // Window (right wall, moonlit blue glow)
+            addGlow(buildQuad(w: 0.65, h: 0.90, color: [1,1,1,1]),
+                    model: m4Translation(2.99, 1.5, -1.5) * m4RotY(-.pi/2),
+                    emissive: [0.08, 0.14, 0.40], opacity: 0.8)
+
+            // String lights along ceiling edge
+            var rng2 = SplitMix64(seed: 9901)
+            for i in 0..<18 {
+                let t = Float(i) / 17.0
+                let x = -2.7 + t * 5.4
+                let brightness = Float(0.7 + Double.random(in: 0...0.3, using: &rng2))
+                let r = Float(0.9 + Double.random(in: 0...0.1, using: &rng2))
+                let g = Float(0.5 + Double.random(in: 0...0.4, using: &rng2))
+                let b = Float(0.2 + Double.random(in: 0...0.3, using: &rng2))
+                addGlow(buildSphere(radius: 0.04, rings: 4, segments: 6, color: [1,1,1,1]),
+                        model: m4Translation(x, 2.9, -2.9),
+                        emissive: [r*brightness, g*brightness, b*brightness], opacity: 0.8)
+            }
+        }
+
+        private func buildLavaLamp() {
+            // Lava lamp body (tall cylinder)
+            addOpaque(buildCylinder(radius: 0.07, height: 0.35, segments: 12,
+                                    color: [0.08, 0.05, 0.06, 1]),
+                      model: m4Translation(-1.1, 0.67, -2.55))
+            // Base
+            addOpaque(buildCylinder(radius: 0.09, height: 0.04, segments: 12,
+                                    color: [0.15, 0.10, 0.06, 1]),
+                      model: m4Translation(-1.1, 0.5, -2.55))
+            // Outer glow (orange-red, updated each frame via draw)
+            // stored as a transparent call so we can vary colour
+            let lampGlow = buildSphere(radius: 0.08, rings: 6, segments: 8, color: [1,1,1,1])
+            if let buf = makeVertexBuffer(lampGlow, device: device) {
+                transparentCalls.append(DrawCall(buffer: buf, count: lampGlow.count,
+                                                 model: m4Translation(-1.1, 0.67, -2.55),
+                                                 emissiveCol: [0.9, 0.3, 0.1],
+                                                 emissiveMix: 1.0, opacity: 0.5))
+            }
+
+            // Lava blob phases
+            var rng = SplitMix64(seed: 9902)
+            for _ in 0..<5 {
+                lavaPhases.append(Float(Double.random(in: 0...2*Double.pi, using: &rng)))
+                let r = Float(0.8 + Double.random(in: 0...0.2, using: &rng))
+                let g = Float(0.1 + Double.random(in: 0...0.2, using: &rng))
+                lavaColors.append([r, g, 0.05])
+            }
+        }
+
+        private func buildCeilingStars() {
+            var rng = SplitMix64(seed: 9903)
+            for _ in 0..<40 {
+                let sx = Float(Double.random(in: -2.8...2.8, using: &rng))
+                let sz = Float(Double.random(in: -2.8...2.8, using: &rng))
+                starPositions.append([sx, 2.95, sz])
+                starPhases.append(Float(Double.random(in: 0...2*Double.pi, using: &rng)))
+            }
+        }
+
+        // MARK: - MTKViewDelegate
+
+        func mtkView(_ view: MTKView, drawableSizeWillChange size: CGSize) {
+            aspect = size.width > 0 ? Float(size.width / size.height) : 1
+        }
+
+        func draw(in view: MTKView) {
+            guard let pipeline    = opaquePipeline,
+                  let drawable    = view.currentDrawable,
+                  let rpDesc      = view.currentRenderPassDescriptor,
+                  let cmdBuf      = commandQueue.makeCommandBuffer(),
+                  let encoder     = cmdBuf.makeRenderCommandEncoder(descriptor: rpDesc)
+            else { return }
+
+            let t = Float(CACurrentMediaTime() - startTime)
+
+            // Lerp TV colour toward target (channel change)
+            tvColor = tvColor + (targetTvColor - tvColor) * 0.12
+
+            // TV shimmer (subtle animated colour on current channel base)
+            let shimR = tvColor.x + 0.04 * sin(t * 4.5)
+            let shimG = tvColor.y + 0.03 * cos(t * 3.2)
+            let shimB = tvColor.z + 0.05 * sin(t * 5.8)
+            let shimCol = SIMD3<Float>(max(0, shimR), max(0, shimG), max(0, shimB))
+
+            // TV flicker intensity
+            let flicker = 0.85 + 0.15 * abs(sin(t * 23.7 + 1.3))
+
+            // Camera — look-around from bed, eye at ~(0, 0.55, 1.8)
+            let eye: SIMD3<Float>    = [0, 0.55, 1.8]
+            let camRot = m4RotX(-camPitch) * m4RotY(-camYaw)
+            let forward: SIMD3<Float> = simd_normalize((camRot * SIMD4<Float>(0, 0, -1, 0)).xyz)
+            let view4 = m4LookAt(eye: eye, center: eye + forward, up: [0, 1, 0])
+            let proj4 = m4Perspective(fovyRad: 70 * .pi / 180, aspect: aspect, near: 0.05, far: 20)
+            let vp    = proj4 * view4
+
+            // Sun = TV as the dominant coloured light source, no fog in small room
+            var su = SceneUniforms3D(
+                viewProjection: vp,
+                sunDirection:   SIMD4<Float>([0, 0, 1], 0),  // from behind camera (facing TV)
+                sunColor:       SIMD4<Float>(shimCol * flicker * 0.6, 0),
+                ambientColor:   SIMD4<Float>(shimCol * flicker * 0.15, t),
+                fogParams:      SIMD4<Float>(18, 40, 0, 0),   // fog far away — no fog in room
+                fogColor:       SIMD4<Float>(0.05, 0.04, 0.07, 0),
+                cameraWorldPos: SIMD4<Float>(eye, 0)
+            )
+
+            encoder.setRenderPipelineState(pipeline)
+            encoder.setDepthStencilState(depthState)
+            encoder.setCullMode(.back)
+            encoder.setVertexBytes(&su, length: MemoryLayout<SceneUniforms3D>.size, index: 1)
+            encoder.setFragmentBytes(&su, length: MemoryLayout<SceneUniforms3D>.size, index: 1)
+
+            // Opaque geometry
+            for call in opaqueCalls {
+                encodeDraw(encoder: encoder,
+                           vertexBuffer: call.buffer, vertexCount: call.count,
+                           model: call.model,
+                           emissiveColor: call.emissiveCol, emissiveMix: call.emissiveMix)
+            }
+
+            // TV screen (emissive with shimmer)
+            if let scBuf = tvScreenBuffer {
+                encodeDraw(encoder: encoder,
+                           vertexBuffer: scBuf, vertexCount: tvScreenCount,
+                           model: m4Translation(0, 0.78, -2.34),
+                           emissiveColor: shimCol * flicker,
+                           emissiveMix: 1.0)
+            }
+
+            // Transparent / glow pass
+            if let gp = glowPipeline {
+                encoder.setRenderPipelineState(gp)
+                encoder.setDepthStencilState(depthROState)
+
+                // Static transparent draw calls (window, posters, string lights, etc.)
+                for call in transparentCalls {
+                    encodeDraw(encoder: encoder,
+                               vertexBuffer: call.buffer, vertexCount: call.count,
+                               model: call.model,
+                               emissiveColor: call.emissiveCol, emissiveMix: call.emissiveMix,
+                               opacity: call.opacity)
+                }
+
+                // Lava lamp blobs (animated)
+                for i in lavaPhases.indices {
+                    let ph = lavaPhases[i]
+                    let blobY = -1.1 + sin(t * 0.5 + ph) * 0.10
+                    let blobX = Float(-1.1) + cos(t * 0.3 + ph) * 0.03
+                    let blobGlow = lavaColors[i] * (0.6 + 0.4 * abs(sin(t * 0.7 + ph)))
+                    let blobVerts = buildSphere(radius: 0.025, rings: 4, segments: 6, color: [1,1,1,1])
+                    if let buf = makeVertexBuffer(blobVerts, device: device) {
+                        encodeDraw(encoder: encoder,
+                                   vertexBuffer: buf, vertexCount: blobVerts.count,
+                                   model: m4Translation(blobX, 0.67 + blobY, -2.55),
+                                   emissiveColor: blobGlow, emissiveMix: 1.0, opacity: 0.7)
+                    }
+                }
+            }
+
+            // Ceiling stars (glowing point sprites)
+            if let ppipe = particlePipeline {
+                var particles: [ParticleVertex3D] = []
+                for i in starPositions.indices {
+                    let ph = starPhases[i]
+                    let bright = (0.5 + 0.5 * sin(t * 0.4 + ph)) * 0.8
+                    let col: SIMD4<Float> = [0.3 * Float(bright), 0.85 * Float(bright),
+                                              0.4 * Float(bright), Float(bright)]
+                    particles.append(ParticleVertex3D(position: starPositions[i],
+                                                      color: col, size: 5))
+                }
+                if let pbuf = makeParticleBuffer(particles, device: device) {
+                    encoder.setRenderPipelineState(ppipe)
+                    encoder.setDepthStencilState(depthROState)
+                    encoder.setVertexBuffer(pbuf, offset: 0, index: 0)
+                    encoder.setVertexBytes(&su, length: MemoryLayout<SceneUniforms3D>.size, index: 1)
+                    encoder.drawPrimitives(type: .point, vertexStart: 0, vertexCount: particles.count)
+                }
+            }
+
+            encoder.endEncoding()
+            cmdBuf.present(drawable)
+            cmdBuf.commit()
+        }
+
+        // MARK: - Gesture handler
+
+        @objc func handlePan(_ g: NSPanGestureRecognizer) {
+            let sensitivity: Float = 0.003
+            let d = g.translation(in: g.view)
+            camYaw   -= Float(d.x) * sensitivity
+            camPitch -= Float(d.y) * sensitivity
             camYaw   = max(-.pi * 0.38, min(.pi * 0.38, camYaw))
             camPitch = max(-0.44, min(0.70, camPitch))
-
-            cam.eulerAngles = SCNVector3(camPitch, camYaw, 0)
-            gesture.setTranslation(.zero, in: gesture.view)
+            g.setTranslation(.zero, in: g.view)
         }
     }
 
     func makeCoordinator() -> Coordinator { Coordinator() }
 
-    func makeNSView(context: Context) -> SCNView {
-        let view = SCNView()
-        let scene = SCNScene()
-        view.scene = scene
-        view.backgroundColor = .black
-        view.antialiasingMode = .multisampling4X
-        view.isPlaying = true
+    func makeNSView(context: Context) -> MTKView {
+        let view = MTKView(frame: .zero, device: context.coordinator.device)
+        view.delegate              = context.coordinator
+        view.colorPixelFormat      = .bgra8Unorm
+        view.depthStencilPixelFormat = .depth32Float
+        view.clearColor            = MTLClearColor(red: 0, green: 0, blue: 0, alpha: 1)
         view.preferredFramesPerSecond = 60
-        view.allowsCameraControl = false
+        view.autoResizeDrawable    = true
 
-        buildScene(scene, coord: context.coordinator)
-
-        // Pan gesture for look-around
         let pan = NSPanGestureRecognizer(target: context.coordinator,
                                          action: #selector(Coordinator.handlePan(_:)))
         view.addGestureRecognizer(pan)
-
         return view
     }
 
-    func updateNSView(_ nsView: SCNView, context: Context) {
+    func updateNSView(_ nsView: MTKView, context: Context) {
         let c = context.coordinator
         guard interaction.tapCount != c.lastTapCount else { return }
-        c.lastTapCount = interaction.tapCount
-        c.channel = (c.channel + 1) % c.channelColors.count
-        let color = c.channelColors[c.channel]
-
-        // Brief static burst on channel change
-        let staticColor = NSColor(red: 0.6, green: 0.6, blue: 0.6, alpha: 1)
-        SCNTransaction.begin()
-        SCNTransaction.animationDuration = 0.0
-        c.tvLight?.light?.color = staticColor
-        c.tvScreen?.geometry?.firstMaterial?.emission.contents = staticColor
-        SCNTransaction.commit()
-
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) {
-            SCNTransaction.begin()
-            SCNTransaction.animationDuration = 0.1
-            c.tvLight?.light?.color = color
-            c.tvScreen?.geometry?.firstMaterial?.emission.contents = color
-            SCNTransaction.commit()
-        }
-    }
-
-    // MARK: - Scene construction
-
-    private func buildScene(_ scene: SCNScene, coord: Coordinator) {
-        scene.background.contents = NSColor.black
-
-        addRoom(to: scene)
-        addTV(to: scene, coord: coord)
-        addFurniture(to: scene)
-        addDecorations(to: scene)
-        addStringLights(to: scene)
-        addLavaLamp(to: scene)
-        addCeilingStars(to: scene)
-        addLighting(to: scene)
-        addCamera(to: scene, coord: coord)
-    }
-
-    // MARK: - Room shell
-
-    private func addRoom(to scene: SCNScene) {
-        let wallMat = SCNMaterial()
-        wallMat.diffuse.contents = NSColor(red: 0.10, green: 0.08, blue: 0.13, alpha: 1)
-
-        // Floor
-        let floor = SCNFloor()
-        floor.reflectivity = 0.03
-        floor.firstMaterial?.diffuse.contents = NSColor(red: 0.14, green: 0.09, blue: 0.07, alpha: 1)
-        scene.rootNode.addChildNode(SCNNode(geometry: floor))
-
-        // Back wall
-        let back = SCNPlane(width: 6, height: 3)
-        back.firstMaterial = wallMat
-        let backNode = SCNNode(geometry: back)
-        backNode.position = SCNVector3(0, 1.5, -3)
-        scene.rootNode.addChildNode(backNode)
-
-        // Left wall
-        let left = SCNPlane(width: 6, height: 3)
-        left.firstMaterial = wallMat
-        let leftNode = SCNNode(geometry: left)
-        leftNode.position = SCNVector3(-3, 1.5, 0)
-        leftNode.eulerAngles = SCNVector3(0, Float.pi / 2, 0)
-        scene.rootNode.addChildNode(leftNode)
-
-        // Right wall
-        let right = SCNPlane(width: 6, height: 3)
-        right.firstMaterial = wallMat
-        let rightNode = SCNNode(geometry: right)
-        rightNode.position = SCNVector3(3, 1.5, 0)
-        rightNode.eulerAngles = SCNVector3(0, -Float.pi / 2, 0)
-        scene.rootNode.addChildNode(rightNode)
-
-        // Ceiling
-        let ceil = SCNPlane(width: 6, height: 6)
-        ceil.firstMaterial?.diffuse.contents = NSColor(red: 0.07, green: 0.06, blue: 0.09, alpha: 1)
-        let ceilNode = SCNNode(geometry: ceil)
-        ceilNode.position = SCNVector3(0, 3, 0)
-        ceilNode.eulerAngles = SCNVector3(Float.pi / 2, 0, 0)
-        scene.rootNode.addChildNode(ceilNode)
-    }
-
-    // MARK: - CRT Television
-
-    private func addTV(to scene: SCNScene, coord: Coordinator) {
-        // TV stand / dresser
-        let stand = SCNBox(width: 1.2, height: 0.5, length: 0.6, chamferRadius: 0.02)
-        stand.firstMaterial?.diffuse.contents = NSColor(red: 0.18, green: 0.12, blue: 0.08, alpha: 1)
-        let standNode = SCNNode(geometry: stand)
-        standNode.position = SCNVector3(0, 0.25, -2.6)
-        scene.rootNode.addChildNode(standNode)
-
-        // VHS tapes stacked on dresser
-        let tapeColors: [NSColor] = [
-            NSColor(red: 0.10, green: 0.10, blue: 0.12, alpha: 1),
-            NSColor(red: 0.12, green: 0.08, blue: 0.06, alpha: 1),
-            NSColor(red: 0.07, green: 0.07, blue: 0.10, alpha: 1),
-        ]
-        for (i, col) in tapeColors.enumerated() {
-            let tape = SCNBox(width: 0.19, height: 0.03, length: 0.12, chamferRadius: 0.003)
-            tape.firstMaterial?.diffuse.contents = col
-            let tapeNode = SCNNode(geometry: tape)
-            tapeNode.position = SCNVector3(0.42, 0.52 + Float(i) * 0.035, -2.55)
-            tapeNode.eulerAngles = SCNVector3(0, Float(i) * 0.08 - 0.04, 0)
-            scene.rootNode.addChildNode(tapeNode)
-            // Label sticker
-            let label = SCNPlane(width: 0.12, height: 0.02)
-            label.firstMaterial?.emission.contents = NSColor(red: 0.7, green: 0.65, blue: 0.55, alpha: 1)
-            label.firstMaterial?.diffuse.contents = NSColor.black
-            let labelNode = SCNNode(geometry: label)
-            labelNode.position = SCNVector3(0.42, 0.52 + Float(i) * 0.035, -2.49)
-            scene.rootNode.addChildNode(labelNode)
-        }
-
-        // CRT body — chunky box with slight chamfer
-        let tvBody = SCNBox(width: 0.7, height: 0.55, length: 0.5, chamferRadius: 0.03)
-        tvBody.firstMaterial?.diffuse.contents = NSColor(red: 0.08, green: 0.07, blue: 0.07, alpha: 1)
-        let tvNode = SCNNode(geometry: tvBody)
-        tvNode.position = SCNVector3(0, 0.78, -2.6)
-        scene.rootNode.addChildNode(tvNode)
-
-        // Screen — emissive plane
-        let screen = SCNPlane(width: 0.52, height: 0.38)
-        let startColor = coord.channelColors[0]
-        screen.firstMaterial?.diffuse.contents = NSColor.black
-        screen.firstMaterial?.emission.contents = startColor
-        screen.firstMaterial?.isDoubleSided = true
-        let screenNode = SCNNode(geometry: screen)
-        screenNode.position = SCNVector3(0, 0.78, -2.34)
-        scene.rootNode.addChildNode(screenNode)
-        coord.tvScreen = screenNode
-
-        // Scanline overlay — semi-transparent dark lines over the screen
-        let scanlines = SCNPlane(width: 0.52, height: 0.38)
-        let scanMat = SCNMaterial()
-        scanMat.diffuse.contents = NSColor.clear
-        scanMat.transparent.contents = NSColor(white: 0.0, alpha: 0.12)
-        scanMat.isDoubleSided = true
-        scanlines.firstMaterial = scanMat
-        let scanNode = SCNNode(geometry: scanlines)
-        scanNode.position = SCNVector3(0, 0.78, -2.335)
-        scene.rootNode.addChildNode(scanNode)
-        coord.scanlineNode = scanNode
-
-        // TV content shimmer — subtle brightness variation simulating moving images
-        let contentAnim = SCNAction.repeatForever(.customAction(duration: 2.0) { node, elapsed in
-            let t = Float(elapsed)
-            let r = CGFloat(0.30 + 0.08 * sin(Double(t) * 4.5))
-            let g = CGFloat(0.35 + 0.06 * cos(Double(t) * 3.2))
-            let b = CGFloat(0.80 + 0.10 * sin(Double(t) * 5.8))
-            let shimmer = NSColor(red: r, green: g, blue: b, alpha: 1)
-            node.geometry?.firstMaterial?.emission.contents = shimmer
-        })
-        screenNode.runAction(contentAnim, forKey: "contentShimmer")
-
-        // TV light — casts colored light into room
-        let tvLight = SCNNode()
-        tvLight.light = SCNLight()
-        tvLight.light!.type = .omni
-        tvLight.light!.intensity = 220
-        tvLight.light!.color = startColor
-        tvLight.light!.attenuationStartDistance = 0
-        tvLight.light!.attenuationEndDistance = 5
-        tvLight.position = SCNVector3(0, 0.85, -2.2)
-        scene.rootNode.addChildNode(tvLight)
-        coord.tvLight = tvLight
-
-        // TV flicker animation — subtle intensity wobble
-        let flicker = SCNAction.repeatForever(.sequence([
-            .customAction(duration: 0.08) { node, _ in
-                let base: CGFloat = 220
-                let wobble = CGFloat.random(in: -20...20)
-                node.light?.intensity = base + wobble
-            },
-            .wait(duration: Double.random(in: 0.05...0.15))
-        ]))
-        tvLight.runAction(flicker)
-
-        // Matching light shimmer on the TV light so the room color matches the screen
-        let lightShimmer = SCNAction.repeatForever(.customAction(duration: 2.0) { node, elapsed in
-            let t = Float(elapsed)
-            let r = CGFloat(0.30 + 0.08 * sin(Double(t) * 4.5))
-            let g = CGFloat(0.35 + 0.06 * cos(Double(t) * 3.2))
-            let b = CGFloat(0.80 + 0.10 * sin(Double(t) * 5.8))
-            node.light?.color = NSColor(red: r, green: g, blue: b, alpha: 1)
-        })
-        tvLight.runAction(lightShimmer, forKey: "lightShimmer")
-    }
-
-    // MARK: - Furniture
-
-    private func addFurniture(to scene: SCNScene) {
-        let woodColor = NSColor(red: 0.16, green: 0.10, blue: 0.07, alpha: 1)
-
-        // Bed (camera sits here)
-        let mattress = SCNBox(width: 1.8, height: 0.25, length: 2.0, chamferRadius: 0.05)
-        mattress.firstMaterial?.diffuse.contents = NSColor(red: 0.25, green: 0.12, blue: 0.10, alpha: 1)
-        let mattressNode = SCNNode(geometry: mattress)
-        mattressNode.position = SCNVector3(0, 0.3, 1.0)
-        scene.rootNode.addChildNode(mattressNode)
-
-        // Bed frame
-        let frame = SCNBox(width: 1.9, height: 0.15, length: 2.1, chamferRadius: 0.02)
-        frame.firstMaterial?.diffuse.contents = woodColor
-        let frameNode = SCNNode(geometry: frame)
-        frameNode.position = SCNVector3(0, 0.1, 1.0)
-        scene.rootNode.addChildNode(frameNode)
-
-        // Pillow
-        let pillow = SCNBox(width: 0.5, height: 0.1, length: 0.35, chamferRadius: 0.05)
-        pillow.firstMaterial?.diffuse.contents = NSColor(red: 0.85, green: 0.80, blue: 0.75, alpha: 1)
-        let pillowNode = SCNNode(geometry: pillow)
-        pillowNode.position = SCNVector3(0, 0.48, 1.7)
-        scene.rootNode.addChildNode(pillowNode)
-
-        // Nightstand (right side)
-        let nightstand = SCNBox(width: 0.4, height: 0.5, length: 0.35, chamferRadius: 0.01)
-        nightstand.firstMaterial?.diffuse.contents = woodColor
-        let nsNode = SCNNode(geometry: nightstand)
-        nsNode.position = SCNVector3(1.1, 0.25, 0.8)
-        scene.rootNode.addChildNode(nsNode)
-
-        // Alarm clock on nightstand
-        let clockBody = SCNBox(width: 0.1, height: 0.07, length: 0.05, chamferRadius: 0.01)
-        clockBody.firstMaterial?.diffuse.contents = NSColor(red: 0.06, green: 0.06, blue: 0.06, alpha: 1)
-        let clockNode = SCNNode(geometry: clockBody)
-        clockNode.position = SCNVector3(1.05, 0.535, 0.75)
-        scene.rootNode.addChildNode(clockNode)
-        // Clock display glow (red LED digits)
-        let clockFace = SCNPlane(width: 0.07, height: 0.035)
-        clockFace.firstMaterial?.diffuse.contents = NSColor.black
-        clockFace.firstMaterial?.emission.contents = NSColor(red: 0.9, green: 0.15, blue: 0.1, alpha: 1)
-        clockFace.firstMaterial?.isDoubleSided = true
-        let clockFaceNode = SCNNode(geometry: clockFace)
-        clockFaceNode.position = SCNVector3(1.05, 0.535, 0.73)
-        scene.rootNode.addChildNode(clockFaceNode)
-    }
-
-    // MARK: - Room decorations
-
-    private func addDecorations(to scene: SCNScene) {
-        // Poster on left wall — faint rectangle suggesting a movie poster
-        let poster = SCNPlane(width: 0.5, height: 0.7)
-        let posterMat = SCNMaterial()
-        posterMat.diffuse.contents = NSColor(red: 0.14, green: 0.09, blue: 0.08, alpha: 1)
-        posterMat.emission.contents = NSColor(red: 0.06, green: 0.04, blue: 0.07, alpha: 1)
-        posterMat.isDoubleSided = true
-        poster.firstMaterial = posterMat
-        let posterNode = SCNNode(geometry: poster)
-        posterNode.position = SCNVector3(-2.99, 1.6, -0.5)
-        posterNode.eulerAngles = SCNVector3(0, Float.pi / 2, 0)
-        scene.rootNode.addChildNode(posterNode)
-
-        // Second smaller poster on left wall
-        let poster2 = SCNPlane(width: 0.35, height: 0.5)
-        let poster2Mat = SCNMaterial()
-        poster2Mat.diffuse.contents = NSColor(red: 0.10, green: 0.07, blue: 0.12, alpha: 1)
-        poster2Mat.emission.contents = NSColor(red: 0.04, green: 0.03, blue: 0.06, alpha: 1)
-        poster2Mat.isDoubleSided = true
-        poster2.firstMaterial = poster2Mat
-        let poster2Node = SCNNode(geometry: poster2)
-        poster2Node.position = SCNVector3(-2.99, 1.5, 0.8)
-        poster2Node.eulerAngles = SCNVector3(0, Float.pi / 2, 0)
-        scene.rootNode.addChildNode(poster2Node)
-
-        // Bookshelf on right wall — low shelf with a few books
-        let shelf = SCNBox(width: 0.8, height: 0.03, length: 0.2, chamferRadius: 0)
-        shelf.firstMaterial?.diffuse.contents = NSColor(red: 0.14, green: 0.09, blue: 0.06, alpha: 1)
-        let shelfNode = SCNNode(geometry: shelf)
-        shelfNode.position = SCNVector3(2.88, 1.3, 0)
-        scene.rootNode.addChildNode(shelfNode)
-
-        // Books on shelf
-        let bookColors: [NSColor] = [
-            NSColor(red: 0.15, green: 0.08, blue: 0.06, alpha: 1),
-            NSColor(red: 0.08, green: 0.06, blue: 0.14, alpha: 1),
-            NSColor(red: 0.06, green: 0.12, blue: 0.06, alpha: 1),
-            NSColor(red: 0.14, green: 0.10, blue: 0.04, alpha: 1),
-            NSColor(red: 0.10, green: 0.04, blue: 0.04, alpha: 1),
-        ]
-        var bx: Float = 2.88 - 0.3
-        for col in bookColors {
-            let bw = Float.random(in: 0.04...0.08)
-            let bh = Float.random(in: 0.15...0.22)
-            let book = SCNBox(width: CGFloat(bw), height: CGFloat(bh), length: 0.12, chamferRadius: 0.003)
-            book.firstMaterial?.diffuse.contents = col
-            let bookNode = SCNNode(geometry: book)
-            bookNode.position = SCNVector3(bx + bw / 2, 1.3 + 0.015 + bh / 2, 0)
-            scene.rootNode.addChildNode(bookNode)
-            bx += bw + 0.01
-        }
-
-        // Rug on floor — dark patterned rectangle
-        let rug = SCNBox(width: 1.5, height: 0.005, length: 1.0, chamferRadius: 0.01)
-        rug.firstMaterial?.diffuse.contents = NSColor(red: 0.30, green: 0.12, blue: 0.12, alpha: 1)
-        let rugNode = SCNNode(geometry: rug)
-        rugNode.position = SCNVector3(0, 0.003, -0.5)
-        scene.rootNode.addChildNode(rugNode)
-
-        addWindow(to: scene)
-    }
-
-    // MARK: - Window with rain and moonlight
-
-    private func addWindow(to scene: SCNScene) {
-        let wx: Float = 2.99
-        let wy: Float = 1.5
-        let wz: Float = -1.5
-        let wW: Float = 0.65   // glass Z extent in world space
-        let wH: Float = 0.90   // glass Y extent in world space
-
-        // Glass pane — visible night-sky blue glow
-        let glass = SCNPlane(width: CGFloat(wW), height: CGFloat(wH))
-        let glassMat = SCNMaterial()
-        glassMat.diffuse.contents = NSColor(red: 0.03, green: 0.06, blue: 0.18, alpha: 1)
-        glassMat.emission.contents = NSColor(red: 0.08, green: 0.14, blue: 0.40, alpha: 1)
-        glassMat.isDoubleSided = true
-        glass.firstMaterial = glassMat
-        let glassNode = SCNNode(geometry: glass)
-        glassNode.position = SCNVector3(wx, wy, wz)
-        glassNode.eulerAngles = SCNVector3(0, -Float.pi / 2, 0)
-        scene.rootNode.addChildNode(glassNode)
-
-        // Window frame — dark wood, world-axis-aligned boxes (no rotation needed)
-        let frameMat = SCNMaterial()
-        frameMat.diffuse.contents = NSColor(red: 0.09, green: 0.06, blue: 0.04, alpha: 1)
-        let ft: Float = 0.025   // frame thickness
-        let fd: Float = 0.04    // frame depth (X direction)
-
-        // Top border
-        let topBar = SCNBox(width: CGFloat(fd), height: CGFloat(ft),
-                            length: CGFloat(wW + ft * 2), chamferRadius: 0.003)
-        topBar.firstMaterial = frameMat
-        let topNode = SCNNode(geometry: topBar)
-        topNode.position = SCNVector3(wx, wy + wH / 2 + ft / 2, wz)
-        scene.rootNode.addChildNode(topNode)
-
-        // Bottom border
-        let botBar = SCNBox(width: CGFloat(fd), height: CGFloat(ft),
-                            length: CGFloat(wW + ft * 2), chamferRadius: 0.003)
-        botBar.firstMaterial = frameMat
-        let botNode = SCNNode(geometry: botBar)
-        botNode.position = SCNVector3(wx, wy - wH / 2 - ft / 2, wz)
-        scene.rootNode.addChildNode(botNode)
-
-        // Left border
-        let leftBar = SCNBox(width: CGFloat(fd), height: CGFloat(wH + ft * 2),
-                             length: CGFloat(ft), chamferRadius: 0.003)
-        leftBar.firstMaterial = frameMat
-        let leftBarNode = SCNNode(geometry: leftBar)
-        leftBarNode.position = SCNVector3(wx, wy, wz - wW / 2 - ft / 2)
-        scene.rootNode.addChildNode(leftBarNode)
-
-        // Right border
-        let rightBar = SCNBox(width: CGFloat(fd), height: CGFloat(wH + ft * 2),
-                              length: CGFloat(ft), chamferRadius: 0.003)
-        rightBar.firstMaterial = frameMat
-        let rightBarNode = SCNNode(geometry: rightBar)
-        rightBarNode.position = SCNVector3(wx, wy, wz + wW / 2 + ft / 2)
-        scene.rootNode.addChildNode(rightBarNode)
-
-        // Horizontal divider — splits glass into upper and lower panes
-        let hDiv = SCNBox(width: CGFloat(fd - 0.01), height: 0.015,
-                          length: CGFloat(wW), chamferRadius: 0.002)
-        hDiv.firstMaterial = frameMat
-        let hDivNode = SCNNode(geometry: hDiv)
-        hDivNode.position = SCNVector3(wx, wy, wz)
-        scene.rootNode.addChildNode(hDivNode)
-
-        // Vertical divider — splits glass into left and right panes
-        let vDiv = SCNBox(width: CGFloat(fd - 0.01), height: CGFloat(wH),
-                          length: 0.015, chamferRadius: 0.002)
-        vDiv.firstMaterial = frameMat
-        let vDivNode = SCNNode(geometry: vDiv)
-        vDivNode.position = SCNVector3(wx, wy, wz)
-        scene.rootNode.addChildNode(vDivNode)
-
-        // Window sill
-        let sill = SCNBox(width: 0.08, height: 0.03,
-                          length: CGFloat(wW + 0.1), chamferRadius: 0.005)
-        sill.firstMaterial?.diffuse.contents = NSColor(red: 0.12, green: 0.08, blue: 0.05, alpha: 1)
-        let sillNode = SCNNode(geometry: sill)
-        sillNode.position = SCNVector3(wx - 0.02, wy - wH / 2 - 0.015, wz)
-        scene.rootNode.addChildNode(sillNode)
-
-        // Moonlight — soft blue-white streaming in from outside
-        let moonLight = SCNNode()
-        moonLight.light = SCNLight()
-        moonLight.light!.type = .omni
-        moonLight.light!.intensity = 90
-        moonLight.light!.color = NSColor(red: 0.55, green: 0.65, blue: 0.95, alpha: 1)
-        moonLight.light!.attenuationStartDistance = 0
-        moonLight.light!.attenuationEndDistance = 4
-        moonLight.position = SCNVector3(3.5, 1.8, -1.5)
-        scene.rootNode.addChildNode(moonLight)
-
-        // Curtains on each side — pulled back to reveal glass
-        let curtainMat = SCNMaterial()
-        curtainMat.diffuse.contents = NSColor(red: 0.13, green: 0.07, blue: 0.09, alpha: 1)
-        curtainMat.isDoubleSided = true
-        let curtainDZs: [Float] = [-0.22, 0.22]
-        for dz in curtainDZs {
-            let curt = SCNPlane(width: 0.26, height: CGFloat(wH + 0.2))
-            curt.firstMaterial = curtainMat
-            let curtNode = SCNNode(geometry: curt)
-            curtNode.position = SCNVector3(wx - 0.005, wy + 0.05, wz + dz)
-            curtNode.eulerAngles = SCNVector3(0, -Float.pi / 2, 0)
-            scene.rootNode.addChildNode(curtNode)
-        }
-
-        // Rain streaks on the glass
-        addRainStreaks(to: scene,
-                       windowX: wx - 0.02,
-                       windowMinZ: wz - wW / 2 + 0.03,
-                       windowMaxZ: wz + wW / 2 - 0.03,
-                       windowTopY: wy + wH / 2 - 0.02,
-                       windowBottomY: wy - wH / 2 + 0.02)
-    }
-
-    // MARK: - Rain streaks sliding down the window glass
-
-    private func addRainStreaks(to scene: SCNScene,
-                                windowX: Float, windowMinZ: Float, windowMaxZ: Float,
-                                windowTopY: Float, windowBottomY: Float) {
-        var rng = SplitMix64(seed: 9876)
-        let winHeight = windowTopY - windowBottomY
-
-        for _ in 0..<18 {
-            let streakZ    = windowMinZ + Float(Double.random(in: 0...1, using: &rng)) * (windowMaxZ - windowMinZ)
-            let startFrac  = Float(Double.random(in: 0...1, using: &rng))
-            let streakLen  = Float(0.04 + Double.random(in: 0...0.07, using: &rng))
-            let speed      = Float(0.10 + Double.random(in: 0...0.12, using: &rng))
-
-            let streak = SCNBox(width: 0.004, height: CGFloat(streakLen), length: 0.002, chamferRadius: 0)
-            streak.firstMaterial?.diffuse.contents = NSColor.black
-            streak.firstMaterial?.emission.contents = NSColor(red: 0.45, green: 0.60, blue: 0.90, alpha: 0.55)
-            streak.firstMaterial?.isDoubleSided = true
-
-            let startY = windowTopY - startFrac * winHeight
-            let streakNode = SCNNode(geometry: streak)
-            streakNode.position = SCNVector3(windowX, startY, streakZ)
-            scene.rootNode.addChildNode(streakNode)
-
-            let fallDist = CGFloat(winHeight + streakLen)
-            let duration = Double(fallDist) / Double(speed)
-            let fall  = SCNAction.moveBy(x: 0, y: -fallDist, z: 0, duration: duration)
-            // Reset uses Swift's global RNG intentionally — SplitMix64 can't be captured in a closure
-            let reset = SCNAction.run { n in
-                let newZ = Float.random(in: windowMinZ...windowMaxZ)
-                n.position = SCNVector3(windowX, windowTopY, newZ)
-            }
-            streakNode.runAction(.repeatForever(.sequence([fall, reset])))
-        }
-    }
-
-    // MARK: - String lights along back-wall ceiling junction
-
-    private func addStringLights(to scene: SCNScene) {
-        var rng = SplitMix64(seed: 5555)
-        let count = 14
-
-        for i in 0..<count {
-            let t    = Double(i) / Double(count - 1)
-            let x    = Float(-2.6 + t * 5.2)
-            let sag  = Float(4.0 * t * (1.0 - t) * 0.18)
-            let y: Float = 2.97 - sag
-            let z: Float = -2.94
-
-            let hue       = Double.random(in: 0...0.12, using: &rng) + 0.04
-            let warmColor = NSColor(hue: CGFloat(hue), saturation: 0.85, brightness: 1.0, alpha: 1)
-
-            // Glowing bulb
-            let bulbGeo = SCNSphere(radius: 0.022)
-            bulbGeo.firstMaterial?.diffuse.contents = NSColor.black
-            bulbGeo.firstMaterial?.emission.contents = warmColor
-            let bulbNode = SCNNode(geometry: bulbGeo)
-            bulbNode.position = SCNVector3(x, y, z)
-            scene.rootNode.addChildNode(bulbNode)
-
-            // Soft point light from each bulb
-            let bulbLight = SCNNode()
-            bulbLight.light = SCNLight()
-            bulbLight.light!.type = .omni
-            bulbLight.light!.intensity = 8
-            bulbLight.light!.color = warmColor
-            bulbLight.light!.attenuationStartDistance = 0
-            bulbLight.light!.attenuationEndDistance = 0.6
-            bulbLight.position = SCNVector3(x, y, z)
-            scene.rootNode.addChildNode(bulbLight)
-
-            // Gentle independent flicker
-            let phase = Double.random(in: 0...(2 * Double.pi), using: &rng)
-            let flicker = SCNAction.repeatForever(.customAction(duration: 2.5) { n, elapsed in
-                let s = 0.85 + 0.15 * sin(Double(elapsed) / 2.5 * Double.pi * 3 + phase)
-                n.light?.intensity = CGFloat(8.0 * s)
-            })
-            bulbLight.runAction(flicker)
-        }
-    }
-
-    // MARK: - Lava lamp
-
-    private func addLavaLamp(to scene: SCNScene) {
-        // Lamp body — cylinder
-        let body = SCNCylinder(radius: 0.06, height: 0.28)
-        body.firstMaterial?.diffuse.contents = NSColor(red: 0.12, green: 0.08, blue: 0.12, alpha: 1)
-        let bodyNode = SCNNode(geometry: body)
-        bodyNode.position = SCNVector3(1.1, 0.64, 0.8)
-        scene.rootNode.addChildNode(bodyNode)
-
-        // Glowing lava
-        let glow = SCNCylinder(radius: 0.045, height: 0.18)
-        glow.firstMaterial?.diffuse.contents = NSColor.black
-        glow.firstMaterial?.emission.contents = NSColor(red: 0.85, green: 0.25, blue: 0.55, alpha: 1)
-        let glowNode = SCNNode(geometry: glow)
-        glowNode.position = SCNVector3(1.1, 0.64, 0.8)
-        scene.rootNode.addChildNode(glowNode)
-
-        // Lava lamp light — soft pink omni
-        let light = SCNNode()
-        light.light = SCNLight()
-        light.light!.type = .omni
-        light.light!.intensity = 40
-        light.light!.color = NSColor(red: 0.85, green: 0.25, blue: 0.55, alpha: 1)
-        light.light!.attenuationStartDistance = 0
-        light.light!.attenuationEndDistance = 1.5
-        light.position = SCNVector3(1.1, 0.64, 0.8)
-        scene.rootNode.addChildNode(light)
-
-        // Subtle pulsing
-        let pulse = SCNAction.repeatForever(.sequence([
-            .customAction(duration: 3.0) { node, elapsed in
-                let t = Float(elapsed / 3.0)
-                let i = CGFloat(35 + 15 * sin(t * .pi))
-                node.light?.intensity = i
-            }
-        ]))
-        light.runAction(pulse)
-    }
-
-    // MARK: - Glow-in-the-dark ceiling stars
-
-    private func addCeilingStars(to scene: SCNScene) {
-        var rng = SplitMix64(seed: 2001)
-        let starColor = NSColor(red: 0.4, green: 0.9, blue: 0.4, alpha: 1)
-
-        for _ in 0..<25 {
-            let sx = Float(-2.5 + Double.random(in: 0...5, using: &rng))
-            let sz = Float(-2.5 + Double.random(in: 0...5, using: &rng))
-            let ss = CGFloat(0.02 + Double.random(in: 0...0.02, using: &rng))
-
-            let star = SCNPlane(width: ss, height: ss)
-            star.firstMaterial?.diffuse.contents = NSColor.black
-            star.firstMaterial?.emission.contents = starColor
-            star.firstMaterial?.isDoubleSided = true
-            let sNode = SCNNode(geometry: star)
-            sNode.position = SCNVector3(sx, 2.99, sz)
-            sNode.eulerAngles = SCNVector3(Float.pi / 2, 0, 0)
-            scene.rootNode.addChildNode(sNode)
-        }
-    }
-
-    // MARK: - Lighting
-
-    private func addLighting(to scene: SCNScene) {
-        // Very dim ambient — the TV and lava lamp are the main light sources
-        let ambient = SCNNode()
-        ambient.light = SCNLight()
-        ambient.light!.type = .ambient
-        ambient.light!.intensity = 15
-        ambient.light!.color = NSColor(red: 0.08, green: 0.06, blue: 0.12, alpha: 1)
-        scene.rootNode.addChildNode(ambient)
-    }
-
-    // MARK: - Camera
-
-    private func addCamera(to scene: SCNScene, coord: Coordinator) {
-        let camera = SCNCamera()
-        camera.fieldOfView = 65
-        camera.zNear = 0.1
-        camera.zFar = 20
-        camera.wantsHDR = true
-        camera.bloomIntensity = 0.4
-        camera.bloomThreshold = 0.7
-
-        let camNode = SCNNode()
-        camNode.camera = camera
-        // Lying in bed, propped up slightly, looking at TV
-        camNode.position = SCNVector3(0, 0.75, 1.5)
-        camNode.look(at: SCNVector3(0, 0.78, -2.5))
-        scene.rootNode.addChildNode(camNode)
-        coord.camNode = camNode
-
-        // Very gentle breathing sway
-        let sway = SCNAction.repeatForever(.sequence([
-            .move(by: SCNVector3(0, 0.015, 0), duration: 4.0),
-            .move(by: SCNVector3(0, -0.015, 0), duration: 4.0),
-        ]))
-        sway.timingMode = .easeInEaseOut
-        camNode.runAction(sway)
+        c.lastTapCount   = interaction.tapCount
+        c.channel        = (c.channel + 1) % c.channelColors.count
+        c.targetTvColor  = c.channelColors[c.channel]
     }
 }
