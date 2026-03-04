@@ -25,22 +25,6 @@ private struct GouraudSolarSystem3DRepresentable: NSViewRepresentable {
         var sceneRef: SCNScene?
         var nextOrbitRadius: Float = 19.0
         var idCounter = 100
-        var camNode: SCNNode?
-        var camYaw: CGFloat = 0
-        var camPitch: CGFloat = 0
-        var lastDragPoint: CGPoint = .zero
-
-        @objc func handlePan(_ gesture: NSPanGestureRecognizer) {
-            let loc = gesture.location(in: gesture.view)
-            if gesture.state == .began { lastDragPoint = loc; return }
-            let dx = loc.x - lastDragPoint.x
-            let dy = loc.y - lastDragPoint.y
-            lastDragPoint = loc
-            let sensitivity: CGFloat = 0.003
-            camYaw  = max(-.pi * 0.4, min(.pi * 0.4, camYaw + dx * sensitivity))
-            camPitch = max(-0.5, min(0.3, camPitch + dy * sensitivity))
-            camNode?.eulerAngles = SCNVector3(camPitch - 0.42, camYaw, 0)
-        }
     }
 
     func makeCoordinator() -> Coordinator { Coordinator() }
@@ -53,13 +37,17 @@ private struct GouraudSolarSystem3DRepresentable: NSViewRepresentable {
         view.antialiasingMode = .multisampling4X
         view.isPlaying = true
         view.preferredFramesPerSecond = 60
-        view.allowsCameraControl = false
+        view.allowsCameraControl = true
         buildScene(scene, coord: context.coordinator)
         context.coordinator.sceneRef = scene
 
-        let pan = NSPanGestureRecognizer(target: context.coordinator,
-                                         action: #selector(Coordinator.handlePan(_:)))
-        view.addGestureRecognizer(pan)
+        // Configure camera controller for tidally-locked star orbit
+        let cc = view.defaultCameraController
+        cc.interactionMode = .orbitTurntable
+        cc.inertiaEnabled = true
+        cc.minimumVerticalAngle = -60
+        cc.maximumVerticalAngle = 60
+        cc.automaticTarget = false  // lock orbit center to star at origin
         return view
     }
 
@@ -182,6 +170,7 @@ private struct GouraudSolarSystem3DRepresentable: NSViewRepresentable {
         mat.lightingModel = .constant
         sphere.materials = [mat]
         let starNode = SCNNode(geometry: sphere)
+        starNode.name = "star"
         starNode.position = SCNVector3(0, 0, 0)
         scene.rootNode.addChildNode(starNode)
 
@@ -324,22 +313,31 @@ private struct GouraudSolarSystem3DRepresentable: NSViewRepresentable {
         }
     }
 
-    // MARK: - Camera
+    // MARK: - Camera (tidally locked to star)
 
     private func addCamera(to scene: SCNScene) {
-        let pivot = SCNNode()
-        pivot.position = SCNVector3(0, 0, 0)
-        scene.rootNode.addChildNode(pivot)
+        // Find the star node for the look-at constraint
+        let starNode = scene.rootNode.childNode(withName: "star", recursively: false)
 
         let cameraNode = SCNNode()
         cameraNode.camera = SCNCamera()
-        cameraNode.camera!.zFar = 80
-        cameraNode.camera!.fieldOfView = 65
-        cameraNode.position = SCNVector3(0, 8, 18)
-        cameraNode.eulerAngles = SCNVector3(-0.42, 0, 0)
-        pivot.addChildNode(cameraNode)
+        cameraNode.camera!.zNear = 0.5
+        cameraNode.camera!.zFar = 100
+        cameraNode.camera!.fieldOfView = 60
+        cameraNode.camera!.wantsHDR = true
+        cameraNode.camera!.bloomIntensity = 0.3
+        cameraNode.camera!.bloomThreshold = 0.8
+        cameraNode.camera!.bloomBlurRadius = 6
+        cameraNode.camera!.vignettingIntensity = 0.2
+        cameraNode.camera!.vignettingPower = 1.0
+        cameraNode.position = SCNVector3(0, 6, 20)
+        scene.rootNode.addChildNode(cameraNode)
 
-        let orbit = SCNAction.rotateBy(x: 0, y: CGFloat(Double.pi * 2), z: 0, duration: 90)
-        pivot.runAction(SCNAction.repeatForever(orbit))
+        // Tidally locked: always face the star
+        if let star = starNode {
+            let lookAt = SCNLookAtConstraint(target: star)
+            lookAt.isGimbalLockEnabled = true
+            cameraNode.constraints = [lookAt]
+        }
     }
 }

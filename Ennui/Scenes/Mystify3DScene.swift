@@ -29,7 +29,7 @@ private struct Mystify3DRepresentable: NSViewRepresentable {
         view.antialiasingMode = .multisampling4X
         view.isPlaying = true
         view.preferredFramesPerSecond = 60
-        view.allowsCameraControl = false
+        view.allowsCameraControl = true
         context.coordinator.rootNode = scene.rootNode
         buildScene(scene, coord: context.coordinator)
         return view

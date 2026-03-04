@@ -35,7 +35,7 @@ private struct PotterGarden3DRepresentable: NSViewRepresentable {
         view.antialiasingMode = .multisampling4X
         view.isPlaying = true
         view.preferredFramesPerSecond = 60
-        view.allowsCameraControl = false
+        view.allowsCameraControl = true
         buildScene(scene, coord: context.coordinator)
         return view
     }

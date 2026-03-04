@@ -28,7 +28,7 @@ private struct RetroGarden3DRepresentable: NSViewRepresentable {
         view.antialiasingMode = .multisampling4X
         view.isPlaying = true
         view.preferredFramesPerSecond = 60
-        view.allowsCameraControl = false
+        view.allowsCameraControl = true
         context.coordinator.scene = scene
         buildScene(scene, coord: context.coordinator)
         return view
