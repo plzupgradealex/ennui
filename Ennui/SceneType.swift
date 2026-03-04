@@ -37,6 +37,36 @@ enum SceneKind: String, CaseIterable, Identifiable {
     case medievalVillage3D = "medievalVillage3D"
     case lateNightRerun3D = "lateNightRerun3D"
     case jeonjuNight3D = "jeonjuNight3D"
+    case cosmicDrift3D = "cosmicDrift3D"
+    case voyagerNebula3D = "voyagerNebula3D"
+    case desertStarscape3D = "desertStarscape3D"
+    case deepOcean3D = "deepOcean3D"
+    case ancientRuins3D = "ancientRuins3D"
+    case lushRuins3D = "lushRuins3D"
+    case auroraBorealis3D = "auroraBorealis3D"
+    case saltLamp3D = "saltLamp3D"
+    case conservatory3D = "conservatory3D"
+    case quietMeal3D = "quietMeal3D"
+    case artDecoLA3D = "artDecoLA3D"
+    case urbanDreamscape3D = "urbanDreamscape3D"
+    case shimizuEvening3D = "shimizuEvening3D"
+    case nightTrain3D = "nightTrain3D"
+    case ontarioCountryside3D = "ontarioCountryside3D"
+    case minnesotaSmallTown3D = "minnesotaSmallTown3D"
+    case midnightMotel3D = "midnightMotel3D"
+    case forgottenLibrary3D = "forgottenLibrary3D"
+    case enchantedArchives3D = "enchantedArchives3D"
+    case celestialScrollHall3D = "celestialScrollHall3D"
+    case floatingKingdom3D = "floatingKingdom3D"
+    case paperLanternFestival3D = "paperLanternFestival3D"
+    case retroGarden3D = "retroGarden3D"
+    case celShadedRainyDay3D = "celShadedRainyDay3D"
+    case retroPS13D = "retroPS13D"
+    case greetingTheDay3D = "greetingTheDay3D"
+    case mystify3D = "mystify3D"
+    case nonsenseLullabies3D = "nonsenseLullabies3D"
+    case captainStar3D = "captainStar3D"
+    case gouraudSolarSystem3D = "gouraudSolarSystem3D"
 
     var id: String { rawValue }
 
@@ -80,6 +110,36 @@ enum SceneKind: String, CaseIterable, Identifiable {
         case .medievalVillage3D: return "Medieval Village 3D"
         case .lateNightRerun3D: return "Late Night Rerun 3D"
         case .jeonjuNight3D: return "Jeonju Night 3D"
+        case .cosmicDrift3D: return "Cosmic Drift 3D"
+        case .voyagerNebula3D: return "Voyager Nebula 3D"
+        case .desertStarscape3D: return "Desert Starscape 3D"
+        case .deepOcean3D: return "Deep Ocean 3D"
+        case .ancientRuins3D: return "Ancient Ruins 3D"
+        case .auroraBorealis3D: return "Aurora Borealis 3D"
+        case .lushRuins3D: return "Lush Ruins 3D"
+        case .saltLamp3D: return "Salt Lamp 3D"
+        case .conservatory3D: return "Conservatory 3D"
+        case .quietMeal3D: return "Quiet Meal 3D"
+        case .nightTrain3D: return "Night Train 3D"
+        case .midnightMotel3D: return "Midnight Motel 3D"
+        case .artDecoLA3D: return "Art Deco LA 3D"
+        case .urbanDreamscape3D: return "Urban Dreamscape 3D"
+        case .shimizuEvening3D: return "Shimizu Evening 3D"
+        case .ontarioCountryside3D: return "Ontario Countryside 3D"
+        case .minnesotaSmallTown3D: return "Minnesota Small Town 3D"
+        case .forgottenLibrary3D: return "Forgotten Library 3D"
+        case .enchantedArchives3D: return "Enchanted Archives 3D"
+        case .celestialScrollHall3D: return "Celestial Scroll Hall 3D"
+        case .floatingKingdom3D: return "Floating Kingdom 3D"
+        case .paperLanternFestival3D: return "Paper Lantern Festival 3D"
+        case .retroGarden3D: return "Retro Garden 3D"
+        case .celShadedRainyDay3D: return "Rainy Day 3D"
+        case .retroPS13D: return "Retro PS1 3D"
+        case .greetingTheDay3D: return "Greeting the Day 3D"
+        case .mystify3D: return "Mystify 3D"
+        case .nonsenseLullabies3D: return "Nonsense & Lullabies 3D"
+        case .captainStar3D: return "Captain Star 3D"
+        case .gouraudSolarSystem3D: return "Solar System 3D"
         }
     }
 
@@ -123,6 +183,36 @@ enum SceneKind: String, CaseIterable, Identifiable {
         case .medievalVillage3D: return "A low-poly three-dimensional medieval village diorama viewed from above, with warm window lights, moonlit roofs, firefly particles, and a slowly orbiting camera"
         case .lateNightRerun3D: return "A three-dimensional nineties bedroom seen from bed, CRT television casting colored light across the walls, glow-in-the-dark ceiling stars, a pulsing lava lamp"
         case .jeonjuNight3D: return "A three-dimensional quiet Korean neighbourhood at night, hanok houses with warm windows, a sodium-lit street lamp casting orange light, moths, a cat on a wall, telephone wires against the night sky"
+        case .cosmicDrift3D: return "A three-dimensional deep-space scene with a glowing central star, five coloured planets drifting in orbit, and a vast billboard star field surrounding the system"
+        case .voyagerNebula3D: return "A three-dimensional deep-space nebula with luminous teal and magenta volumes, a slowly drifting probe craft, and a dense star field stretching to the horizon"
+        case .desertStarscape3D: return "A three-dimensional desert night with sandy dunes, a lone cactus, a bright silver moon, and three hundred stars scattered across the upper hemisphere"
+        case .deepOcean3D: return "A three-dimensional deep ocean with four gently pulsing jellyfish, kelp swaying in a slow current, and bioluminescent particles drifting upward through the dark water"
+        case .ancientRuins3D: return "A three-dimensional ancient ruin at night, misty with fog, columns tilting in moonlight, aurora curtains rippling overhead, and fireflies drifting through the mossy stones"
+        case .auroraBorealis3D: return "A three-dimensional aurora borealis over a frozen lake, pine trees dusted with snow, four glowing curtains of green and violet light rippling above, stars sharp in the clear sky"
+        case .lushRuins3D: return "A three-dimensional jungle temple ruin with a pyramid of stone slabs, tropical trees, butterflies orbiting in colour, and a waterfall threading through the undergrowth"
+        case .saltLamp3D: return "A three-dimensional salt lamp glowing warm orange-pink in a dark room, its light breathing gently and casting amber shadows across wooden furniture"
+        case .conservatory3D: return "A three-dimensional Victorian greenhouse with iron-frame walls, rain falling through a glass roof, potted plants steaming gently, and mist clinging to the floor"
+        case .quietMeal3D: return "A three-dimensional rainy evening seen from outside through a window, two bowls of ramen on a table inside, warm amber lamp above, rain tracing lines down the glass"
+        case .nightTrain3D: return "A three-dimensional night train carriage with fabric seats, moonlit windows, overhead amber lights, and the gentle rock of the rails through darkness"
+        case .midnightMotel3D: return "A three-dimensional 1968 motel room with wood-panel walls, a dark maroon bed, curtained window bleeding neon light, and headlights sweeping the ceiling"
+        case .artDecoLA3D: return "A three-dimensional art deco Los Angeles boulevard at golden hour with palm trees, streamline moderne buildings, and a vintage red streetcar"
+        case .urbanDreamscape3D: return "A three-dimensional dreamy cel-shaded city blending world capitals at night, with glowing puddles and drifting particles"
+        case .shimizuEvening3D: return "A three-dimensional quiet Japanese residential neighbourhood on a rainy evening with warm windows glowing through the rain"
+        case .ontarioCountryside3D: return "A three-dimensional warm summer evening over rural Ontario with golden wheat fields, a red barn, and fireflies beginning to blink in the blue hour"
+        case .minnesotaSmallTown3D: return "A three-dimensional calm summer evening in a tiny Minnesota prairie town with a steeple, water tower, and fireflies over Main Street"
+        case .forgottenLibrary3D: return "A three-dimensional infinite twilight library with towering bookshelves and floating golden letters drifting between the stacks"
+        case .enchantedArchives3D: return "A three-dimensional magical library where books fly open and paper birds soar through golden light"
+        case .celestialScrollHall3D: return "A three-dimensional moonlit Chinese study hall with calligraphy scrolls and glowing celestial characters drifting overhead"
+        case .floatingKingdom3D: return "A three-dimensional sky kingdom floating above an ocean of clouds, with crystalline spires and waterfalls cascading into mist"
+        case .paperLanternFestival3D: return "A three-dimensional serene lake at dusk where lanterns carry gentle messages into the night sky"
+        case .retroGarden3D: return "A three-dimensional peaceful pixel-art garden with flowers, butterflies, and soft sunlight"
+        case .celShadedRainyDay3D: return "A three-dimensional cel-shaded rainy day with bright flowers thriving in gentle rain and puddles forming underfoot"
+        case .retroPS13D: return "A three-dimensional retro PS1 scene with low-poly geometry, dithered shadows, and fireflies drifting through the night"
+        case .greetingTheDay3D: return "A three-dimensional city waking up at sunrise with buildings growing toward the light and morning mist clearing"
+        case .mystify3D: return "A three-dimensional version of glowing bouncing lines leaving phosphor trails against the dark, dreaming of screensavers"
+        case .nonsenseLullabies3D: return "A three-dimensional watercolour nursery with hand-painted shapes drifting on warm paper, cats, moons, and little houses"
+        case .captainStar3D: return "A three-dimensional barren desert planet at the edge of the universe with ochre skies, floating rocks, and stars visible through the dust"
+        case .gouraudSolarSystem3D: return "A three-dimensional retro-rendered imaginary solar system with Gouraud-shaded planets orbiting a warm star and moons drifting in elliptical orbits"
         }
     }
 
@@ -166,10 +256,38 @@ enum SceneKind: String, CaseIterable, Identifiable {
         case .medievalVillage3D: return "Tap to snuff a window light"
         case .lateNightRerun3D: return "Tap to change the channel"
         case .jeonjuNight3D: return "Tap to toggle a window light"
+        case .cosmicDrift3D: return "Tap to flash the central star"
+        case .voyagerNebula3D: return "Tap to pulse the nebula"
+        case .desertStarscape3D: return "Tap to raise a dust devil"
+        case .deepOcean3D: return "Tap to stir the bioluminescence"
+        case .ancientRuins3D: return "Tap to release fireflies"
+        case .auroraBorealis3D: return "Tap to send a solar flare through the aurora"
+        case .lushRuins3D: return "Tap to release a butterfly burst"
+        case .saltLamp3D: return "Tap to flash the lamp"
+        case .conservatory3D: return "Tap to make it rain harder"
+        case .quietMeal3D: return "Tap to send rain down the window"
+        case .nightTrain3D: return "Tap to brighten a window"
+        case .midnightMotel3D: return "Tap to trigger a headlight sweep"
+        case .artDecoLA3D: return "Tap to sweep a searchlight across the sky"
+        case .urbanDreamscape3D: return "Tap to send a ripple through the puddles"
+        case .shimizuEvening3D: return "Tap to send a splash rippling through a puddle"
+        case .ontarioCountryside3D: return "Tap to send a gust of wind rippling through the wheat"
+        case .minnesotaSmallTown3D: return "Tap to send a firefly drifting across the scene"
+        case .forgottenLibrary3D: return "Tap to open a book and release glowing letters"
+        case .enchantedArchives3D: return "Tap to scatter paper birds"
+        case .celestialScrollHall3D: return "Tap to release glowing characters from a scroll"
+        case .floatingKingdom3D: return "Tap to send a pulse of magical energy rippling outward"
+        case .paperLanternFestival3D: return "Tap to release a lantern with a gentle message"
+        case .retroGarden3D: return "Tap to plant a flower"
+        case .celShadedRainyDay3D: return "Tap for a splash"
+        case .retroPS13D: return "Tap to scatter fireflies"
+        case .greetingTheDay3D: return "Tap to grow a new building"
+        case .mystify3D: return "Tap to launch an extra ribbon of light"
+        case .nonsenseLullabies3D: return "Tap to bloom a watercolour splash"
+        case .captainStar3D: return "Tap to send a luminous pulse across the desert"
+        case .gouraudSolarSystem3D: return "Tap to shimmer a planet or add a new moon"
         }
     }
-
-    var icon: String {
         switch self {
         case .cosmicDrift: return "sparkles"
         case .retroGarden: return "leaf"
@@ -207,10 +325,38 @@ enum SceneKind: String, CaseIterable, Identifiable {
         case .medievalVillage3D: return "cube"
         case .lateNightRerun3D: return "cube.fill"
         case .jeonjuNight3D: return "cube.transparent"
+        case .cosmicDrift3D: return "star.fill"
+        case .voyagerNebula3D: return "sparkle.magnifyingglass"
+        case .desertStarscape3D: return "moon.dust.fill"
+        case .deepOcean3D: return "fish.fill"
+        case .ancientRuins3D: return "building.columns.fill"
+        case .auroraBorealis3D: return "aurora"
+        case .lushRuins3D: return "leaf.arrow.triangle.circlepath"
+        case .saltLamp3D: return "flame.fill"
+        case .conservatory3D: return "humidity.fill"
+        case .quietMeal3D: return "cup.and.saucer.fill"
+        case .nightTrain3D: return "train.side.front.car"
+        case .midnightMotel3D: return "bed.double.fill"
+        case .artDecoLA3D: return "building.columns.fill"
+        case .urbanDreamscape3D: return "building.2.fill"
+        case .shimizuEvening3D: return "cloud.rain.fill"
+        case .ontarioCountryside3D: return "sun.horizon.fill"
+        case .minnesotaSmallTown3D: return "house.fill"
+        case .forgottenLibrary3D: return "books.vertical.fill"
+        case .enchantedArchives3D: return "book.and.wrench"
+        case .celestialScrollHall3D: return "scroll.fill"
+        case .floatingKingdom3D: return "cloud.sun.fill"
+        case .paperLanternFestival3D: return "lamp.desk.fill"
+        case .retroGarden3D: return "leaf.fill"
+        case .celShadedRainyDay3D: return "cloud.rain"
+        case .retroPS13D: return "gamecontroller.fill"
+        case .greetingTheDay3D: return "sunrise.fill"
+        case .mystify3D: return "display"
+        case .nonsenseLullabies3D: return "paintbrush.pointed.fill"
+        case .captainStar3D: return "globe.americas.fill"
+        case .gouraudSolarSystem3D: return "globe.europe.africa.fill"
         }
     }
-
-    var tint: Color {
         switch self {
         case .cosmicDrift: return Color(red: 0.5, green: 0.3, blue: 0.9)
         case .retroGarden: return Color(red: 0.3, green: 0.7, blue: 0.3)
@@ -248,6 +394,36 @@ enum SceneKind: String, CaseIterable, Identifiable {
         case .medievalVillage3D: return Color(red: 0.60, green: 0.45, blue: 0.25)
         case .lateNightRerun3D: return Color(red: 0.25, green: 0.20, blue: 0.50)
         case .jeonjuNight3D: return Color(red: 0.85, green: 0.60, blue: 0.22)
+        case .cosmicDrift3D: return Color(red: 0.5, green: 0.3, blue: 0.9)
+        case .voyagerNebula3D: return Color(red: 0.1, green: 0.55, blue: 0.65)
+        case .desertStarscape3D: return Color(red: 0.75, green: 0.6, blue: 0.25)
+        case .deepOcean3D: return Color(red: 0.05, green: 0.45, blue: 0.75)
+        case .ancientRuins3D: return Color(red: 0.15, green: 0.6, blue: 0.4)
+        case .auroraBorealis3D: return Color(red: 0.1, green: 0.72, blue: 0.42)
+        case .lushRuins3D: return Color(red: 0.15, green: 0.60, blue: 0.28)
+        case .saltLamp3D: return Color(red: 0.95, green: 0.48, blue: 0.18)
+        case .conservatory3D: return Color(red: 0.35, green: 0.60, blue: 0.40)
+        case .quietMeal3D: return Color(red: 0.65, green: 0.55, blue: 0.40)
+        case .nightTrain3D: return Color(red: 0.25, green: 0.22, blue: 0.45)
+        case .midnightMotel3D: return Color(red: 0.80, green: 0.25, blue: 0.32)
+        case .artDecoLA3D: return Color(red: 0.9, green: 0.7, blue: 0.35)
+        case .urbanDreamscape3D: return Color(red: 0.6, green: 0.3, blue: 0.8)
+        case .shimizuEvening3D: return Color(red: 0.30, green: 0.38, blue: 0.58)
+        case .ontarioCountryside3D: return Color(red: 0.75, green: 0.55, blue: 0.20)
+        case .minnesotaSmallTown3D: return Color(red: 0.85, green: 0.55, blue: 0.30)
+        case .forgottenLibrary3D: return Color(red: 0.55, green: 0.4, blue: 0.25)
+        case .enchantedArchives3D: return Color(red: 0.45, green: 0.3, blue: 0.6)
+        case .celestialScrollHall3D: return Color(red: 0.75, green: 0.55, blue: 0.3)
+        case .floatingKingdom3D: return Color(red: 0.4, green: 0.3, blue: 0.7)
+        case .paperLanternFestival3D: return Color(red: 0.9, green: 0.6, blue: 0.15)
+        case .retroGarden3D: return Color(red: 0.3, green: 0.7, blue: 0.3)
+        case .celShadedRainyDay3D: return Color(red: 0.4, green: 0.5, blue: 0.35)
+        case .retroPS13D: return Color(red: 0.25, green: 0.2, blue: 0.4)
+        case .greetingTheDay3D: return Color(red: 0.9, green: 0.65, blue: 0.3)
+        case .mystify3D: return Color(red: 0.20, green: 0.85, blue: 0.90)
+        case .nonsenseLullabies3D: return Color(red: 0.75, green: 0.55, blue: 0.70)
+        case .captainStar3D: return Color(red: 0.72, green: 0.52, blue: 0.22)
+        case .gouraudSolarSystem3D: return Color(red: 0.35, green: 0.25, blue: 0.65)
         }
     }
 
@@ -257,27 +433,38 @@ enum SceneKind: String, CaseIterable, Identifiable {
         switch self {
         // Amber comfort — home, warmth, safety
         case .saltLamp, .conservatory, .artDecoLA, .quietMeal,
-             .lateNightRerun, .midnightMotel, .lateNightRerun3D:
+             .lateNightRerun, .midnightMotel, .lateNightRerun3D,
+             .saltLamp3D, .conservatory3D, .quietMeal3D, .midnightMotel3D,
+             .artDecoLA3D:
             return "warm"
         // Rain, ocean, night — cooler, more spacious
         case .deepOcean, .celShadedRainyDay, .shimizuEvening, .jeonjuNight,
-             .jeonjuNight3D:
+             .jeonjuNight3D, .deepOcean3D,
+             .shimizuEvening3D, .celShadedRainyDay3D:
             return "cool"
         // Stars, nebulae, vast emptiness
         case .cosmicDrift, .voyagerNebula, .desertStarscape,
-             .gouraudSolarSystem, .captainStar:
+             .gouraudSolarSystem, .captainStar,
+             .cosmicDrift3D, .voyagerNebula3D, .desertStarscape3D,
+             .gouraudSolarSystem3D, .captainStar3D:
             return "cosmic"
         // Fields, villages, natural world
         case .ontarioCountryside, .minnesotaSmallTown, .medievalVillage,
-             .ancientRuins, .lushRuins, .medievalVillage3D:
+             .ancientRuins, .lushRuins, .medievalVillage3D,
+             .ancientRuins3D,
+             .lushRuins3D, .ontarioCountryside3D, .minnesotaSmallTown3D:
             return "earthy"
         // Retro, nostalgia, gentle floating
         case .retroGarden, .retroPS1, .nightTrain, .paperLanternFestival,
-             .mystify, .nonsenseLullabies, .floatingKingdom, .greetingTheDay:
+             .mystify, .nonsenseLullabies, .floatingKingdom, .greetingTheDay,
+             .retroGarden3D, .retroPS13D, .nightTrain3D, .paperLanternFestival3D,
+             .mystify3D, .nonsenseLullabies3D, .floatingKingdom3D, .greetingTheDay3D:
             return "dreamy"
-        // Libraries, scrolls, ancient knowledge
+        // Libraries, scrolls, ancient knowledge, aurora
         case .forgottenLibrary, .enchantedArchives, .celestialScrollHall,
-             .auroraBorealis, .urbanDreamscape:
+             .auroraBorealis, .urbanDreamscape, .auroraBorealis3D,
+             .forgottenLibrary3D, .enchantedArchives3D, .celestialScrollHall3D,
+             .urbanDreamscape3D:
             return "mystical"
         }
     }
