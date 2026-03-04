@@ -86,6 +86,7 @@
 		EE000000000000000000060 /* InnerLight3DScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE00000000000000000005F /* InnerLight3DScene.swift */; };
 		EE000000000000000000062 /* WireframeCity3DScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE000000000000000000061 /* WireframeCity3DScene.swift */; };
 		EE00000000000000000006C /* LastAndFirstMen3DScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE00000000000000000006B /* LastAndFirstMen3DScene.swift */; };
+		EE00000000000000000006E /* LastAndFirstMenShaders.metal in Sources */ = {isa = PBXBuildFile; fileRef = EE00000000000000000006D /* LastAndFirstMenShaders.metal */; };
 		EE000000000000000000068 /* PotterGardenScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE000000000000000000067 /* PotterGardenScene.swift */; };
 		EE00000000000000000006A /* PotterGarden3DScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE000000000000000000069 /* PotterGarden3DScene.swift */; };
 		EE000000000000000000064 /* RatingManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE000000000000000000063 /* RatingManager.swift */; };
@@ -150,6 +151,7 @@
 		EE00000000000000000005F /* InnerLight3DScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InnerLight3DScene.swift; sourceTree = "<group>"; };
 		EE000000000000000000061 /* WireframeCity3DScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WireframeCity3DScene.swift; sourceTree = "<group>"; };
 		EE00000000000000000006B /* LastAndFirstMen3DScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LastAndFirstMen3DScene.swift; sourceTree = "<group>"; };
+		EE00000000000000000006D /* LastAndFirstMenShaders.metal */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.metal.shader; path = LastAndFirstMenShaders.metal; sourceTree = "<group>"; };
 		EE000000000000000000067 /* PotterGardenScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PotterGardenScene.swift; sourceTree = "<group>"; };
 		EE000000000000000000069 /* PotterGarden3DScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PotterGarden3DScene.swift; sourceTree = "<group>"; };
 		EE000000000000000000063 /* RatingManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RatingManager.swift; sourceTree = "<group>"; };
@@ -329,6 +331,7 @@
 				EE00000000000000000005F /* InnerLight3DScene.swift */,
 				EE000000000000000000061 /* WireframeCity3DScene.swift */,
 				EE00000000000000000006B /* LastAndFirstMen3DScene.swift */,
+				EE00000000000000000006D /* LastAndFirstMenShaders.metal */,
 				EE000000000000000000067 /* PotterGardenScene.swift */,
 				EE000000000000000000069 /* PotterGarden3DScene.swift */,
 			);
@@ -530,6 +533,7 @@
 				EE000000000000000000060 /* InnerLight3DScene.swift in Sources */,
 				EE000000000000000000062 /* WireframeCity3DScene.swift in Sources */,
 				EE00000000000000000006C /* LastAndFirstMen3DScene.swift in Sources */,
+				EE00000000000000000006E /* LastAndFirstMenShaders.metal in Sources */,
 				EE000000000000000000068 /* PotterGardenScene.swift in Sources */,
 				EE00000000000000000006A /* PotterGarden3DScene.swift in Sources */,
 				EE000000000000000000064 /* RatingManager.swift in Sources */,
