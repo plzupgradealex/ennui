@@ -1,7 +1,7 @@
 import XCTest
 
 // Total scene count — update when adding scenes
-private let kSceneCount = 36
+private let kSceneCount = 37
 
 final class EnnuiUITests: XCTestCase {
     let app = XCUIApplication()

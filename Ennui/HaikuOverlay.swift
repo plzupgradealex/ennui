@@ -78,6 +78,7 @@ actor HaikuGenerator {
             .nonsenseLullabies3D: "a three-dimensional watercolour world like a pop-up picture book, soft painted shapes with gentle depth — moons, stars, cats, little houses — paper texture visible on the surfaces, paint drips running slowly, the gentle nonsense of bedtime stories made spatial",
             .innerLight3D: "warm glowing geometric forms floating in deep indigo space, faceted crystalline icosahedra connected by luminous golden filaments that pulse softly, tiny motes rising from below like thoughts forming, the quiet inner space of a mind that thinks in patterns and light",
             .wireframeCity3D: "a green phosphor wireframe cityscape on pure black, glowing vector-graphic buildings viewed from a slow flyover, a scrolling grid floor underneath, the whole scene looks like a nineteen-eighties vector display terminal, scan lines faintly visible, the iconic early-CG aesthetic of wireframe worlds",
+            .lastAndFirstMen3D: "an abstract art deco retelling of Olaf Stapledon's Last and First Men, eighteen human species as glowing geometric forms strung in a luminous arc from a blue Earth to a golden Venus to an icy Neptune, three great Kardashev rings pulsing around the solar system, a central art deco obelisk marking the axis of two billion years, seed particles drifting from Neptune into the cosmos",
         ]
         let theme = themes[scene] ?? "a peaceful calming moment"
 
@@ -464,6 +465,11 @@ struct HaikuOverlayView: View {
             "Green lines trace the dark\nA city made of nothing\nBut math and phosphor",
             "Vector buildings glow\nThe grid scrolls beneath my feet\nNineteen eighty-one",
             "Wireframe skyline hums\nEach edge a single photon\nThe future was green",
+        ],
+        .lastAndFirstMen3D: [
+            "Eighteen kinds of us\nOrbiting the same soft light\nTime is very long",
+            "From Earth to Venus\nFrom Venus to cold Neptune\nWe were always this",
+            "The last ones send seeds\nInto the dark between stars\nLife continues on",
         ],
     ]
 
