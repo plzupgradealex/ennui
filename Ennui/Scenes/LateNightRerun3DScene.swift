@@ -83,6 +83,7 @@ private struct LateNightRerun3DRepresentable: NSViewRepresentable {
         addTV(to: scene, coord: coord)
         addFurniture(to: scene)
         addDecorations(to: scene)
+        addStringLights(to: scene)
         addLavaLamp(to: scene)
         addCeilingStars(to: scene)
         addLighting(to: scene)
@@ -350,24 +351,205 @@ private struct LateNightRerun3DRepresentable: NSViewRepresentable {
         rugNode.position = SCNVector3(0, 0.003, -0.5)
         scene.rootNode.addChildNode(rugNode)
 
-        // Window on right wall with curtain — faint moonlight creeping in
-        let windowFrame = SCNPlane(width: 0.6, height: 0.8)
-        windowFrame.firstMaterial?.diffuse.contents = NSColor(red: 0.04, green: 0.04, blue: 0.08, alpha: 1)
-        windowFrame.firstMaterial?.emission.contents = NSColor(red: 0.02, green: 0.02, blue: 0.05, alpha: 1)
-        windowFrame.firstMaterial?.isDoubleSided = true
-        let windowNode = SCNNode(geometry: windowFrame)
-        windowNode.position = SCNVector3(2.99, 1.5, -1.5)
-        windowNode.eulerAngles = SCNVector3(0, -Float.pi / 2, 0)
-        scene.rootNode.addChildNode(windowNode)
+        addWindow(to: scene)
+    }
 
-        // Curtain — hangs slightly over the window
-        let curtain = SCNPlane(width: 0.35, height: 0.85)
-        curtain.firstMaterial?.diffuse.contents = NSColor(red: 0.12, green: 0.06, blue: 0.08, alpha: 1)
-        curtain.firstMaterial?.isDoubleSided = true
-        let curtainNode = SCNNode(geometry: curtain)
-        curtainNode.position = SCNVector3(2.98, 1.5, -1.7)
-        curtainNode.eulerAngles = SCNVector3(0, -Float.pi / 2, 0)
-        scene.rootNode.addChildNode(curtainNode)
+    // MARK: - Window with rain and moonlight
+
+    private func addWindow(to scene: SCNScene) {
+        let wx: Float = 2.99
+        let wy: Float = 1.5
+        let wz: Float = -1.5
+        let wW: Float = 0.65   // glass Z extent in world space
+        let wH: Float = 0.90   // glass Y extent in world space
+
+        // Glass pane — visible night-sky blue glow
+        let glass = SCNPlane(width: CGFloat(wW), height: CGFloat(wH))
+        let glassMat = SCNMaterial()
+        glassMat.diffuse.contents = NSColor(red: 0.03, green: 0.06, blue: 0.18, alpha: 1)
+        glassMat.emission.contents = NSColor(red: 0.08, green: 0.14, blue: 0.40, alpha: 1)
+        glassMat.isDoubleSided = true
+        glass.firstMaterial = glassMat
+        let glassNode = SCNNode(geometry: glass)
+        glassNode.position = SCNVector3(wx, wy, wz)
+        glassNode.eulerAngles = SCNVector3(0, -Float.pi / 2, 0)
+        scene.rootNode.addChildNode(glassNode)
+
+        // Window frame — dark wood, world-axis-aligned boxes (no rotation needed)
+        let frameMat = SCNMaterial()
+        frameMat.diffuse.contents = NSColor(red: 0.09, green: 0.06, blue: 0.04, alpha: 1)
+        let ft: Float = 0.025   // frame thickness
+        let fd: Float = 0.04    // frame depth (X direction)
+
+        // Top border
+        let topBar = SCNBox(width: CGFloat(fd), height: CGFloat(ft),
+                            length: CGFloat(wW + ft * 2), chamferRadius: 0.003)
+        topBar.firstMaterial = frameMat
+        let topNode = SCNNode(geometry: topBar)
+        topNode.position = SCNVector3(wx, wy + wH / 2 + ft / 2, wz)
+        scene.rootNode.addChildNode(topNode)
+
+        // Bottom border
+        let botBar = SCNBox(width: CGFloat(fd), height: CGFloat(ft),
+                            length: CGFloat(wW + ft * 2), chamferRadius: 0.003)
+        botBar.firstMaterial = frameMat
+        let botNode = SCNNode(geometry: botBar)
+        botNode.position = SCNVector3(wx, wy - wH / 2 - ft / 2, wz)
+        scene.rootNode.addChildNode(botNode)
+
+        // Left border
+        let leftBar = SCNBox(width: CGFloat(fd), height: CGFloat(wH + ft * 2),
+                             length: CGFloat(ft), chamferRadius: 0.003)
+        leftBar.firstMaterial = frameMat
+        let leftBarNode = SCNNode(geometry: leftBar)
+        leftBarNode.position = SCNVector3(wx, wy, wz - wW / 2 - ft / 2)
+        scene.rootNode.addChildNode(leftBarNode)
+
+        // Right border
+        let rightBar = SCNBox(width: CGFloat(fd), height: CGFloat(wH + ft * 2),
+                              length: CGFloat(ft), chamferRadius: 0.003)
+        rightBar.firstMaterial = frameMat
+        let rightBarNode = SCNNode(geometry: rightBar)
+        rightBarNode.position = SCNVector3(wx, wy, wz + wW / 2 + ft / 2)
+        scene.rootNode.addChildNode(rightBarNode)
+
+        // Horizontal divider — splits glass into upper and lower panes
+        let hDiv = SCNBox(width: CGFloat(fd - 0.01), height: 0.015,
+                          length: CGFloat(wW), chamferRadius: 0.002)
+        hDiv.firstMaterial = frameMat
+        let hDivNode = SCNNode(geometry: hDiv)
+        hDivNode.position = SCNVector3(wx, wy, wz)
+        scene.rootNode.addChildNode(hDivNode)
+
+        // Vertical divider — splits glass into left and right panes
+        let vDiv = SCNBox(width: CGFloat(fd - 0.01), height: CGFloat(wH),
+                          length: 0.015, chamferRadius: 0.002)
+        vDiv.firstMaterial = frameMat
+        let vDivNode = SCNNode(geometry: vDiv)
+        vDivNode.position = SCNVector3(wx, wy, wz)
+        scene.rootNode.addChildNode(vDivNode)
+
+        // Window sill
+        let sill = SCNBox(width: 0.08, height: 0.03,
+                          length: CGFloat(wW + 0.1), chamferRadius: 0.005)
+        sill.firstMaterial?.diffuse.contents = NSColor(red: 0.12, green: 0.08, blue: 0.05, alpha: 1)
+        let sillNode = SCNNode(geometry: sill)
+        sillNode.position = SCNVector3(wx - 0.02, wy - wH / 2 - 0.015, wz)
+        scene.rootNode.addChildNode(sillNode)
+
+        // Moonlight — soft blue-white streaming in from outside
+        let moonLight = SCNNode()
+        moonLight.light = SCNLight()
+        moonLight.light!.type = .omni
+        moonLight.light!.intensity = 90
+        moonLight.light!.color = NSColor(red: 0.55, green: 0.65, blue: 0.95, alpha: 1)
+        moonLight.light!.attenuationStartDistance = 0
+        moonLight.light!.attenuationEndDistance = 4
+        moonLight.position = SCNVector3(3.5, 1.8, -1.5)
+        scene.rootNode.addChildNode(moonLight)
+
+        // Curtains on each side — pulled back to reveal glass
+        let curtainMat = SCNMaterial()
+        curtainMat.diffuse.contents = NSColor(red: 0.13, green: 0.07, blue: 0.09, alpha: 1)
+        curtainMat.isDoubleSided = true
+        let curtainDZs: [Float] = [-0.22, 0.22]
+        for dz in curtainDZs {
+            let curt = SCNPlane(width: 0.26, height: CGFloat(wH + 0.2))
+            curt.firstMaterial = curtainMat
+            let curtNode = SCNNode(geometry: curt)
+            curtNode.position = SCNVector3(wx - 0.005, wy + 0.05, wz + dz)
+            curtNode.eulerAngles = SCNVector3(0, -Float.pi / 2, 0)
+            scene.rootNode.addChildNode(curtNode)
+        }
+
+        // Rain streaks on the glass
+        addRainStreaks(to: scene,
+                       windowX: wx - 0.02,
+                       windowMinZ: wz - wW / 2 + 0.03,
+                       windowMaxZ: wz + wW / 2 - 0.03,
+                       windowTopY: wy + wH / 2 - 0.02,
+                       windowBottomY: wy - wH / 2 + 0.02)
+    }
+
+    // MARK: - Rain streaks sliding down the window glass
+
+    private func addRainStreaks(to scene: SCNScene,
+                                windowX: Float, windowMinZ: Float, windowMaxZ: Float,
+                                windowTopY: Float, windowBottomY: Float) {
+        var rng = SplitMix64(seed: 9876)
+        let winHeight = windowTopY - windowBottomY
+
+        for _ in 0..<18 {
+            let streakZ    = windowMinZ + Float(Double.random(in: 0...1, using: &rng)) * (windowMaxZ - windowMinZ)
+            let startFrac  = Float(Double.random(in: 0...1, using: &rng))
+            let streakLen  = Float(0.04 + Double.random(in: 0...0.07, using: &rng))
+            let speed      = Float(0.10 + Double.random(in: 0...0.12, using: &rng))
+
+            let streak = SCNBox(width: 0.004, height: CGFloat(streakLen), length: 0.002, chamferRadius: 0)
+            streak.firstMaterial?.diffuse.contents = NSColor.black
+            streak.firstMaterial?.emission.contents = NSColor(red: 0.45, green: 0.60, blue: 0.90, alpha: 0.55)
+            streak.firstMaterial?.isDoubleSided = true
+
+            let startY = windowTopY - startFrac * winHeight
+            let streakNode = SCNNode(geometry: streak)
+            streakNode.position = SCNVector3(windowX, startY, streakZ)
+            scene.rootNode.addChildNode(streakNode)
+
+            let fallDist = CGFloat(winHeight + streakLen)
+            let duration = Double(fallDist) / Double(speed)
+            let fall  = SCNAction.moveBy(x: 0, y: -fallDist, z: 0, duration: duration)
+            // Reset uses Swift's global RNG intentionally — SplitMix64 can't be captured in a closure
+            let reset = SCNAction.run { n in
+                let newZ = Float.random(in: windowMinZ...windowMaxZ)
+                n.position = SCNVector3(windowX, windowTopY, newZ)
+            }
+            streakNode.runAction(.repeatForever(.sequence([fall, reset])))
+        }
+    }
+
+    // MARK: - String lights along back-wall ceiling junction
+
+    private func addStringLights(to scene: SCNScene) {
+        var rng = SplitMix64(seed: 5555)
+        let count = 14
+
+        for i in 0..<count {
+            let t    = Double(i) / Double(count - 1)
+            let x    = Float(-2.6 + t * 5.2)
+            let sag  = Float(4.0 * t * (1.0 - t) * 0.18)
+            let y: Float = 2.97 - sag
+            let z: Float = -2.94
+
+            let hue       = Double.random(in: 0...0.12, using: &rng) + 0.04
+            let warmColor = NSColor(hue: CGFloat(hue), saturation: 0.85, brightness: 1.0, alpha: 1)
+
+            // Glowing bulb
+            let bulbGeo = SCNSphere(radius: 0.022)
+            bulbGeo.firstMaterial?.diffuse.contents = NSColor.black
+            bulbGeo.firstMaterial?.emission.contents = warmColor
+            let bulbNode = SCNNode(geometry: bulbGeo)
+            bulbNode.position = SCNVector3(x, y, z)
+            scene.rootNode.addChildNode(bulbNode)
+
+            // Soft point light from each bulb
+            let bulbLight = SCNNode()
+            bulbLight.light = SCNLight()
+            bulbLight.light!.type = .omni
+            bulbLight.light!.intensity = 8
+            bulbLight.light!.color = warmColor
+            bulbLight.light!.attenuationStartDistance = 0
+            bulbLight.light!.attenuationEndDistance = 0.6
+            bulbLight.position = SCNVector3(x, y, z)
+            scene.rootNode.addChildNode(bulbLight)
+
+            // Gentle independent flicker
+            let phase = Double.random(in: 0...(2 * Double.pi), using: &rng)
+            let flicker = SCNAction.repeatForever(.customAction(duration: 2.5) { n, elapsed in
+                let s = 0.85 + 0.15 * sin(Double(elapsed) / 2.5 * Double.pi * 3 + phase)
+                n.light?.intensity = CGFloat(8.0 * s)
+            })
+            bulbLight.runAction(flicker)
+        }
     }
 
     // MARK: - Lava lamp
