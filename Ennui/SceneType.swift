@@ -37,6 +37,8 @@ enum SceneKind: String, CaseIterable, Identifiable {
     case medievalVillage3D = "medievalVillage3D"
     case lateNightRerun3D = "lateNightRerun3D"
     case jeonjuNight3D = "jeonjuNight3D"
+    case oldCar = "oldCar"
+    case oldCar3D = "oldCar3D"
 
     var id: String { rawValue }
 
@@ -80,6 +82,8 @@ enum SceneKind: String, CaseIterable, Identifiable {
         case .medievalVillage3D: return "Medieval Village 3D"
         case .lateNightRerun3D: return "Late Night Rerun 3D"
         case .jeonjuNight3D: return "Jeonju Night 3D"
+        case .oldCar: return "Old Car"
+        case .oldCar3D: return "Old Car 3D"
         }
     }
 
@@ -123,6 +127,8 @@ enum SceneKind: String, CaseIterable, Identifiable {
         case .medievalVillage3D: return "A low-poly three-dimensional medieval village diorama viewed from above, with warm window lights, moonlit roofs, firefly particles, and a slowly orbiting camera"
         case .lateNightRerun3D: return "A three-dimensional nineties bedroom seen from bed, CRT television casting colored light across the walls, glow-in-the-dark ceiling stars, a pulsing lava lamp"
         case .jeonjuNight3D: return "A three-dimensional quiet Korean neighbourhood at night, hanok houses with warm windows, a sodium-lit street lamp casting orange light, moths, a cat on a wall, telephone wires against the night sky"
+        case .oldCar: return "Behind the wheel of a big 1950s American land yacht in a night snowstorm, wiper blades sweeping, the incandescent dash glowing amber, chrome radio knobs lit up, utility poles and barns drifting past in the dark"
+        case .oldCar3D: return "A three-dimensional view from inside a 1950s bench-seat land yacht driving through a blizzard at night, snow rushing at the windshield, wipers sweeping, the warm dash glow reflected on the glass, barns and utility poles in the dark"
         }
     }
 
@@ -166,6 +172,8 @@ enum SceneKind: String, CaseIterable, Identifiable {
         case .medievalVillage3D: return "Tap to snuff a window light"
         case .lateNightRerun3D: return "Tap to change the channel"
         case .jeonjuNight3D: return "Tap to toggle a window light"
+        case .oldCar: return "Tap to honk the horn"
+        case .oldCar3D: return "Tap to honk the horn"
         }
     }
 
@@ -207,6 +215,8 @@ enum SceneKind: String, CaseIterable, Identifiable {
         case .medievalVillage3D: return "cube"
         case .lateNightRerun3D: return "cube.fill"
         case .jeonjuNight3D: return "cube.transparent"
+        case .oldCar: return "car.side"
+        case .oldCar3D: return "car.side.fill"
         }
     }
 
@@ -248,6 +258,8 @@ enum SceneKind: String, CaseIterable, Identifiable {
         case .medievalVillage3D: return Color(red: 0.60, green: 0.45, blue: 0.25)
         case .lateNightRerun3D: return Color(red: 0.25, green: 0.20, blue: 0.50)
         case .jeonjuNight3D: return Color(red: 0.85, green: 0.60, blue: 0.22)
+        case .oldCar: return Color(red: 0.75, green: 0.50, blue: 0.20)
+        case .oldCar3D: return Color(red: 0.65, green: 0.45, blue: 0.18)
         }
     }
 
@@ -257,7 +269,8 @@ enum SceneKind: String, CaseIterable, Identifiable {
         switch self {
         // Amber comfort — home, warmth, safety
         case .saltLamp, .conservatory, .artDecoLA, .quietMeal,
-             .lateNightRerun, .midnightMotel, .lateNightRerun3D:
+             .lateNightRerun, .midnightMotel, .lateNightRerun3D,
+             .oldCar, .oldCar3D:
             return "warm"
         // Rain, ocean, night — cooler, more spacious
         case .deepOcean, .celShadedRainyDay, .shimizuEvening, .jeonjuNight,
