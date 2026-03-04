@@ -37,6 +37,7 @@ enum SceneKind: String, CaseIterable, Identifiable {
     case medievalVillage3D = "medievalVillage3D"
     case lateNightRerun3D = "lateNightRerun3D"
     case jeonjuNight3D = "jeonjuNight3D"
+    case nightfly = "nightfly"
 
     var id: String { rawValue }
 
@@ -80,10 +81,9 @@ enum SceneKind: String, CaseIterable, Identifiable {
         case .medievalVillage3D: return "Medieval Village 3D"
         case .lateNightRerun3D: return "Late Night Rerun 3D"
         case .jeonjuNight3D: return "Jeonju Night 3D"
+        case .nightfly: return "The Nightfly"
         }
     }
-
-    // MARK: - Accessibility description (rich VoiceOver context)
 
     var accessibilityDescription: String {
         switch self {
@@ -123,6 +123,7 @@ enum SceneKind: String, CaseIterable, Identifiable {
         case .medievalVillage3D: return "A low-poly three-dimensional medieval village diorama viewed from above, with warm window lights, moonlit roofs, firefly particles, and a slowly orbiting camera"
         case .lateNightRerun3D: return "A three-dimensional nineties bedroom seen from bed, CRT television casting colored light across the walls, glow-in-the-dark ceiling stars, a pulsing lava lamp"
         case .jeonjuNight3D: return "A three-dimensional quiet Korean neighbourhood at night, hanok houses with warm windows, a sodium-lit street lamp casting orange light, moths, a cat on a wall, telephone wires against the night sky"
+        case .nightfly: return "A late-night Manhattan radio studio — reel-to-reel spinning, VU meters pulsing, a ribbon microphone in the dim glow, while outside a steampunk car idles on rain-slicked asphalt and a cat watches from a foggy rooftop"
         }
     }
 
@@ -166,10 +167,8 @@ enum SceneKind: String, CaseIterable, Identifiable {
         case .medievalVillage3D: return "Tap to snuff a window light"
         case .lateNightRerun3D: return "Tap to change the channel"
         case .jeonjuNight3D: return "Tap to toggle a window light"
+        case .nightfly: return "Tap to broadcast a signal across the city"
         }
-    }
-
-    var icon: String {
         switch self {
         case .cosmicDrift: return "sparkles"
         case .retroGarden: return "leaf"
@@ -207,10 +206,8 @@ enum SceneKind: String, CaseIterable, Identifiable {
         case .medievalVillage3D: return "cube"
         case .lateNightRerun3D: return "cube.fill"
         case .jeonjuNight3D: return "cube.transparent"
+        case .nightfly: return "radio"
         }
-    }
-
-    var tint: Color {
         switch self {
         case .cosmicDrift: return Color(red: 0.5, green: 0.3, blue: 0.9)
         case .retroGarden: return Color(red: 0.3, green: 0.7, blue: 0.3)
@@ -248,6 +245,7 @@ enum SceneKind: String, CaseIterable, Identifiable {
         case .medievalVillage3D: return Color(red: 0.60, green: 0.45, blue: 0.25)
         case .lateNightRerun3D: return Color(red: 0.25, green: 0.20, blue: 0.50)
         case .jeonjuNight3D: return Color(red: 0.85, green: 0.60, blue: 0.22)
+        case .nightfly: return Color(red: 0.28, green: 0.45, blue: 0.82)
         }
     }
 
@@ -257,7 +255,7 @@ enum SceneKind: String, CaseIterable, Identifiable {
         switch self {
         // Amber comfort — home, warmth, safety
         case .saltLamp, .conservatory, .artDecoLA, .quietMeal,
-             .lateNightRerun, .midnightMotel, .lateNightRerun3D:
+             .lateNightRerun, .midnightMotel, .lateNightRerun3D, .nightfly:
             return "warm"
         // Rain, ocean, night — cooler, more spacious
         case .deepOcean, .celShadedRainyDay, .shimizuEvening, .jeonjuNight,

@@ -290,6 +290,7 @@ struct ContentView: View {
         case .medievalVillage3D: MedievalVillage3DScene(interaction: interaction)
         case .lateNightRerun3D: LateNightRerun3DScene(interaction: interaction)
         case .jeonjuNight3D: JeonjuNight3DScene(interaction: interaction)
+        case .nightfly: NightflyScene(interaction: interaction)
         }
     }
 
