@@ -1,255 +1,206 @@
-// RetroGarden3DScene — Metal 3D low-poly garden: ground, hills, flowers, windmill, butterflies.
-// Tap: spawn a new flower at a random position with a grow animation.
+// RetroGarden3DScene — Pixel-art style low-poly garden with windmill and butterflies.
 
 import SwiftUI
-import MetalKit
+import SceneKit
 
 struct RetroGarden3DScene: View {
     @ObservedObject var interaction: InteractionState
-    var body: some View { RetroGarden3DRepresentable(interaction: interaction) }
+    var body: some View {
+        RetroGarden3DRepresentable(interaction: interaction)
+    }
 }
 
 private struct RetroGarden3DRepresentable: NSViewRepresentable {
     @ObservedObject var interaction: InteractionState
 
-    final class Coordinator: NSObject, MTKViewDelegate {
-        let device: MTLDevice
-        let commandQueue: MTLCommandQueue
-        var opaquePipeline:   MTLRenderPipelineState?
-        var glowPipeline:     MTLRenderPipelineState?
-        var particlePipeline: MTLRenderPipelineState?
-        var depthState:       MTLDepthStencilState?
-        var depthROState:     MTLDepthStencilState?
-
-        struct DrawCall {
-            var buf: MTLBuffer; var count: Int; var model: simd_float4x4
-            var emissiveCol: SIMD3<Float> = .zero; var emissiveMix: Float = 0
-            var opacity: Float = 1
-        }
-
-        struct SpawnedFlower {
-            var stemBuf: MTLBuffer; var stemCount: Int
-            var headBuf: MTLBuffer; var headCount: Int
-            var position: SIMD3<Float>; var spawnT: Float
-        }
-
-        var opaqueCalls:  [DrawCall] = []
-        var spawnedFlowers: [SpawnedFlower] = []
-
-        // Windmill blade buffer (shared, rotated in draw)
-        var bladeBuf:   MTLBuffer?
-        var bladeCount: Int = 0
-        var windmillPos = SIMD3<Float>(4, 0, -4)
-
-        // Butterfly data
-        struct Butterfly {
-            var orbitCenter: SIMD3<Float>; var orbitRadius: Float
-            var period: Float; var phase: Float; var buf: MTLBuffer; var count: Int
-        }
-        var butterflies: [Butterfly] = []
-
+    final class Coordinator {
         var lastTapCount = 0
-        var startTime: CFTimeInterval = CACurrentMediaTime()
-        var aspect: Float = 1
-
-        override init() {
-            device = MTLCreateSystemDefaultDevice()!
-            commandQueue = device.makeCommandQueue()!
-            super.init()
-            do {
-                opaquePipeline   = try makeOpaquePipeline(device: device)
-                glowPipeline     = try makeAlphaBlendPipeline(device: device)
-                particlePipeline = try makeParticlePipeline(device: device)
-            } catch { print("RetroGarden3D pipeline error: \(error)") }
-            depthState   = makeDepthState(device: device)
-            depthROState = makeDepthReadOnlyState(device: device)
-            buildScene()
-        }
-
-        private func addOpaque(_ v: [Vertex3D], model: simd_float4x4,
-                               emissive: SIMD3<Float> = .zero, mix: Float = 0) {
-            guard let buf = makeVertexBuffer(v, device: device) else { return }
-            opaqueCalls.append(DrawCall(buf: buf, count: v.count, model: model,
-                                        emissiveCol: emissive, emissiveMix: mix))
-        }
-
-        private func buildScene() {
-            // Ground
-            addOpaque(buildPlane(w: 14, d: 14, color: [0.30, 0.70, 0.20, 1]),
-                      model: matrix_identity_float4x4)
-
-            // Hills (flattened spheres)
-            addOpaque(buildSphere(radius: 2.5, rings: 10, segments: 16, color: [0.25, 0.60, 0.18, 1]),
-                      model: m4Translation(-6, -2.8, -5) * m4Scale(1, 0.45, 0.9))
-            addOpaque(buildSphere(radius: 2.0, rings: 10, segments: 16, color: [0.22, 0.55, 0.15, 1]),
-                      model: m4Translation(6, -2.3, -5) * m4Scale(1, 0.45, 0.9))
-
-            // Flowers (9 preset)
-            let flowerPositions: [SIMD3<Float>] = [
-                [-3, 0, -1], [-1, 0, -3], [1, 0, -2], [3, 0, -1], [-2, 0, 2],
-                [0, 0, 3], [2, 0, 3], [-4, 0, -3], [3, 0, -4]
-            ]
-            let headColors: [SIMD4<Float>] = [
-                [1.0, 0.2, 0.2, 1], [1.0, 0.6, 0.1, 1], [1.0, 0.95, 0.1, 1],
-                [0.8, 0.1, 0.8, 1], [0.3, 0.5, 1.0, 1], [0.95, 0.4, 0.65, 1],
-                [0.5, 0.8, 0.3, 1], [1.0, 0.4, 0.2, 1], [0.6, 0.3, 0.9, 1]
-            ]
-            for (i, pos) in flowerPositions.enumerated() {
-                let stemV = buildCylinder(radius: 0.05, height: 0.8, segments: 8, color: [0.2, 0.7, 0.1, 1])
-                addOpaque(stemV, model: m4Translation(pos.x, 0.4, pos.z))
-                let headV = buildCone(radius: 0.25, height: 0.30, segments: 8, color: headColors[i % headColors.count])
-                addOpaque(headV, model: m4Translation(pos.x, 0.9, pos.z))
-            }
-
-            // Windmill body
-            let windBodyV = buildCylinder(radius: 0.1, height: 3.0, segments: 8, color: [0.75, 0.65, 0.50, 1])
-            addOpaque(windBodyV, model: m4Translation(windmillPos.x, 1.5, windmillPos.z))
-
-            // Windmill blade geometry (centred at origin, offset upward)
-            let bladeV = buildBox(w: 0.15, h: 0.9, d: 0.06, color: [0.85, 0.75, 0.55, 1])
-            bladeBuf   = makeVertexBuffer(bladeV, device: device)
-            bladeCount = bladeV.count
-
-            // Butterflies (6 small thin boxes orbiting flower positions)
-            let bfColors: [SIMD4<Float>] = [
-                [0.9, 0.4, 0.8, 1], [0.4, 0.7, 1.0, 1], [1.0, 0.8, 0.2, 1],
-                [0.6, 0.9, 0.4, 1], [0.9, 0.5, 0.3, 1], [0.5, 0.4, 0.9, 1]
-            ]
-            var rng = SplitMix64(seed: 55)
-            for i in 0..<6 {
-                let fp = flowerPositions[i % flowerPositions.count]
-                let bfV = buildBox(w: 0.22, h: 0.02, d: 0.14, color: bfColors[i])
-                guard let bfBuf = makeVertexBuffer(bfV, device: device) else { continue }
-                butterflies.append(Butterfly(
-                    orbitCenter: SIMD3<Float>(fp.x, 0.95, fp.z),
-                    orbitRadius: Float(rng.nextDouble()) * 0.2 + 0.25,
-                    period: Float(rng.nextDouble()) * 3 + 3,
-                    phase: Float(rng.nextDouble()) * 2 * Float.pi,
-                    buf: bfBuf, count: bfV.count
-                ))
-            }
-        }
-
-        func spawnFlower(at t: Float, tapCount: Int) {
-            var rng = SplitMix64(seed: UInt64(t * 1000) ^ UInt64(tapCount) &* 6364136223846793005)
-            let x = Float(rng.nextDouble()) * 10 - 5
-            let z = Float(rng.nextDouble()) * 10 - 5
-            let hue = Float(rng.nextDouble())
-            let headColor = SIMD4<Float>(hue, Float(rng.nextDouble()) * 0.6 + 0.2, Float(rng.nextDouble()) * 0.6 + 0.2, 1)
-            let stemV = buildCylinder(radius: 0.05, height: 0.8, segments: 8, color: [0.2, 0.7, 0.1, 1])
-            let headV = buildCone(radius: 0.25, height: 0.30, segments: 8, color: headColor)
-            guard let sb = makeVertexBuffer(stemV, device: device),
-                  let hb = makeVertexBuffer(headV, device: device) else { return }
-            spawnedFlowers.append(SpawnedFlower(
-                stemBuf: sb, stemCount: stemV.count,
-                headBuf: hb, headCount: headV.count,
-                position: SIMD3<Float>(x, 0, z), spawnT: t
-            ))
-        }
-
-        func mtkView(_ view: MTKView, drawableSizeWillChange size: CGSize) {
-            aspect = size.width > 0 ? Float(size.width / size.height) : 1
-        }
-
-        func draw(in view: MTKView) {
-            guard let opaque = opaquePipeline,
-                  let drawable = view.currentDrawable,
-                  let rpd = view.currentRenderPassDescriptor,
-                  let cmdBuf = commandQueue.makeCommandBuffer(),
-                  let enc = cmdBuf.makeRenderCommandEncoder(descriptor: rpd) else { return }
-
-            let t = Float(CACurrentMediaTime() - startTime)
-            let camAngle = t * 2 * Float.pi / 60
-            let eye = SIMD3<Float>(10 * cos(camAngle), 3, 10 * sin(camAngle))
-            let proj = m4Perspective(fovyRad: 0.75, aspect: aspect, near: 0.1, far: 80)
-            let viewM = m4LookAt(eye: eye, center: SIMD3<Float>(0, 0.5, 0), up: SIMD3<Float>(0, 1, 0))
-            let vp = proj * viewM
-
-            let sunDir = SIMD4<Float>(simd_normalize(SIMD3<Float>(0.5, 1.0, 0.3)), 0)
-            var su = SceneUniforms3D(
-                viewProjection: vp,
-                sunDirection:   sunDir,
-                sunColor:       SIMD4<Float>(1.0, 0.95, 0.85, 1),
-                ambientColor:   SIMD4<Float>(0.35, 0.45, 0.35, t),
-                fogParams:      SIMD4<Float>(15, 30, 0, 0),
-                fogColor:       SIMD4<Float>(0.5, 0.7, 0.9, 1),
-                cameraWorldPos: SIMD4<Float>(eye, 0)
-            )
-
-            enc.setCullMode(.back)
-            enc.setDepthStencilState(depthState)
-            enc.setRenderPipelineState(opaque)
-            enc.setVertexBytes(&su, length: MemoryLayout<SceneUniforms3D>.size, index: 1)
-            enc.setFragmentBytes(&su, length: MemoryLayout<SceneUniforms3D>.size, index: 1)
-
-            // Static scene
-            for dc in opaqueCalls {
-                var m = dc.model
-                encodeDraw(encoder: enc, vertexBuffer: dc.buf, vertexCount: dc.count,
-                           model: m, emissiveColor: dc.emissiveCol, emissiveMix: dc.emissiveMix,
-                           opacity: dc.opacity)
-            }
-
-            // Windmill blades (4, spinning)
-            if let bb = bladeBuf {
-                let bladeAngle = t * (2 * Float.pi / 8.0)
-                let hubPos = m4Translation(windmillPos.x, 3.05, windmillPos.z)
-                for i in 0..<4 {
-                    let a = bladeAngle + Float(i) * Float.pi / 2
-                    let bladeModel = hubPos * m4RotZ(a) * m4Translation(0, 0.5, 0)
-                    encodeDraw(encoder: enc, vertexBuffer: bb, vertexCount: bladeCount,
-                               model: bladeModel)
-                }
-            }
-
-            // Butterflies
-            for bf in butterflies {
-                let angle = t * 2 * Float.pi / bf.period + bf.phase
-                let bx = bf.orbitCenter.x + bf.orbitRadius * cos(angle)
-                let bz = bf.orbitCenter.z + bf.orbitRadius * sin(angle)
-                let model = m4Translation(bx, bf.orbitCenter.y, bz) * m4RotY(angle + Float.pi / 2)
-                            * m4RotX(0.25 * sin(t * 8 + bf.phase))
-                encodeDraw(encoder: enc, vertexBuffer: bf.buf, vertexCount: bf.count, model: model)
-            }
-
-            // Spawned flowers (grow animation)
-            for sf in spawnedFlowers {
-                let age  = t - sf.spawnT
-                let grow = min(1, max(0, age / 0.6))
-                let stemModel = m4Translation(sf.position.x, 0.4 * grow, sf.position.z)
-                                * m4Scale(grow, grow, grow)
-                encodeDraw(encoder: enc, vertexBuffer: sf.stemBuf, vertexCount: sf.stemCount,
-                           model: stemModel)
-                let headModel = m4Translation(sf.position.x, 0.9 * grow, sf.position.z)
-                                * m4Scale(grow, grow, grow)
-                encodeDraw(encoder: enc, vertexBuffer: sf.headBuf, vertexCount: sf.headCount,
-                           model: headModel)
-            }
-
-            enc.endEncoding()
-            cmdBuf.present(drawable)
-            cmdBuf.commit()
-        }
+        var scene: SCNScene?
     }
 
     func makeCoordinator() -> Coordinator { Coordinator() }
 
-    func makeNSView(context: Context) -> MTKView {
-        let v = MTKView(frame: .zero, device: context.coordinator.device)
-        v.delegate = context.coordinator
-        v.colorPixelFormat = .bgra8Unorm
-        v.depthStencilPixelFormat = .depth32Float
-        v.clearColor = MTLClearColor(red: 0.5, green: 0.7, blue: 0.9, alpha: 1)
-        v.preferredFramesPerSecond = 60
-        v.autoResizeDrawable = true
-        return v
+    func makeNSView(context: Context) -> SCNView {
+        let view = SCNView()
+        let scene = SCNScene()
+        view.scene = scene
+        view.backgroundColor = NSColor(red: 0.5, green: 0.7, blue: 0.9, alpha: 1)
+        view.antialiasingMode = .multisampling4X
+        view.isPlaying = true
+        view.preferredFramesPerSecond = 60
+        view.allowsCameraControl = false
+        context.coordinator.scene = scene
+        buildScene(scene, coord: context.coordinator)
+        return view
     }
 
-    func updateNSView(_ nsView: MTKView, context: Context) {
+    func updateNSView(_ nsView: SCNView, context: Context) {
         let c = context.coordinator
         guard interaction.tapCount != c.lastTapCount else { return }
         c.lastTapCount = interaction.tapCount
-        let t = Float(CACurrentMediaTime() - c.startTime)
-        c.spawnFlower(at: t, tapCount: interaction.tapCount)
+        guard let scene = c.scene else { return }
+        var rng = SplitMix64(seed: UInt64(interaction.tapCount &* 1337 &+ 42))
+        let x = Float(Double.random(in: -4...4, using: &rng))
+        let z = Float(Double.random(in: -1...2, using: &rng))
+        let flowerColors: [NSColor] = [
+            NSColor(red: 1.0, green: 0.2, blue: 0.2, alpha: 1),
+            NSColor(red: 1.0, green: 0.6, blue: 0.7, alpha: 1),
+            NSColor(red: 1.0, green: 0.5, blue: 0.1, alpha: 1),
+            NSColor(red: 1.0, green: 0.95, blue: 0.1, alpha: 1)
+        ]
+        let color = flowerColors[Int(Double.random(in: 0...3.99, using: &rng))]
+        let stemGeo = SCNCylinder(radius: 0.05, height: 0.8)
+        stemGeo.firstMaterial?.diffuse.contents = NSColor(red: 0.2, green: 0.7, blue: 0.1, alpha: 1)
+        let stemNode = SCNNode(geometry: stemGeo)
+        stemNode.position = SCNVector3(x, -0.4, z)
+        stemNode.scale = SCNVector3(0.01, 0.01, 0.01)
+        scene.rootNode.addChildNode(stemNode)
+        let headGeo = SCNCone(topRadius: 0, bottomRadius: 0.25, height: 0.3)
+        headGeo.firstMaterial?.diffuse.contents = color
+        let headNode = SCNNode(geometry: headGeo)
+        headNode.position = SCNVector3(0, 0.55, 0)
+        stemNode.addChildNode(headNode)
+        let grow = SCNAction.scale(to: 1.0, duration: 0.6)
+        grow.timingMode = .easeOut
+        stemNode.runAction(grow)
+    }
+
+    private func buildScene(_ scene: SCNScene, coord: Coordinator) {
+        // Lights
+        let ambNode = SCNNode()
+        let amb = SCNLight(); amb.type = .ambient
+        amb.color = NSColor(white: 0.6, alpha: 1); amb.intensity = 400
+        ambNode.light = amb
+        scene.rootNode.addChildNode(ambNode)
+
+        let sunNode = SCNNode()
+        let sun = SCNLight(); sun.type = .directional
+        sun.color = NSColor(red: 1.0, green: 0.95, blue: 0.8, alpha: 1); sun.intensity = 800
+        sunNode.light = sun
+        sunNode.eulerAngles = SCNVector3(-Float.pi / 4, Float.pi / 6, 0)
+        scene.rootNode.addChildNode(sunNode)
+
+        // Floor
+        let floor = SCNFloor()
+        floor.firstMaterial?.diffuse.contents = NSColor(red: 0.3, green: 0.7, blue: 0.2, alpha: 1)
+        floor.reflectivity = 0
+        scene.rootNode.addChildNode(SCNNode(geometry: floor))
+
+        // Hills
+        for (hx, hz) in [(-6.0, -5.0), (6.0, -5.0)] {
+            let hill = SCNSphere(radius: 3)
+            hill.firstMaterial?.diffuse.contents = NSColor(red: 0.25, green: 0.65, blue: 0.15, alpha: 1)
+            let hNode = SCNNode(geometry: hill)
+            hNode.position = SCNVector3(Float(hx), -2.5, Float(hz))
+            hNode.scale = SCNVector3(1, 0.4, 1)
+            scene.rootNode.addChildNode(hNode)
+        }
+
+        // 9 Flowers
+        var rng = SplitMix64(seed: 5555)
+        let flowerColors: [NSColor] = [
+            NSColor(red: 1.0, green: 0.2, blue: 0.2, alpha: 1),
+            NSColor(red: 1.0, green: 0.6, blue: 0.7, alpha: 1),
+            NSColor(red: 1.0, green: 0.5, blue: 0.1, alpha: 1),
+            NSColor(red: 1.0, green: 0.95, blue: 0.1, alpha: 1),
+            NSColor(red: 0.7, green: 0.2, blue: 0.9, alpha: 1),
+            NSColor(red: 1.0, green: 1.0, blue: 1.0, alpha: 1)
+        ]
+        var flowerPositions: [SCNVector3] = []
+        for i in 0..<9 {
+            let fx = Float(Double.random(in: -4...4, using: &rng))
+            let fz = Float(Double.random(in: -1...2, using: &rng))
+            let color = flowerColors[i % flowerColors.count]
+
+            let stemGeo = SCNCylinder(radius: 0.05, height: 0.8)
+            stemGeo.firstMaterial?.diffuse.contents = NSColor(red: 0.2, green: 0.7, blue: 0.1, alpha: 1)
+            let stemNode = SCNNode(geometry: stemGeo)
+            stemNode.position = SCNVector3(fx, 0.4, fz)
+            scene.rootNode.addChildNode(stemNode)
+
+            let headGeo = SCNCone(topRadius: 0, bottomRadius: 0.25, height: 0.3)
+            headGeo.firstMaterial?.diffuse.contents = color
+            let headNode = SCNNode(geometry: headGeo)
+            headNode.position = SCNVector3(0, 0.55, 0)
+            stemNode.addChildNode(headNode)
+
+            flowerPositions.append(SCNVector3(fx, 1.2, fz))
+        }
+
+        // Windmill
+        let wmBodyGeo = SCNCylinder(radius: 0.15, height: 3)
+        wmBodyGeo.firstMaterial?.diffuse.contents = NSColor(white: 0.85, alpha: 1)
+        let wmBody = SCNNode(geometry: wmBodyGeo)
+        wmBody.position = SCNVector3(4, 1.5, -4)
+        scene.rootNode.addChildNode(wmBody)
+
+        let pivotNode = SCNNode()
+        pivotNode.position = SCNVector3(0, 1.6, 0.16)
+        wmBody.addChildNode(pivotNode)
+
+        let bladeColors: [NSColor] = [
+            NSColor(red: 0.8, green: 0.5, blue: 0.2, alpha: 1),
+            NSColor(red: 0.7, green: 0.45, blue: 0.18, alpha: 1)
+        ]
+        for b in 0..<4 {
+            let bladeGeo = SCNBox(width: 0.15, height: 1.2, length: 0.05, chamferRadius: 0)
+            bladeGeo.firstMaterial?.diffuse.contents = bladeColors[b % 2]
+            let bladeNode = SCNNode(geometry: bladeGeo)
+            let angle = CGFloat(b) * CGFloat.pi / 2
+            bladeNode.position = SCNVector3(sin(angle) * 0.65, cos(angle) * 0.65, 0)
+            bladeNode.eulerAngles = SCNVector3(0, 0, angle)
+            pivotNode.addChildNode(bladeNode)
+        }
+        let spinZ = SCNAction.repeatForever(SCNAction.rotate(by: CGFloat.pi * 2, around: SCNVector3(0, 0, 1), duration: 8))
+        pivotNode.runAction(spinZ)
+
+        // 6 Butterflies
+        let butterflyColors: [NSColor] = [
+            NSColor(red: 1.0, green: 0.6, blue: 0.8, alpha: 1),
+            NSColor(red: 1.0, green: 0.6, blue: 0.2, alpha: 1),
+            NSColor(red: 0.3, green: 0.6, blue: 1.0, alpha: 1),
+            NSColor(red: 1.0, green: 0.95, blue: 0.2, alpha: 1),
+            NSColor(red: 0.0, green: 0.9, blue: 0.9, alpha: 1),
+            NSColor(red: 0.8, green: 0.6, blue: 1.0, alpha: 1)
+        ]
+        let orbitDurations: [Double] = [3.0, 4.0, 5.0, 3.5, 4.5, 6.0]
+        let orbitRadii: [CGFloat] = [0.3, 0.4, 0.35, 0.5, 0.3, 0.45]
+
+        for b in 0..<6 {
+            let wingGeo = SCNBox(width: 0.2, height: 0.15, length: 0.01, chamferRadius: 0)
+            let mat = SCNMaterial()
+            mat.diffuse.contents = butterflyColors[b]
+            mat.isDoubleSided = true
+            wingGeo.firstMaterial = mat
+            let bNode = SCNNode(geometry: wingGeo)
+            let flowerPos = flowerPositions[b % flowerPositions.count]
+            let r = orbitRadii[b]
+            let dur = orbitDurations[b]
+            let yHeight = CGFloat(1.0 + Double(b) * 0.2)
+            let orbit = SCNAction.customAction(duration: dur) { node, elapsed in
+                let angle = CGFloat(elapsed / CGFloat(dur)) * CGFloat.pi * 2
+                node.position = SCNVector3(
+                    flowerPos.x + sin(angle) * r,
+                    flowerPos.y + yHeight - 1.2,
+                    flowerPos.z + cos(angle) * r
+                )
+                node.eulerAngles = SCNVector3(0, -angle, 0)
+            }
+            bNode.runAction(SCNAction.repeatForever(orbit))
+            scene.rootNode.addChildNode(bNode)
+        }
+
+        // Camera
+        let camNode = SCNNode()
+        let cam = SCNCamera(); cam.fieldOfView = 70; cam.zFar = 100
+        camNode.camera = cam
+        scene.rootNode.addChildNode(camNode)
+        let camOrbit = SCNAction.customAction(duration: 60) { node, elapsed in
+            let angle = Float(elapsed / 60) * 2 * Float.pi
+            let r: Float = 10
+            node.position = SCNVector3(sin(angle) * r, 3, cos(angle) * r)
+            node.eulerAngles = SCNVector3(-0.25, angle + Float.pi, 0)
+        }
+        camNode.runAction(SCNAction.repeatForever(camOrbit))
     }
 }

@@ -1,0 +1,353 @@
+// InnerLight3DMetalScene — Warm glowing geometric forms in deep indigo space.
+// Faceted crystalline spheres connected by golden filaments, tiny motes rising
+// from below. The quiet inner space of a mind that thinks in light.
+// Tap to send a gentle brightness pulse through the constellation.
+// No SceneKit — geometry built via Metal3DHelpers.
+
+import SwiftUI
+import MetalKit
+
+struct InnerLight3DMetalScene: View {
+    @ObservedObject var interaction: InteractionState
+    var body: some View {
+        InnerLight3DMetalRepresentable(interaction: interaction)
+    }
+}
+
+// MARK: - NSViewRepresentable
+
+private struct InnerLight3DMetalRepresentable: NSViewRepresentable {
+    @ObservedObject var interaction: InteractionState
+
+    final class Coordinator: NSObject, MTKViewDelegate {
+
+        let device:           MTLDevice
+        let commandQueue:     MTLCommandQueue
+        var opaquePipeline:   MTLRenderPipelineState?
+        var glowPipeline:     MTLRenderPipelineState?
+        var particlePipeline: MTLRenderPipelineState?
+        var depthState:       MTLDepthStencilState?
+        var depthROState:     MTLDepthStencilState?
+
+        struct DrawCall {
+            var buffer:      MTLBuffer
+            var count:       Int
+            var model:       simd_float4x4
+            var emissiveCol: SIMD3<Float>
+            var emissiveMix: Float
+            var opacity:     Float = 1
+        }
+
+        // Form data
+        struct FormData {
+            var call: DrawCall
+            var basePos: SIMD3<Float>
+            var radius: Float
+            var rotAxis: SIMD3<Float>
+            var rotSpeed: Float
+            var bobPhase: Float
+            var emissiveBase: SIMD3<Float>
+        }
+        var forms: [FormData] = []
+
+        // Filament data
+        struct FilamentData {
+            var call: DrawCall
+            var fromIdx: Int
+            var toIdx: Int
+            var pulsePhase: Float
+        }
+        var filaments: [FilamentData] = []
+
+        // Mote data
+        var motePos: [SIMD3<Float>] = []
+        var motePhase: [Float] = []
+        var moteSpeed: [Float] = []
+
+        var glowBoostT: Float = -100
+        var lastTapCount = 0
+        var startTime: CFTimeInterval = CACurrentMediaTime()
+        var aspect: Float = 1
+
+        override init() {
+            device       = MTLCreateSystemDefaultDevice()!
+            commandQueue = device.makeCommandQueue()!
+            super.init()
+            do {
+                opaquePipeline   = try makeOpaquePipeline(device: device)
+                glowPipeline     = try makeAlphaBlendPipeline(device: device)
+                particlePipeline = try makeParticlePipeline(device: device)
+            } catch {
+                print("InnerLight3DMetal pipeline error: \(error)")
+            }
+            depthState   = makeDepthState(device: device)
+            depthROState = makeDepthReadOnlyState(device: device)
+            buildScene()
+        }
+
+        // MARK: - Build
+
+        private func buildScene() {
+            var rng = SplitMix64(seed: 42)
+
+            let emissiveColors: [SIMD3<Float>] = [
+                [0.95, 0.70, 0.25],  // amber
+                [0.90, 0.80, 0.40],  // gold
+                [0.85, 0.55, 0.55],  // soft rose
+                [0.65, 0.55, 0.85],  // pale violet
+                [0.55, 0.75, 0.85],  // warm sky
+                [0.80, 0.65, 0.45],  // warm copper
+            ]
+
+            // 11 crystalline forms
+            for i in 0..<11 {
+                let theta = Float(Double.random(in: 0...(2 * .pi), using: &rng))
+                let phi   = Float(Double.random(in: -0.6...0.6, using: &rng))
+                let dist  = Float(Double.random(in: 1.5...5.0, using: &rng))
+                let x = dist * cos(theta) * cos(phi)
+                let y = dist * sin(phi)
+                let z = dist * sin(theta) * cos(phi)
+                let r = Float(Double.random(in: 0.15...0.55, using: &rng))
+
+                let axX = Float(Double.random(in: -1...1, using: &rng))
+                let axY = Float(Double.random(in: -1...1, using: &rng))
+                let axZ = Float(Double.random(in: -1...1, using: &rng))
+                let rotSpeed = Float(Double.random(in: 0.3...0.8, using: &rng))
+                let bobPhase = Float(Double.random(in: 0...(2 * .pi), using: &rng))
+
+                // Faceted crystalline look: low segment sphere
+                let col = emissiveColors[i % emissiveColors.count]
+                let surfaceCol: SIMD4<Float> = [col.x * 0.15, col.y * 0.15, col.z * 0.15, 1]
+                let verts = buildSphere(radius: r, rings: 4, segments: 5, color: surfaceCol)
+                guard let buf = makeVertexBuffer(verts, device: device) else { continue }
+
+                forms.append(FormData(
+                    call: DrawCall(buffer: buf, count: verts.count,
+                                   model: matrix_identity_float4x4,
+                                   emissiveCol: col, emissiveMix: 0.8, opacity: 0.92),
+                    basePos: [x, y, z],
+                    radius: r,
+                    rotAxis: simd_normalize([axX, axY, axZ]),
+                    rotSpeed: rotSpeed,
+                    bobPhase: bobPhase,
+                    emissiveBase: col
+                ))
+            }
+
+            // Filaments — connect nearby forms
+            let maxDist: Float = 4.5
+            for i in 0..<forms.count {
+                for j in (i + 1)..<forms.count {
+                    let d = simd_length(forms[i].basePos - forms[j].basePos)
+                    guard d < maxDist else { continue }
+
+                    // Thin cylinder as filament
+                    let filVerts = buildCylinder(radius: 0.008, height: 1.0, segments: 4,
+                                                 color: [0.80, 0.65, 0.40, 1])
+                    guard let buf = makeVertexBuffer(filVerts, device: device) else { continue }
+
+                    filaments.append(FilamentData(
+                        call: DrawCall(buffer: buf, count: filVerts.count,
+                                       model: matrix_identity_float4x4,
+                                       emissiveCol: [0.80, 0.65, 0.40], emissiveMix: 0.6,
+                                       opacity: 0.35),
+                        fromIdx: i, toIdx: j,
+                        pulsePhase: Float(i + j) * 0.7
+                    ))
+                }
+            }
+
+            // Motes — 40 tiny rising particles
+            for _ in 0..<40 {
+                let mx = Float(Double.random(in: -4...4, using: &rng))
+                let my = Float(Double.random(in: -4 ... -1, using: &rng))
+                let mz = Float(Double.random(in: -4...4, using: &rng))
+                motePos.append([mx, my, mz])
+                motePhase.append(Float(Double.random(in: 0...6.28, using: &rng)))
+                moteSpeed.append(Float(Double.random(in: 0.15...0.45, using: &rng)))
+            }
+        }
+
+        func handleTap() {
+            glowBoostT = Float(CACurrentMediaTime() - startTime)
+        }
+
+        // MARK: - Filament matrix
+
+        /// Build a model matrix that scales a unit-height cylinder to span from `a` to `b`.
+        private func filamentMatrix(from a: SIMD3<Float>, to b: SIMD3<Float>) -> simd_float4x4 {
+            let mid = (a + b) * 0.5
+            let diff = b - a
+            let len = simd_length(diff)
+            guard len > 0.001 else { return m4Translation(mid.x, mid.y, mid.z) }
+            let dir = diff / len
+
+            // Cylinder is along Y axis; rotate Y axis to align with `dir`
+            let up: SIMD3<Float> = [0, 1, 0]
+            let dot = simd_dot(up, dir)
+            let translation = m4Translation(mid.x, mid.y, mid.z)
+            let scale = m4Scale(1, len, 1)
+
+            if abs(dot) > 0.9999 {
+                // Nearly parallel — just scale
+                return translation * scale * (dot < 0 ? m4RotX(Float.pi) : matrix_identity_float4x4)
+            }
+
+            let axis = simd_normalize(simd_cross(up, dir))
+            let angle = acos(min(1, max(-1, dot)))
+            // Rodrigues rotation via axis-angle → matrix
+            let c = cos(angle); let s = sin(angle); let omc = 1 - c
+            let x = axis.x; let y = axis.y; let z = axis.z
+            var rot = matrix_identity_float4x4
+            rot.columns.0 = [c + x*x*omc,     y*x*omc + z*s,  z*x*omc - y*s, 0]
+            rot.columns.1 = [x*y*omc - z*s,    c + y*y*omc,    z*y*omc + x*s, 0]
+            rot.columns.2 = [x*z*omc + y*s,    y*z*omc - x*s,  c + z*z*omc,   0]
+            return translation * rot * scale
+        }
+
+        // MARK: - MTKViewDelegate
+
+        func mtkView(_ view: MTKView, drawableSizeWillChange size: CGSize) {
+            aspect = size.width > 0 ? Float(size.width / size.height) : 1
+        }
+
+        func draw(in view: MTKView) {
+            guard let pipeline = opaquePipeline,
+                  let drawable = view.currentDrawable,
+                  let rpDesc   = view.currentRenderPassDescriptor,
+                  let cmdBuf   = commandQueue.makeCommandBuffer(),
+                  let encoder  = cmdBuf.makeRenderCommandEncoder(descriptor: rpDesc)
+            else { return }
+
+            let t = Float(CACurrentMediaTime() - startTime)
+            let glowBoost = max(0, 1 - (t - glowBoostT) / 2.0) * 1.5
+
+            // Slow camera orbit
+            let orbitAngle = t * (2 * Float.pi / 90.0)
+            let camR: Float = 8.0
+            let eye: SIMD3<Float> = [camR * sin(orbitAngle), 1.5 + 0.3 * sin(t * 0.15), camR * cos(orbitAngle)]
+            let center: SIMD3<Float> = [0, 0, 0]
+            let view4 = m4LookAt(eye: eye, center: center, up: [0, 1, 0])
+            let proj4 = m4Perspective(fovyRad: 55 * .pi / 180, aspect: aspect, near: 0.05, far: 50)
+            let vp = proj4 * view4
+
+            let sunDir: SIMD3<Float> = simd_normalize([0.2, -0.5, -0.3])
+            let sunCol: SIMD3<Float> = [0.10, 0.08, 0.15]
+            let ambCol: SIMD3<Float> = [0.04, 0.03, 0.07]
+
+            var su = SceneUniforms3D(
+                viewProjection: vp,
+                sunDirection:   SIMD4<Float>(sunDir, 0),
+                sunColor:       SIMD4<Float>(sunCol, 0),
+                ambientColor:   SIMD4<Float>(ambCol, t),
+                fogParams:      SIMD4<Float>(12, 35, 0, 0),
+                fogColor:       SIMD4<Float>(0.04, 0.03, 0.07, 0),
+                cameraWorldPos: SIMD4<Float>(eye, 0)
+            )
+
+            encoder.setRenderPipelineState(pipeline)
+            encoder.setDepthStencilState(depthState)
+            encoder.setCullMode(.back)
+            encoder.setVertexBytes(&su, length: MemoryLayout<SceneUniforms3D>.size, index: 1)
+            encoder.setFragmentBytes(&su, length: MemoryLayout<SceneUniforms3D>.size, index: 1)
+
+            // Draw filaments (opaque thin cylinders)
+            for fil in filaments {
+                let aPos = formPosition(forms[fil.fromIdx], t: t)
+                let bPos = formPosition(forms[fil.toIdx], t: t)
+                let model = filamentMatrix(from: aPos, to: bPos)
+                let pulse = 0.3 + 0.2 * sin(t * 1.6 + fil.pulsePhase)
+                let emBright = pulse + glowBoost * 0.8
+                encodeDraw(encoder: encoder,
+                           vertexBuffer: fil.call.buffer, vertexCount: fil.call.count,
+                           model: model,
+                           emissiveColor: fil.call.emissiveCol * emBright,
+                           emissiveMix: 0.7,
+                           opacity: 0.35 + glowBoost * 0.2)
+            }
+
+            // Draw forms (translucent, use glow pipeline)
+            if let glow = glowPipeline {
+                encoder.setRenderPipelineState(glow)
+                encoder.setDepthStencilState(depthROState)
+
+                for (i, form) in forms.enumerated() {
+                    let pos = formPosition(form, t: t)
+                    // Axis-angle rotation approximated via Y rotation
+                    let rotAngle = form.rotSpeed * t
+                    let model = m4Translation(pos.x, pos.y, pos.z) * m4RotY(rotAngle) * m4RotX(rotAngle * 0.3)
+
+                    // Staggered tap ripple
+                    let rippleDelay = Float(i) * 0.12
+                    let rippleFrac = max(0, (t - glowBoostT) - rippleDelay)
+                    let rippleGlow: Float = rippleFrac < 0.8 ? (1 - rippleFrac / 0.8) * 2.0 : 0
+                    let emMix = form.call.emissiveMix + rippleGlow * 0.4
+                    let emCol = form.emissiveBase * (1 + rippleGlow * 0.5 + glowBoost * 0.3)
+
+                    encodeDraw(encoder: encoder,
+                               vertexBuffer: form.call.buffer, vertexCount: form.call.count,
+                               model: model,
+                               emissiveColor: emCol, emissiveMix: min(1, emMix),
+                               opacity: form.call.opacity)
+                }
+            }
+
+            // Mote particles
+            if let ppipe = particlePipeline {
+                var particles: [ParticleVertex3D] = []
+                for i in motePos.indices {
+                    let base = motePos[i]
+                    let ph = motePhase[i]
+                    let spd = moteSpeed[i]
+                    // Rise slowly, wrap around
+                    let yOff = fmod(t * spd, 8.0)
+                    let mx = base.x + 0.4 * sin(t * 0.2 + ph)
+                    let my = base.y + yOff
+                    let mz = base.z + 0.3 * cos(t * 0.25 + ph)
+                    let alpha = (0.35 + 0.25 * sin(t * 0.6 + ph)) * (1 + glowBoost * 0.5)
+                    particles.append(ParticleVertex3D(
+                        position: [mx, my, mz],
+                        color: [0.95, 0.75, 0.35, min(1, alpha)],
+                        size: 3.5))
+                }
+                if let pbuf = makeParticleBuffer(particles, device: device) {
+                    encoder.setRenderPipelineState(ppipe)
+                    encoder.setDepthStencilState(depthROState)
+                    encoder.setVertexBuffer(pbuf, offset: 0, index: 0)
+                    encoder.setVertexBytes(&su, length: MemoryLayout<SceneUniforms3D>.size, index: 1)
+                    encoder.drawPrimitives(type: .point, vertexStart: 0, vertexCount: particles.count)
+                }
+            }
+
+            encoder.endEncoding()
+            cmdBuf.present(drawable)
+            cmdBuf.commit()
+        }
+
+        /// Current position of a form (base + gentle bob).
+        private func formPosition(_ form: FormData, t: Float) -> SIMD3<Float> {
+            let bob = 0.15 * sin(t * 0.8 + form.bobPhase)
+            return form.basePos + [0, bob, 0]
+        }
+    }
+
+    func makeCoordinator() -> Coordinator { Coordinator() }
+
+    func makeNSView(context: Context) -> MTKView {
+        let view = MTKView(frame: .zero, device: context.coordinator.device)
+        view.delegate                 = context.coordinator
+        view.colorPixelFormat         = .bgra8Unorm
+        view.depthStencilPixelFormat  = .depth32Float
+        view.clearColor               = MTLClearColor(red: 0.04, green: 0.03, blue: 0.07, alpha: 1)
+        view.preferredFramesPerSecond = 60
+        view.autoResizeDrawable       = true
+        return view
+    }
+
+    func updateNSView(_ nsView: MTKView, context: Context) {
+        let c = context.coordinator
+        guard interaction.tapCount != c.lastTapCount else { return }
+        c.lastTapCount = interaction.tapCount
+        c.handleTap()
+    }
+}

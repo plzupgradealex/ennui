@@ -202,7 +202,11 @@ struct AboutView: View {
             .padding(.bottom, 14)
     }
 
+    @State private var isDismissing = false
+
     private func dismiss() {
+        guard !isDismissing else { return }
+        isDismissing = true
         withAnimation(.easeIn(duration: 0.35)) {
             opacity = 0
             contentOffset = 8

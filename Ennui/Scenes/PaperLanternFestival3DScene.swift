@@ -93,7 +93,7 @@ private struct PaperLanternFestival3DRepresentable: NSViewRepresentable {
                 let sy = Float(Double.random(in: 8...30, using: &srng))
                 let sz = Float(Double.random(in: -35 ... -5, using: &srng))
                 let br = Float(Double.random(in: 0.5...1.0, using: &srng))
-                let ph = Float(Double.random(in: 0...Float.pi*2, using: &srng))
+                let ph = Float(Double.random(in: 0...Double.pi*2, using: &srng))
                 stars.append(StarPt(pos: [sx, sy, sz], brightness: br, phase: ph))
             }
 
@@ -104,9 +104,9 @@ private struct PaperLanternFestival3DRepresentable: NSViewRepresentable {
                 let lz = Float(Double.random(in: -12 ... -2, using: &lrng))
                 let ly = Float(Double.random(in: 0.5...4.0, using: &lrng))
                 let dur = Float(Double.random(in: 20...40, using: &lrng))
-                let ph  = Float(Double.random(in: 0...Float.pi*2, using: &lrng))
+                let ph  = Float(Double.random(in: 0...Double.pi*2, using: &lrng))
                 lanterns.append(Lantern(startX: lx, startY: ly, startZ: lz,
-                                        born: -Float(Double.random(in: 0...dur*0.5, using: &lrng)),
+                                        born: -Float(Double.random(in: 0...Double(dur)*0.5, using: &lrng)),
                                         driftDuration: dur, swayPhase: ph))
             }
         }
@@ -115,7 +115,7 @@ private struct PaperLanternFestival3DRepresentable: NSViewRepresentable {
             let lx = Float(Double.random(in: -6...6, using: &rng))
             let lz = Float(Double.random(in: -8 ... -2, using: &rng))
             let dur = Float(Double.random(in: 20...35, using: &rng))
-            let ph  = Float(Double.random(in: 0...Float.pi*2, using: &rng))
+            let ph  = Float(Double.random(in: 0...Double.pi*2, using: &rng))
             lanterns.append(Lantern(startX: lx, startY: 0.2, startZ: lz,
                                     born: time, driftDuration: dur, swayPhase: ph))
         }

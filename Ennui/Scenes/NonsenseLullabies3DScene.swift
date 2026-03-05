@@ -1,243 +1,194 @@
-// NonsenseLullabies3DScene — Metal 3D nursery dreamscape.
-// Warm ivory background, 20 floating pastel shapes bobbing gently.
-// Tap for a 1.5s sparkle burst around centre.
+// NonsenseLullabies3DScene — Watercolour nursery dreamscape with floating cats, moons, houses, stars.
 
 import SwiftUI
-import MetalKit
+import SceneKit
 
 struct NonsenseLullabies3DScene: View {
     @ObservedObject var interaction: InteractionState
-    var body: some View { NonsenseLullabies3DRepresentable(interaction: interaction) }
+    var body: some View {
+        NonsenseLullabies3DRepresentable(interaction: interaction)
+    }
 }
 
 private struct NonsenseLullabies3DRepresentable: NSViewRepresentable {
     @ObservedObject var interaction: InteractionState
 
-    final class Coordinator: NSObject, MTKViewDelegate {
-        let device:           MTLDevice
-        let commandQueue:     MTLCommandQueue
-        var opaquePipeline:   MTLRenderPipelineState?
-        var glowPipeline:     MTLRenderPipelineState?
-        var particlePipeline: MTLRenderPipelineState?
-        var depthState:       MTLDepthStencilState?
-        var depthROState:     MTLDepthStencilState?
-
-        struct ShapePart {
-            var buffer: MTLBuffer; var count: Int
-            var localModel: simd_float4x4
-            var emissive: SIMD3<Float>; var emissiveMix: Float
-        }
-        struct ShapeInstance {
-            var parts: [ShapePart]
-            var baseX, baseY, baseZ: Float
-            var bobAmp, bobPeriod, bobPhase: Float
-        }
-        var shapeInstances: [ShapeInstance] = []
-
-        var sparkleT: Float = -999
+    final class Coordinator {
         var lastTapCount = 0
-        var startTime: CFTimeInterval = CACurrentMediaTime()
-        var aspect: Float = 1
-
-        override init() {
-            device       = MTLCreateSystemDefaultDevice()!
-            commandQueue = device.makeCommandQueue()!
-            super.init()
-            do {
-                opaquePipeline   = try makeOpaquePipeline(device: device)
-                glowPipeline     = try makeAlphaBlendPipeline(device: device)
-                particlePipeline = try makeParticlePipeline(device: device)
-            } catch { print("NonsenseLullabies3D pipeline error: \(error)") }
-            depthState   = makeDepthState(device: device)
-            depthROState = makeDepthReadOnlyState(device: device)
-            buildScene()
-        }
-
-        private func makePart(_ verts: [Vertex3D],
-                               local: simd_float4x4,
-                               emissive: SIMD3<Float> = .zero,
-                               mix: Float = 0) -> ShapePart? {
-            guard let buf = makeVertexBuffer(verts, device: device) else { return nil }
-            return ShapePart(buffer: buf, count: verts.count, localModel: local,
-                             emissive: emissive, emissiveMix: mix)
-        }
-
-        private func buildScene() {
-            let pink:     SIMD4<Float> = [0.98, 0.72, 0.80, 1]
-            let lavender: SIMD4<Float> = [0.78, 0.70, 0.95, 1]
-            let yellow:   SIMD4<Float> = [0.99, 0.92, 0.52, 1]
-            let peach:    SIMD4<Float> = [0.99, 0.80, 0.65, 1]
-            let mint:     SIMD4<Float> = [0.68, 0.95, 0.82, 1]
-            let palette: [SIMD4<Float>] = [pink, lavender, yellow, peach, mint]
-
-            var rng = SplitMix64(seed: 3141)
-
-            for i in 0..<20 {
-                let bx  = Float(rng.nextDouble() * 10 - 5)
-                let by  = Float(rng.nextDouble() * 5  - 2)
-                let bz  = Float(rng.nextDouble() * 5  - 8)
-                let amp = Float(rng.nextDouble() * 0.2 + 0.2)
-                let per = Float(rng.nextDouble() * 3   + 2)
-                let ph  = Float(rng.nextDouble() * 2   * Double.pi)
-                let col = palette[i % 5]
-                let ec  = SIMD3<Float>(col.x, col.y, col.z)
-
-                var parts: [ShapePart] = []
-                switch i % 4 {
-                case 0: // cat
-                    let body = buildBox(w: 0.30, h: 0.25, d: 0.15, color: col)
-                    let head = buildSphere(radius: 0.12, rings: 6, segments: 10, color: col)
-                    let earL = buildCone(radius: 0.04, height: 0.12, segments: 6, color: col)
-                    let earR = buildCone(radius: 0.04, height: 0.12, segments: 6, color: col)
-                    if let p = makePart(body, local: m4Translation(0, 0.125, 0)) { parts.append(p) }
-                    if let p = makePart(head, local: m4Translation(0, 0.37, 0)) { parts.append(p) }
-                    if let p = makePart(earL, local: m4Translation(-0.08, 0.52, 0)) { parts.append(p) }
-                    if let p = makePart(earR, local: m4Translation( 0.08, 0.52, 0)) { parts.append(p) }
-                case 1: // moon
-                    let moon = buildSphere(radius: 0.20, rings: 8, segments: 12, color: col)
-                    if let p = makePart(moon, local: matrix_identity_float4x4,
-                                        emissive: ec, mix: 0.3) { parts.append(p) }
-                case 2: // house
-                    let body = buildBox(w: 0.40, h: 0.35, d: 0.30, color: col)
-                    let roof = buildPyramid(bw: 0.44, bd: 0.34, h: 0.22, color: peach)
-                    if let p = makePart(body, local: m4Translation(0, 0.175, 0)) { parts.append(p) }
-                    if let p = makePart(roof, local: m4Translation(0, 0.35, 0)) { parts.append(p) }
-                default: // star
-                    let star = buildSphere(radius: 0.08, rings: 6, segments: 8, color: col)
-                    if let p = makePart(star, local: matrix_identity_float4x4,
-                                        emissive: ec, mix: 0.5) { parts.append(p) }
-                }
-                shapeInstances.append(ShapeInstance(parts: parts,
-                                                     baseX: bx, baseY: by, baseZ: bz,
-                                                     bobAmp: amp, bobPeriod: per, bobPhase: ph))
-            }
-        }
-
-        func handleTap() {
-            sparkleT = Float(CACurrentMediaTime() - startTime)
-        }
-
-        func mtkView(_ view: MTKView, drawableSizeWillChange size: CGSize) {
-            aspect = size.width > 0 ? Float(size.width / size.height) : 1
-        }
-
-        func draw(in view: MTKView) {
-            guard let pipeline = opaquePipeline,
-                  let drawable = view.currentDrawable,
-                  let rpd      = view.currentRenderPassDescriptor,
-                  let cmdBuf   = commandQueue.makeCommandBuffer(),
-                  let enc      = cmdBuf.makeRenderCommandEncoder(descriptor: rpd)
-            else { return }
-
-            let t = Float(CACurrentMediaTime() - startTime)
-
-            let orbitAngle = t * 2 * .pi / 120.0
-            let eye: SIMD3<Float>    = [9 * sin(orbitAngle), 1.5, 9 * cos(orbitAngle)]
-            let center: SIMD3<Float> = [0, 0.5, -5.5]
-            let viewM = m4LookAt(eye: eye, center: center, up: [0, 1, 0])
-            let projM = m4Perspective(fovyRad: 55 * .pi / 180, aspect: aspect, near: 0.1, far: 60)
-            let vp    = projM * viewM
-
-            let sunDir: SIMD3<Float> = simd_normalize([0.5, -0.8, -0.3])
-            var su = SceneUniforms3D(
-                viewProjection: vp,
-                sunDirection:   SIMD4<Float>(sunDir, 0),
-                sunColor:       SIMD4<Float>(1.0, 0.95, 0.85, 0),
-                ambientColor:   SIMD4<Float>(0.6, 0.55, 0.50, t),
-                fogParams:      SIMD4<Float>(20, 40, 0, 0),
-                fogColor:       SIMD4<Float>(0.95, 0.90, 0.82, 0),
-                cameraWorldPos: SIMD4<Float>(eye, 0)
-            )
-
-            enc.setRenderPipelineState(pipeline)
-            enc.setDepthStencilState(depthState)
-            enc.setCullMode(.back)
-            enc.setVertexBytes(&su, length: MemoryLayout<SceneUniforms3D>.size, index: 1)
-            enc.setFragmentBytes(&su, length: MemoryLayout<SceneUniforms3D>.size, index: 1)
-
-            for inst in shapeInstances {
-                let bob    = inst.bobAmp * sin(t * 2 * .pi / inst.bobPeriod + inst.bobPhase)
-                let worldT = m4Translation(inst.baseX, inst.baseY + bob, inst.baseZ)
-                for part in inst.parts {
-                    let model = worldT * part.localModel
-                    if part.emissiveMix > 0 {
-                        // drawn in glow pass below
-                        continue
-                    }
-                    encodeDraw(encoder: enc, vertexBuffer: part.buffer, vertexCount: part.count,
-                               model: model,
-                               emissiveColor: part.emissive, emissiveMix: part.emissiveMix)
-                }
-            }
-
-            if let glowPL = glowPipeline {
-                enc.setRenderPipelineState(glowPL)
-                enc.setDepthStencilState(depthROState)
-                enc.setVertexBytes(&su, length: MemoryLayout<SceneUniforms3D>.size, index: 1)
-                enc.setFragmentBytes(&su, length: MemoryLayout<SceneUniforms3D>.size, index: 1)
-                for inst in shapeInstances {
-                    let bob    = inst.bobAmp * sin(t * 2 * .pi / inst.bobPeriod + inst.bobPhase)
-                    let worldT = m4Translation(inst.baseX, inst.baseY + bob, inst.baseZ)
-                    for part in inst.parts where part.emissiveMix > 0 {
-                        let model = worldT * part.localModel
-                        encodeDraw(encoder: enc, vertexBuffer: part.buffer, vertexCount: part.count,
-                                   model: model,
-                                   emissiveColor: part.emissive, emissiveMix: part.emissiveMix,
-                                   opacity: 0.9)
-                    }
-                }
-            }
-
-            let sparkAge = t - sparkleT
-            if let ppipe = particlePipeline, sparkAge >= 0 && sparkAge < 1.5 {
-                var sparks: [ParticleVertex3D] = []
-                var prng = SplitMix64(seed: 7890)
-                for _ in 0..<80 {
-                    let theta = Float(prng.nextDouble() * 2 * Double.pi)
-                    let phi   = Float(prng.nextDouble() * Double.pi)
-                    let r     = Float(prng.nextDouble() * 3)
-                    let px    = r * sin(phi) * cos(theta)
-                    let py    = r * sin(phi) * sin(theta)
-                    let pz    = -5 + r * cos(phi)
-                    let fade  = max(0, Float(1 - sparkAge / 1.5))
-                    let twink = 0.7 + 0.3 * sin(t * 15 + r * 5)
-                    let br    = fade * twink
-                    let col: SIMD4<Float> = [br, br * 0.9, br * 0.5, fade]
-                    sparks.append(ParticleVertex3D(position: [px, py, pz], color: col,
-                                                   size: 6 * fade))
-                }
-                if let pbuf = makeParticleBuffer(sparks, device: device) {
-                    enc.setRenderPipelineState(ppipe)
-                    enc.setDepthStencilState(depthROState)
-                    enc.setVertexBuffer(pbuf, offset: 0, index: 0)
-                    enc.setVertexBytes(&su, length: MemoryLayout<SceneUniforms3D>.size, index: 1)
-                    enc.drawPrimitives(type: .point, vertexStart: 0, vertexCount: sparks.count)
-                }
-            }
-
-            enc.endEncoding()
-            cmdBuf.present(drawable)
-            cmdBuf.commit()
-        }
+        var floatingShapes: [SCNNode] = []
     }
 
     func makeCoordinator() -> Coordinator { Coordinator() }
 
-    func makeNSView(context: Context) -> MTKView {
-        let v = MTKView(frame: .zero, device: context.coordinator.device)
-        v.delegate                 = context.coordinator
-        v.colorPixelFormat         = .bgra8Unorm
-        v.depthStencilPixelFormat  = .depth32Float
-        v.clearColor               = MTLClearColor(red: 0.95, green: 0.90, blue: 0.82, alpha: 1)
-        v.preferredFramesPerSecond = 60
-        v.autoResizeDrawable       = true
-        return v
+    func makeNSView(context: Context) -> SCNView {
+        let view = SCNView()
+        let scene = SCNScene()
+        view.scene = scene
+        view.backgroundColor = NSColor(red: 0.95, green: 0.90, blue: 0.82, alpha: 1)
+        view.antialiasingMode = .multisampling4X
+        view.isPlaying = true
+        view.preferredFramesPerSecond = 60
+        view.allowsCameraControl = false
+        buildScene(scene, coord: context.coordinator)
+        return view
     }
 
-    func updateNSView(_ nsView: MTKView, context: Context) {
+    func updateNSView(_ nsView: SCNView, context: Context) {
         let c = context.coordinator
         guard interaction.tapCount != c.lastTapCount else { return }
         c.lastTapCount = interaction.tapCount
-        c.handleTap()
+        guard !c.floatingShapes.isEmpty else { return }
+        var rng = SplitMix64(seed: UInt64(interaction.tapCount &* 1999))
+        let idx = Int(Double.random(in: 0...Double(c.floatingShapes.count - 1) + 0.99, using: &rng)) % c.floatingShapes.count
+        let shape = c.floatingShapes[idx]
+        let grow = SCNAction.scale(to: 1.5, duration: 0.25)
+        let shrink = SCNAction.scale(to: 1.0, duration: 0.25)
+        shape.runAction(SCNAction.sequence([grow, shrink]))
+    }
+
+    // MARK: — Node builders
+
+    private func makeCat(color: NSColor, emissive: NSColor) -> SCNNode {
+        let root = SCNNode()
+        let bodyGeo = SCNBox(width: 0.3, height: 0.25, length: 0.15, chamferRadius: 0.04)
+        let mat = SCNMaterial()
+        mat.diffuse.contents = color; mat.emission.contents = emissive
+        bodyGeo.firstMaterial = mat
+        root.addChildNode(SCNNode(geometry: bodyGeo))
+
+        let headGeo = SCNSphere(radius: 0.12)
+        headGeo.firstMaterial = mat
+        let headNode = SCNNode(geometry: headGeo)
+        headNode.position = SCNVector3(0.18, 0.1, 0)
+        root.addChildNode(headNode)
+
+        let earMat = SCNMaterial()
+        earMat.diffuse.contents = color; earMat.emission.contents = emissive
+        for side in [-1, 1] {
+            let earGeo = SCNPyramid(width: 0.07, height: 0.08, length: 0.04)
+            earGeo.firstMaterial = earMat
+            let eNode = SCNNode(geometry: earGeo)
+            eNode.position = SCNVector3(0.18 + Float(side) * 0.07, 0.21, 0)
+            root.addChildNode(eNode)
+        }
+        return root
+    }
+
+    private func makeMoon(color: NSColor, emissive: NSColor) -> SCNNode {
+        let geo = SCNSphere(radius: 0.2)
+        let mat = SCNMaterial()
+        mat.diffuse.contents = color; mat.emission.contents = emissive
+        geo.firstMaterial = mat
+        return SCNNode(geometry: geo)
+    }
+
+    private func makeHouse(color: NSColor, roofColor: NSColor, emissive: NSColor) -> SCNNode {
+        let root = SCNNode()
+        let bodyGeo = SCNBox(width: 0.25, height: 0.2, length: 0.2, chamferRadius: 0.02)
+        let mat = SCNMaterial()
+        mat.diffuse.contents = color; mat.emission.contents = emissive
+        bodyGeo.firstMaterial = mat
+        root.addChildNode(SCNNode(geometry: bodyGeo))
+
+        let roofGeo = SCNPyramid(width: 0.28, height: 0.15, length: 0.22)
+        let roofMat = SCNMaterial()
+        roofMat.diffuse.contents = roofColor; roofMat.emission.contents = emissive
+        roofGeo.firstMaterial = roofMat
+        let roofNode = SCNNode(geometry: roofGeo)
+        roofNode.position = SCNVector3(0, 0.175, 0)
+        root.addChildNode(roofNode)
+        return root
+    }
+
+    private func makeStar(color: NSColor, emissive: NSColor) -> SCNNode {
+        let geo = SCNSphere(radius: 0.08)
+        let mat = SCNMaterial()
+        mat.diffuse.contents = color; mat.emission.contents = emissive
+        geo.firstMaterial = mat
+        return SCNNode(geometry: geo)
+    }
+
+    private func buildScene(_ scene: SCNScene, coord: Coordinator) {
+        // Lights
+        let ambNode = SCNNode()
+        let amb = SCNLight(); amb.type = .ambient
+        amb.color = NSColor(red: 1.0, green: 0.95, blue: 0.88, alpha: 1); amb.intensity = 300
+        ambNode.light = amb
+        scene.rootNode.addChildNode(ambNode)
+
+        let dirNode = SCNNode()
+        let dir = SCNLight(); dir.type = .directional
+        dir.color = NSColor(red: 1.0, green: 0.95, blue: 0.85, alpha: 1); dir.intensity = 250
+        dir.castsShadow = false
+        dirNode.light = dir
+        dirNode.eulerAngles = SCNVector3(-Float.pi / 3, 0, 0)
+        scene.rootNode.addChildNode(dirNode)
+
+        // Pastel palettes
+        let pinkColor   = NSColor(red: 0.98, green: 0.72, blue: 0.80, alpha: 1)
+        let lavColor    = NSColor(red: 0.78, green: 0.70, blue: 0.95, alpha: 1)
+        let yellowColor = NSColor(red: 0.99, green: 0.92, blue: 0.52, alpha: 1)
+        let peachColor  = NSColor(red: 0.99, green: 0.80, blue: 0.65, alpha: 1)
+        let mintColor   = NSColor(red: 0.68, green: 0.95, blue: 0.82, alpha: 1)
+        let softEmit    = NSColor(red: 0.15, green: 0.12, blue: 0.08, alpha: 1)
+
+        var rng = SplitMix64(seed: 8888)
+        let bobDurations: [Double] = [2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0, 2.8, 3.2, 3.8,
+                                       2.2, 2.6, 3.1, 3.6, 4.2, 4.8, 2.4, 3.4, 4.6, 2.9]
+        let bobAmps: [Float] = [0.2, 0.3, 0.25, 0.35, 0.2, 0.4, 0.3, 0.25, 0.2, 0.35,
+                                 0.3, 0.25, 0.4, 0.2, 0.3, 0.25, 0.35, 0.2, 0.3, 0.25]
+
+        for i in 0..<20 {
+            let x = Float(Double.random(in: -5...5, using: &rng))
+            let y = Float(Double.random(in: -2...3, using: &rng))
+            let z = Float(Double.random(in: -8 ... -3, using: &rng))
+            let shapeType = i % 4
+            let shapeNode: SCNNode
+            switch shapeType {
+            case 0:
+                let c = i % 2 == 0 ? pinkColor : lavColor
+                shapeNode = makeCat(color: c, emissive: softEmit)
+            case 1:
+                let c = i % 2 == 0 ? yellowColor : peachColor
+                shapeNode = makeMoon(color: c, emissive: softEmit)
+            case 2:
+                let c = i % 2 == 0 ? mintColor : lavColor
+                shapeNode = makeHouse(color: c, roofColor: i % 2 == 0 ? peachColor : pinkColor, emissive: softEmit)
+            default:
+                let c = i % 2 == 0 ? yellowColor : peachColor
+                shapeNode = makeStar(color: c, emissive: softEmit)
+            }
+
+            shapeNode.position = SCNVector3(x, y, z)
+            scene.rootNode.addChildNode(shapeNode)
+            coord.floatingShapes.append(shapeNode)
+
+            let dur = bobDurations[i % bobDurations.count]
+            let amp = bobAmps[i % bobAmps.count]
+            let phase = Float(Double.random(in: 0...Double.pi * 2, using: &rng))
+            let bob = SCNAction.customAction(duration: dur) { node, elapsed in
+                let t = Float(elapsed / CGFloat(dur)) * Float.pi * 2 + phase
+                node.position = SCNVector3(x, y + sin(t) * amp, z)
+            }
+            shapeNode.runAction(SCNAction.repeatForever(bob))
+        }
+
+        // Camera slow orbit with HDR
+        let camNode = SCNNode()
+        let cam = SCNCamera()
+        cam.fieldOfView = 65
+        cam.zFar = 60
+        cam.wantsHDR = true
+        cam.bloomIntensity = 0.5
+        cam.bloomThreshold = 0.8
+        camNode.camera = cam
+        scene.rootNode.addChildNode(camNode)
+        let orbit = SCNAction.customAction(duration: 120) { node, elapsed in
+            let angle = Float(elapsed / 120) * 2 * Float.pi
+            let r: Float = 9
+            node.position = SCNVector3(sin(angle) * r * 0.5, 1.5, cos(angle) * r - 3)
+            node.eulerAngles = SCNVector3(-0.15, angle * 0.5 + Float.pi, 0)
+        }
+        camNode.runAction(SCNAction.repeatForever(orbit))
     }
 }

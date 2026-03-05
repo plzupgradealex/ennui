@@ -6,6 +6,12 @@ class InteractionState: ObservableObject {
     @Published var tapLocation: CGPoint? = nil
     @Published var tapCount: Int = 0
     @Published var magnification: Double = 1.0
+    // WASD fly camera — polled by 3D coordinators each frame
+    var activeKeys: Set<String> = []
+    // Normalized mouse position (0–1 range, origin top-left)
+    var mouseNormalized: SIMD2<Float> = [0.5, 0.5]
+    // Hold interaction (e.g. black hole) — true while mouse is held down
+    @Published var isHolding: Bool = false
 }
 
 struct ContentView: View {
@@ -21,6 +27,11 @@ struct ContentView: View {
     @State private var isActive = true  // battery: false when window not focused
     @State private var warmingScenes: Set<SceneKind> = []  // preload on hover / adjacency
     @State private var showRating = false
+    @State private var showAllRatings = false
+    @State private var preferMetal: Bool = true
+    @State private var renderModeLabel: String? = nil
+    @State private var keyMonitor: Any? = nil
+    @State private var keyUpMonitor: Any? = nil
     @StateObject private var interaction = InteractionState()
     @StateObject private var audioEngine = AmbientAudioEngine()
     @StateObject private var ratingManager = RatingManager()
@@ -136,8 +147,15 @@ struct ContentView: View {
 
             // Mouse tracking for hover-near-bottom
             MouseTrackingView { location, size in
-                if location.y > size.height - 70 && !showPicker {
+                if (location.y > size.height - 70 || location.y < 70) && !showPicker {
                     showPickerBriefly(duration: 5.0)
+                }
+                // Feed normalized mouse position to InteractionState for look direction
+                if size.width > 0 && size.height > 0 {
+                    interaction.mouseNormalized = [
+                        Float(location.x / size.width),
+                        Float(location.y / size.height)
+                    ]
                 }
             }
             .allowsHitTesting(false)
@@ -165,9 +183,46 @@ struct ContentView: View {
 
             // Star rating overlay
             if showRating {
-                StarRatingOverlay(scene: currentScene, ratingManager: ratingManager, isPresented: $showRating)
+                StarRatingOverlay(
+                    scene: currentScene,
+                    ratingKey: ratingKey(for: currentScene),
+                    versionLabel: currentScene.hasSceneKitVersion ? (preferMetal ? "Metal" : "SceneKit") : nil,
+                    ratingManager: ratingManager,
+                    isPresented: $showRating
+                )
                     .transition(.opacity)
                     .accessibilityAddTraits(.isModal)
+            }
+
+            // All ratings overlay (Cmd+R)
+            if showAllRatings {
+                AllRatingsOverlay(ratingManager: ratingManager, isPresented: $showAllRatings)
+                    .transition(.opacity)
+                    .accessibilityAddTraits(.isModal)
+            }
+
+            // Render mode indicator (Metal/SceneKit toggle HUD)
+            if let label = renderModeLabel {
+                VStack {
+                    HStack {
+                        Text(label)
+                            .font(.system(size: 13, weight: .light, design: .serif))
+                            .foregroundStyle(Color(red: 0.78, green: 0.68, blue: 0.48).opacity(0.8))
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 8)
+                            .background(
+                                Capsule()
+                                    .fill(.black.opacity(0.5))
+                                    .overlay(Capsule().strokeBorder(Color(red: 0.78, green: 0.68, blue: 0.48).opacity(0.15), lineWidth: 0.5))
+                            )
+                        Spacer()
+                    }
+                    .padding(.leading, 20)
+                    .padding(.top, 20)
+                    Spacer()
+                }
+                .allowsHitTesting(false)
+                .transition(.opacity)
             }
         }
         .frame(minWidth: 800, minHeight: 600)
@@ -181,9 +236,24 @@ struct ContentView: View {
         // waiting for multi-tap disambiguation — feels natural, not clunky.
         .simultaneousGesture(
             DragGesture(minimumDistance: 0)
+                .onChanged { value in
+                    // Detect hold: after ~0.3s of continuous press, mark as holding
+                    // (the onEnded will clear it and fire a tap if hold was short)
+                }
                 .onEnded { value in
-                    interaction.tapLocation = value.location
-                    interaction.tapCount += 1
+                    if interaction.isHolding {
+                        interaction.isHolding = false
+                    } else {
+                        interaction.tapLocation = value.location
+                        interaction.tapCount += 1
+                    }
+                }
+        )
+        // Long press for hold interactions (e.g. black hole in InnerLight)
+        .simultaneousGesture(
+            LongPressGesture(minimumDuration: 0.4)
+                .onEnded { _ in
+                    interaction.isHolding = true
                 }
         )
         .gesture(
@@ -193,36 +263,12 @@ struct ContentView: View {
                     withAnimation(.easeOut(duration: 1.0)) { interaction.magnification = 1.0 }
                 }
         )
-        .onKeyPress(.leftArrow) { switchScene(direction: -1); return .handled }
-        .onKeyPress(.rightArrow) { switchScene(direction: 1); return .handled }
-        .onKeyPress(.space) { showPickerBriefly(); return .handled }
-        .onKeyPress(characters: CharacterSet(charactersIn: "hH")) { _ in
-            withAnimation(.easeInOut(duration: 0.8)) { showHaiku.toggle() }
-            return .handled
-        }
-        .onKeyPress(characters: CharacterSet(charactersIn: "?")) { _ in
-            withAnimation(.easeInOut(duration: 0.5)) { showAbout.toggle() }
-            return .handled
-        }
-        .onKeyPress(characters: CharacterSet(charactersIn: "sS")) { _ in
-            withAnimation(.easeInOut(duration: 0.5)) {
-                if multipeerManager.isEnabled {
-                    multipeerManager.stopSharing()
-                } else {
-                    showShareConsent = true
-                }
-            }
-            return .handled
-        }
-        .onKeyPress(characters: CharacterSet(charactersIn: "mM")) { _ in
-            audioEngine.isMuted.toggle()
-            return .handled
-        }
-        .onKeyPress(characters: CharacterSet(charactersIn: "rR")) { _ in
-            withAnimation(.easeInOut(duration: 0.3)) { showRating.toggle() }
-            return .handled
-        }
+        // Key handling via NSEvent monitor — immune to focus/responder issues
+        // that cause beeps when Metal MTKView steals first responder.
+        .onDisappear { removeKeyMonitor() }
         .onAppear {
+            installKeyMonitor()
+            installKeyUpMonitor()
             // Start generative ambient audio with the current scene's mood
             audioEngine.start(mood: currentScene.audioMood)
             // Breathing light for 2.5s, then slowly reveal scene over 3.5s
@@ -315,30 +361,67 @@ struct ContentView: View {
         case .auroraBorealis3D: AuroraBorealis3DScene(interaction: interaction)
         case .saltLamp3D: SaltLamp3DScene(interaction: interaction)
         case .conservatory3D: Conservatory3DScene(interaction: interaction)
-        case .quietMeal3D: QuietMeal3DScene(interaction: interaction)
-        case .artDecoLA3D: ArtDecoLA3DScene(interaction: interaction)
+        case .quietMeal3D:
+            if preferMetal { QuietMeal3DMetalScene(interaction: interaction) }
+            else { QuietMeal3DScene(interaction: interaction) }
+        case .artDecoLA3D:
+            if preferMetal { ArtDecoLA3DMetalScene(interaction: interaction) }
+            else { ArtDecoLA3DScene(interaction: interaction) }
         case .urbanDreamscape3D: UrbanDreamscape3DScene(interaction: interaction)
         case .shimizuEvening3D: ShimizuEvening3DScene(interaction: interaction)
         case .nightTrain3D: NightTrain3DScene(interaction: interaction)
         case .ontarioCountryside3D: OntarioCountryside3DScene(interaction: interaction)
         case .minnesotaSmallTown3D: MinnesotaSmallTown3DScene(interaction: interaction)
         case .midnightMotel3D: MidnightMotel3DScene(interaction: interaction)
-        case .forgottenLibrary3D: ForgottenLibrary3DScene(interaction: interaction)
-        case .enchantedArchives3D: EnchantedArchives3DScene(interaction: interaction)
-        case .celestialScrollHall3D: CelestialScrollHall3DScene(interaction: interaction)
-        case .floatingKingdom3D: FloatingKingdom3DScene(interaction: interaction)
+        case .forgottenLibrary3D:
+            if preferMetal { ForgottenLibrary3DMetalScene(interaction: interaction) }
+            else { ForgottenLibrary3DScene(interaction: interaction) }
+        case .enchantedArchives3D:
+            if preferMetal { EnchantedArchives3DMetalScene(interaction: interaction) }
+            else { EnchantedArchives3DScene(interaction: interaction) }
+        case .celestialScrollHall3D:
+            if preferMetal { CelestialScrollHall3DMetalScene(interaction: interaction) }
+            else { CelestialScrollHall3DScene(interaction: interaction) }
+        case .floatingKingdom3D:
+            if preferMetal { FloatingKingdom3DMetalScene(interaction: interaction) }
+            else { FloatingKingdom3DScene(interaction: interaction) }
         case .paperLanternFestival3D: PaperLanternFestival3DScene(interaction: interaction)
         case .captainStar3D: CaptainStar3DScene(interaction: interaction)
-        case .gouraudSolarSystem3D: GouraudSolarSystem3DScene(interaction: interaction)
-        case .retroGarden3D: RetroGarden3DScene(interaction: interaction)
-        case .celShadedRainyDay3D: CelShadedRainyDay3DScene(interaction: interaction)
-        case .retroPS13D: RetroPS13DScene(interaction: interaction)
-        case .greetingTheDay3D: GreetingTheDay3DScene(interaction: interaction)
-        case .mystify3D: Mystify3DScene(interaction: interaction)
-        case .nonsenseLullabies3D: NonsenseLullabies3DScene(interaction: interaction)
-        case .potterGarden3D: PotterGarden3DScene(interaction: interaction)
-        case .innerLight3D: InnerLight3DScene(interaction: interaction)
-        case .wireframeCity3D: WireframeCity3DScene(interaction: interaction)
+        case .gouraudSolarSystem3D:
+            if preferMetal { GouraudSolarSystem3DMetalScene(interaction: interaction) }
+            else { GouraudSolarSystem3DScene(interaction: interaction) }
+        case .retroGarden3D:
+            if preferMetal { RetroGarden3DMetalScene(interaction: interaction) }
+            else { RetroGarden3DScene(interaction: interaction) }
+        case .celShadedRainyDay3D:
+            if preferMetal { CelShadedRainyDay3DMetalScene(interaction: interaction) }
+            else { CelShadedRainyDay3DScene(interaction: interaction) }
+        case .retroPS13D:
+            if preferMetal { RetroPS13DMetalScene(interaction: interaction) }
+            else { RetroPS13DScene(interaction: interaction) }
+        case .greetingTheDay3D:
+            if preferMetal { GreetingTheDay3DMetalScene(interaction: interaction) }
+            else { GreetingTheDay3DScene(interaction: interaction) }
+        case .mystify3D:
+            if preferMetal { Mystify3DMetalScene(interaction: interaction) }
+            else { Mystify3DScene(interaction: interaction) }
+        case .nonsenseLullabies3D:
+            if preferMetal { NonsenseLullabies3DMetalScene(interaction: interaction) }
+            else { NonsenseLullabies3DScene(interaction: interaction) }
+        case .potterGarden3D:
+            if preferMetal { PotterGarden3DMetalScene(interaction: interaction) }
+            else { PotterGarden3DScene(interaction: interaction) }
+        case .innerLight3D:
+            if preferMetal { InnerLight3DMetalScene(interaction: interaction) }
+            else { InnerLight3DScene(interaction: interaction) }
+        case .wireframeCity3D:
+            if preferMetal { WireframeCity3DMetalScene(interaction: interaction) }
+            else { WireframeCity3DScene(interaction: interaction) }
+        case .rotatingAerial3D: RotatingAerial3DScene(interaction: interaction)
+        case .lastAndFirstMen3D: LastAndFirstMen3DScene(interaction: interaction)
+        case .murmuration: MurmurationScene(interaction: interaction)
+        case .murmuration3D: Murmuration3DScene(interaction: interaction)
+        case .silicaBench3D: SilicaBench3DScene(interaction: interaction)
         }
     }
 
@@ -631,15 +714,123 @@ struct ContentView: View {
         }
     }
 
+    // MARK: - Keyboard (NSEvent monitor — focus-proof)
+
+    private func installKeyMonitor() {
+        keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+            // Ignore if a text field or other editable view has focus
+            if let responder = event.window?.firstResponder,
+               responder is NSTextView { return event }
+
+            switch event.keyCode {
+            case 123: // left arrow
+                switchScene(direction: -1); return nil
+            case 124: // right arrow
+                switchScene(direction: 1); return nil
+            case 49: // space
+                showPickerBriefly(); return nil
+            default:
+                break
+            }
+
+            guard let chars = event.charactersIgnoringModifiers?.lowercased() else { return event }
+
+            // Command key shortcuts — must be checked before WASD
+            if event.modifierFlags.contains(.command) {
+                switch chars {
+                case "c":
+                    // Toggle Metal/SceneKit for scenes with both implementations
+                    if currentScene.hasSceneKitVersion {
+                        preferMetal.toggle()
+                        withAnimation(.easeOut(duration: 0.3)) {
+                            renderModeLabel = preferMetal ? "Metal" : "SceneKit"
+                        }
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                            withAnimation(.easeOut(duration: 0.5)) { renderModeLabel = nil }
+                        }
+                    }
+                    return nil
+                case "s":
+                    withAnimation(.easeInOut(duration: 0.5)) {
+                        if multipeerManager.isEnabled {
+                            multipeerManager.stopSharing()
+                        } else {
+                            showShareConsent = true
+                        }
+                    }
+                    return nil
+                case "r":
+                    withAnimation(.easeInOut(duration: 0.3)) { showAllRatings.toggle() }
+                    return nil
+                default:
+                    return event
+                }
+            }
+
+            // WASD / QE flight keys — track in activeKeys (no command modifier)
+            if ["w", "a", "s", "d", "q", "e"].contains(chars) {
+                interaction.activeKeys.insert(chars)
+                return nil
+            }
+
+            switch chars {
+            case "h":
+                withAnimation(.easeInOut(duration: 0.8)) { showHaiku.toggle() }
+                return nil
+            case "?":
+                withAnimation(.easeInOut(duration: 0.5)) { showAbout.toggle() }
+                return nil
+            case "m":
+                audioEngine.isMuted.toggle()
+                return nil
+            case "r":
+                withAnimation(.easeInOut(duration: 0.3)) { showRating.toggle() }
+                return nil
+            default:
+                break
+            }
+
+            return event  // pass unhandled keys through
+        }
+    }
+
+    private func installKeyUpMonitor() {
+        keyUpMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyUp) { event in
+            guard let chars = event.charactersIgnoringModifiers?.lowercased() else { return event }
+            if ["w", "a", "s", "d", "q", "e"].contains(chars) {
+                interaction.activeKeys.remove(chars)
+            }
+            return event
+        }
+    }
+
+    private func removeKeyMonitor() {
+        if let monitor = keyMonitor {
+            NSEvent.removeMonitor(monitor)
+            keyMonitor = nil
+        }
+        if let monitor = keyUpMonitor {
+            NSEvent.removeMonitor(monitor)
+            keyUpMonitor = nil
+        }
+    }
+
     // MARK: - Helpers
+
+    /// Returns the rating key for a scene, incorporating Metal/SceneKit preference
+    /// for scenes that have both implementations.
+    private func ratingKey(for scene: SceneKind) -> String {
+        if scene.hasSceneKitVersion {
+            return scene.rawValue + (preferMetal ? "-metal" : "-scenekit")
+        }
+        return scene.rawValue
+    }
 
     private func showPickerBriefly(duration: TimeInterval = 4.5) {
         pickerTimer?.invalidate()
         withAnimation(.easeOut(duration: 0.6)) { showPicker = true }
         pickerTimer = Timer.scheduledTimer(withTimeInterval: duration, repeats: false) { _ in
-            DispatchQueue.main.async {
-                withAnimation(.easeInOut(duration: 1.2)) { showPicker = false }
-            }
+            withAnimation(.easeInOut(duration: 1.2)) { showPicker = false }
         }
     }
 
@@ -655,9 +846,8 @@ struct ContentView: View {
         DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) {
             previousScene = nil
             warmingScenes.removeAll() // clear stale preloads
+            preloadNeighbors(of: currentScene) // re-establish neighbors
         }
-        // Preload adjacent scenes for arrow-key navigation
-        preloadNeighbors(of: scene)
         multipeerManager.send(sceneID: scene.rawValue)
         showPickerBriefly()
     }
@@ -677,10 +867,11 @@ struct ContentView: View {
     }
 
     private func switchScene(direction: Int) {
-        let all = SceneKind.allCases
-        guard let idx = all.firstIndex(of: currentScene) else { return }
-        let next = (idx + direction + all.count) % all.count
-        transitionToScene(all[next])
+        let is3D = currentScene.rawValue.hasSuffix("3D")
+        let filtered = SceneKind.allCases.filter { $0.rawValue.hasSuffix("3D") == is3D }
+        guard let idx = filtered.firstIndex(of: currentScene) else { return }
+        let next = (idx + direction + filtered.count) % filtered.count
+        transitionToScene(filtered[next])
     }
 }
 

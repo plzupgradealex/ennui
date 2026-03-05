@@ -156,6 +156,55 @@ private struct Conservatory3DRepresentable: NSViewRepresentable {
                           model: m4Translation(fx, 0.3, fz))
             }
 
+            // Cube topiary shrubs — boxy garden hedges
+            var rng5 = SplitMix64(seed: 6610)
+            let topiaryDark: SIMD4<Float>  = [0.03, 0.15, 0.04, 1]
+            let topiaryLight: SIMD4<Float> = [0.05, 0.22, 0.06, 1]
+            let cubeSpots: [(Float, Float)] = [
+                (-2.0, 1.0), (2.0, 1.0), (-5.0, -1.5), (5.0, -1.5),
+                (-1.5, -3.5), (1.5, -3.5), (0, 3.0),
+            ]
+            for (cx, cz) in cubeSpots {
+                let s = Float(Double.random(in: 0.35...0.7, using: &rng5))
+                let col = Int.random(in: 0...1, using: &rng5) == 0 ? topiaryDark : topiaryLight
+                addOpaque(buildBox(w: s, h: s * 1.1, d: s, color: col),
+                          model: m4Translation(cx, s * 0.55, cz) * m4RotY(Float(Double.random(in: 0...0.4, using: &rng5))))
+            }
+
+            // Pyramid/cone shrubs — triangular topiary
+            let pyramidSpots: [(Float, Float)] = [
+                (-3.5, 0.5), (3.5, 0.5), (-1.0, 2.5), (1.0, 2.5),
+                (-4.5, -2.0), (4.5, -2.0), (0, -2.0),
+            ]
+            for (px, pz) in pyramidSpots {
+                let h  = Float(Double.random(in: 0.6...1.2, using: &rng5))
+                let r  = Float(Double.random(in: 0.2...0.4, using: &rng5))
+                let col = Int.random(in: 0...1, using: &rng5) == 0 ? topiaryDark : topiaryLight
+                addOpaque(buildCone(radius: r, height: h, segments: 6, color: col),
+                          model: m4Translation(px, h * 0.5, pz))
+            }
+
+            // Garden statues — simple geometric figures on pedestals
+            let stoneColor: SIMD4<Float>    = [0.45, 0.42, 0.38, 1]
+            let pedestalCol: SIMD4<Float>   = [0.35, 0.32, 0.28, 1]
+            let statueSpots: [(Float, Float)] = [(-2.5, -1.0), (2.5, -1.0), (0, -4.0)]
+            for (sx, sz) in statueSpots {
+                // Pedestal — sturdy box
+                addOpaque(buildBox(w: 0.5, h: 0.8, d: 0.5, color: pedestalCol),
+                          model: m4Translation(sx, 0.4, sz))
+                // Torso — cylinder
+                addOpaque(buildCylinder(radius: 0.18, height: 0.9, segments: 8, color: stoneColor),
+                          model: m4Translation(sx, 1.25, sz))
+                // Head — sphere
+                addOpaque(buildSphere(radius: 0.15, rings: 5, segments: 6, color: stoneColor),
+                          model: m4Translation(sx, 1.85, sz))
+                // Arms — two small cylinders angled outward
+                addOpaque(buildCylinder(radius: 0.05, height: 0.5, segments: 4, color: stoneColor),
+                          model: m4Translation(sx - 0.28, 1.3, sz) * m4RotZ(Float.pi * 0.35))
+                addOpaque(buildCylinder(radius: 0.05, height: 0.5, segments: 4, color: stoneColor),
+                          model: m4Translation(sx + 0.28, 1.3, sz) * m4RotZ(-Float.pi * 0.35))
+            }
+
             // Ivy strands — thin cylinders along lower frame
             let ivyCol: SIMD4<Float> = [0.05, 0.20, 0.04, 1]
             for i in 0..<10 {
@@ -164,20 +213,20 @@ private struct Conservatory3DRepresentable: NSViewRepresentable {
                           model: m4Translation(ix, 1.75, -5.0))
             }
 
-            // Pre-compute rain (120 particles)
+            // Pre-compute rain (350 particles — wide, gentle, diffuse)
             var rng3 = SplitMix64(seed: 6602)
-            for _ in 0..<120 {
-                rainX.append(Float(Double.random(in: -7...7,   using: &rng3)))
-                rainZ.append(Float(Double.random(in: -5...5,   using: &rng3)))
-                rainPhase.append(Float(Double.random(in: 0...12, using: &rng3)))
-                rainSpeed.append(Float(Double.random(in: 5...9,  using: &rng3)))
+            for _ in 0..<350 {
+                rainX.append(Float(Double.random(in: -9...9,   using: &rng3)))
+                rainZ.append(Float(Double.random(in: -7...7,   using: &rng3)))
+                rainPhase.append(Float(Double.random(in: 0...16, using: &rng3)))
+                rainSpeed.append(Float(Double.random(in: 2.5...5.5, using: &rng3)))
             }
 
-            // Pre-compute steam/mist near plants (20 particles)
+            // Pre-compute steam/mist near plants (35 particles — richer atmosphere)
             var rng4 = SplitMix64(seed: 6603)
-            for _ in 0..<20 {
-                let sx = Float(Double.random(in: -4...4, using: &rng4))
-                let sz = Float(Double.random(in: -4...3, using: &rng4))
+            for _ in 0..<35 {
+                let sx = Float(Double.random(in: -5...5, using: &rng4))
+                let sz = Float(Double.random(in: -4...4, using: &rng4))
                 steamPos.append([sx, 0.2, sz])
                 steamPhase.append(Float(Double.random(in: 0...6.28, using: &rng4)))
             }
@@ -255,32 +304,33 @@ private struct Conservatory3DRepresentable: NSViewRepresentable {
             if let ppipe = particlePipeline {
                 var particles: [ParticleVertex3D] = []
 
-                // Rain drops
-                let startY:    Float = 10.5
-                let dropRange: Float = 12.0
+                // Rain drops — gentle, diffuse, spread across the whole greenhouse
+                let startY:    Float = 11.0
+                let dropRange: Float = 14.0
                 for i in rainX.indices {
                     let y = startY - (t * rainSpeed[i] + rainPhase[i]).truncatingRemainder(dividingBy: dropRange)
-                    let alpha = 0.45 * min(rainIntensity, 2.0)
-                    let sz:   Float = 14 * rainIntensity
+                    let shimmer = 0.15 + 0.1 * sin(t * 0.8 + Float(i) * 0.3)
+                    let alpha = shimmer * min(rainIntensity, 2.0)
+                    let sz: Float = 6 + 4 * rainIntensity
                     particles.append(ParticleVertex3D(
                         position: [rainX[i], y, rainZ[i]],
-                        color: [0.60, 0.68, 0.82, alpha], size: sz))
+                        color: [0.55, 0.65, 0.80, alpha], size: sz))
                 }
 
-                // Steam / mist near plants
+                // Steam / mist near plants — thicker, more atmospheric
                 for i in steamPos.indices {
                     let ph   = steamPhase[i]
                     let base = steamPos[i]
-                    let rise = (t * 0.35 + ph).truncatingRemainder(dividingBy: 2.8)
-                    let alpha = Float(rise < 2.0 ? rise * 0.25 : (2.8 - rise) * 1.25)
+                    let rise = (t * 0.25 + ph).truncatingRemainder(dividingBy: 3.5)
+                    let alpha = Float(rise < 2.5 ? rise * 0.2 : (3.5 - rise) * 1.0)
                     let pos: SIMD3<Float> = [
-                        base.x + 0.3 * sin(t * 0.4 + ph),
+                        base.x + 0.5 * sin(t * 0.3 + ph),
                         base.y + rise,
-                        base.z + 0.3 * cos(t * 0.35 + ph)
+                        base.z + 0.5 * cos(t * 0.25 + ph)
                     ]
                     particles.append(ParticleVertex3D(
                         position: pos,
-                        color: [0.65, 0.80, 0.65, max(0, alpha) * 0.45], size: 9))
+                        color: [0.55, 0.72, 0.55, max(0, alpha) * 0.35], size: 14))
                 }
 
                 if !particles.isEmpty,

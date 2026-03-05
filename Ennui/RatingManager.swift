@@ -19,14 +19,29 @@ class RatingManager: ObservableObject {
         ratings[scene.rawValue]
     }
 
+    func rating(forKey key: String) -> Int? {
+        ratings[key]
+    }
+
     func rate(scene: SceneKind, stars: Int) {
         let clamped = max(1, min(5, stars))
         ratings[scene.rawValue] = clamped
         save()
     }
 
+    func rate(key: String, stars: Int) {
+        let clamped = max(1, min(5, stars))
+        ratings[key] = clamped
+        save()
+    }
+
     func clearRating(for scene: SceneKind) {
         ratings.removeValue(forKey: scene.rawValue)
+        save()
+    }
+
+    func clearRating(forKey key: String) {
+        ratings.removeValue(forKey: key)
         save()
     }
 
@@ -38,6 +53,12 @@ class RatingManager: ObservableObject {
 
     private func save() {
         guard let data = try? JSONEncoder().encode(ratings) else { return }
-        try? data.write(to: fileURL, options: .atomic)
+        do {
+            try data.write(to: fileURL, options: .atomic)
+        } catch {
+            #if DEBUG
+            print("[RatingManager] save failed: \(error)")
+            #endif
+        }
     }
 }

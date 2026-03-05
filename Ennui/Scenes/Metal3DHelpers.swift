@@ -128,7 +128,10 @@ func m4LookAt(eye: SIMD3<Float>, center: SIMD3<Float>, up: SIMD3<Float>) -> simd
 
 /// Inverse-transpose of the model matrix upper-left 3×3 (for correct normal transform).
 func m4NormalMatrix(from m: simd_float4x4) -> simd_float4x4 {
-    let m3 = simd_float3x3(m.columns.0.xyz, m.columns.1.xyz, m.columns.2.xyz)
+    let c0 = m.columns.0; let c1 = m.columns.1; let c2 = m.columns.2
+    let m3 = simd_float3x3(SIMD3<Float>(c0.x, c0.y, c0.z),
+                            SIMD3<Float>(c1.x, c1.y, c1.z),
+                            SIMD3<Float>(c2.x, c2.y, c2.z))
     let inv = m3.inverse.transpose
     return simd_float4x4(
         SIMD4<Float>(inv.columns.0, 0),

@@ -4,13 +4,15 @@ import SwiftUI
 /// Shows the current scene name and five stars that highlight left-to-right.
 struct StarRatingOverlay: View {
     let scene: SceneKind
+    let ratingKey: String
+    var versionLabel: String? = nil
     @ObservedObject var ratingManager: RatingManager
     @Binding var isPresented: Bool
 
     @State private var hovered: Int? = nil
     @State private var appear = false
 
-    private var currentRating: Int { ratingManager.rating(for: scene) ?? 0 }
+    private var currentRating: Int { ratingManager.rating(forKey: ratingKey) ?? 0 }
 
     var body: some View {
         ZStack {
@@ -21,10 +23,17 @@ struct StarRatingOverlay: View {
 
             VStack(spacing: 16) {
                 // Scene name
-                Text(scene.displayName)
-                    .font(.system(size: 15, weight: .light, design: .serif))
-                    .foregroundStyle(.white.opacity(0.6))
-                    .shadow(color: .black.opacity(0.5), radius: 4, y: 2)
+                VStack(spacing: 4) {
+                    Text(scene.displayName)
+                        .font(.system(size: 15, weight: .light, design: .serif))
+                        .foregroundStyle(.white.opacity(0.6))
+                        .shadow(color: .black.opacity(0.5), radius: 4, y: 2)
+                    if let label = versionLabel {
+                        Text(label)
+                            .font(.system(size: 11, weight: .light, design: .serif))
+                            .foregroundStyle(Color(red: 0.78, green: 0.68, blue: 0.48).opacity(0.7))
+                    }
+                }
 
                 // Five floating stars
                 HStack(spacing: 14) {
@@ -33,9 +42,9 @@ struct StarRatingOverlay: View {
                             .onTapGesture {
                                 withAnimation(.spring(response: 0.35, dampingFraction: 0.6)) {
                                     if currentRating == star {
-                                        ratingManager.clearRating(for: scene)
+                                        ratingManager.clearRating(forKey: ratingKey)
                                     } else {
-                                        ratingManager.rate(scene: scene, stars: star)
+                                        ratingManager.rate(key: ratingKey, stars: star)
                                     }
                                 }
                                 // Auto-dismiss after a moment
@@ -141,7 +150,11 @@ struct StarRatingOverlay: View {
         return "tap a star"
     }
 
+    @State private var isDismissing = false
+
     private func dismiss() {
+        guard !isDismissing else { return }
+        isDismissing = true
         withAnimation(.easeInOut(duration: 0.3)) {
             appear = false
         }

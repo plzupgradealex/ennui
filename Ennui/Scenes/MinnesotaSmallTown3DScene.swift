@@ -135,7 +135,7 @@ private struct MinnesotaSmallTown3DRepresentable: NSViewRepresentable {
                 let sy = Float(Double.random(in: 8...28, using: &srng))
                 let sz = Float(Double.random(in: -35 ... -5, using: &srng))
                 let br = Float(Double.random(in: 0.5...1.0, using: &srng))
-                let ph = Float(Double.random(in: 0...Float.pi*2, using: &srng))
+                let ph = Float(Double.random(in: 0...Double.pi*2, using: &srng))
                 stars.append(StarPt(pos: [sx, sy, sz], brightness: br, phase: ph))
             }
 
@@ -152,7 +152,7 @@ private struct MinnesotaSmallTown3DRepresentable: NSViewRepresentable {
             let vx = Float(Double.random(in: -0.25...0.25, using: &rng))
             let vy = Float(Double.random(in: 0.0...0.2, using: &rng))
             let vz = Float(Double.random(in: -0.1...0.1, using: &rng))
-            let ph = Float(Double.random(in: 0...Float.pi*2, using: &rng))
+            let ph = Float(Double.random(in: 0...Double.pi*2, using: &rng))
             let ls = Float(Double.random(in: 5...12, using: &rng))
             fireflies.append(Firefly(pos: [x, y, z], vel: [vx, vy, vz],
                                      phase: ph, lifespan: ls, born: born))

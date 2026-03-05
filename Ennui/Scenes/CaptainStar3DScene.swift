@@ -116,7 +116,7 @@ private struct CaptainStar3DRepresentable: NSViewRepresentable {
                     x: rx, baseY: ry, z: rz,
                     bobAmp: Float(0.15 + Double.random(in: 0...0.2, using: &rrng)),
                     bobSpeed: Float(0.5 + Double.random(in: 0...0.5, using: &rrng)),
-                    bobPhase: Float(Double.random(in: 0...Float.pi*2, using: &rrng)),
+                    bobPhase: Float(Double.random(in: 0...Double.pi*2, using: &rrng)),
                     rotSpeed: Float(0.3 + Double.random(in: 0...0.4, using: &rrng)),
                     size: [rsize, rsize * 0.85, rsize * 0.9],
                     colorIdx: i % rockColors.count,
@@ -152,7 +152,7 @@ private struct CaptainStar3DRepresentable: NSViewRepresentable {
                 let sy = Float(Double.random(in: 5...25, using: &srng))
                 let sz = Float(Double.random(in: -45 ... -5, using: &srng))
                 let br = Float(Double.random(in: 0.7...1.0, using: &srng))
-                let ph = Float(Double.random(in: 0...Float.pi*2, using: &srng))
+                let ph = Float(Double.random(in: 0...Double.pi*2, using: &srng))
                 stars.append(StarPt(pos: [sx, sy, sz], brightness: br, phase: ph))
             }
 
@@ -163,7 +163,7 @@ private struct CaptainStar3DRepresentable: NSViewRepresentable {
                     x:     Float(Double.random(in: -6...6, using: &drng)),
                     y:     Float(Double.random(in: 0.2...2.5, using: &drng)),
                     z:     Float(Double.random(in: -10...0, using: &drng)),
-                    phase: Float(Double.random(in: 0...Float.pi*2, using: &drng)),
+                    phase: Float(Double.random(in: 0...Double.pi*2, using: &drng)),
                     speed: Float(Double.random(in: 0.2...0.6, using: &drng))
                 ))
             }

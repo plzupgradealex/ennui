@@ -10,105 +10,123 @@ struct MedievalVillage3DScene: View {
     @ObservedObject var interaction: InteractionState
 
     var body: some View {
-        MedievalVillage3DRepresentable(interaction: interaction)
+        MedievalVillage3DRepresentable(interaction: interaction,
+                                        tapCount: interaction.tapCount)
     }
 }
 
 // MARK: - NSViewRepresentable
 
 private struct MedievalVillage3DRepresentable: NSViewRepresentable {
-    @ObservedObject var interaction: InteractionState
+    var interaction: InteractionState
+    var tapCount: Int
 
     // MARK: Coordinator / Renderer
 
     final class Coordinator: NSObject, MTKViewDelegate {
 
         // MARK: Metal core
-        let device:         MTLDevice
-        let commandQueue:   MTLCommandQueue
-        var opaquePipeline: MTLRenderPipelineState?
-        var glowPipeline:   MTLRenderPipelineState?   // alpha-blend for window glow
+        let device:           MTLDevice
+        let commandQueue:     MTLCommandQueue
+        var opaquePipeline:   MTLRenderPipelineState?
+        var glowPipeline:     MTLRenderPipelineState?
         var particlePipeline: MTLRenderPipelineState?
-        var depthState:     MTLDepthStencilState?
-        var depthROState:   MTLDepthStencilState?     // read-only for transparent pass
+        var depthState:       MTLDepthStencilState?
+        var depthROState:     MTLDepthStencilState?
 
-        // MARK: Scene geometry buffers
+        // MARK: Scene geometry
         struct DrawCall {
             var buffer:      MTLBuffer
             var count:       Int
             var model:       simd_float4x4
             var emissiveCol: SIMD3<Float>
             var emissiveMix: Float
-            var opacity:     Float = 1
+            var opacity:     Float
         }
-
         var opaqueCalls:      [DrawCall] = []
-        var transparentCalls: [DrawCall] = []  // window glow quads
+        var transparentCalls: [DrawCall] = []
 
         // MARK: Window glow state (tap to extinguish one by one)
-        var windowGlowIntensities: [Float] = []   // 1 = lit, 0 = dark
-        var extinguishedCount = 0
-        var lastTapCount = 0
-
-        // MARK: Ambient fade (dim as windows go out)
-        var ambientIntensity: Float = 1.0   // 0..1 multiplier
-        var moonIntensity:    Float = 1.0
-
-        // MARK: Firefly particles
-        var fireflyBase: [SIMD3<Float>] = []    // spawn positions
-        var fireflyPhase: [Float]       = []    // per-firefly phase offset
-
-        // MARK: Animation
-        var startTime: CFTimeInterval = CACurrentMediaTime()
-        var aspect: Float = 1
-
-        // MARK: Geometry parameters (mirrors SceneKit scene)
-        struct Building {
-            var x, z, w, h, d: Float
-            var isChurch: Bool
-            var windowCount: Int   // total windows for this building
-            var firstWindowIndex: Int
+        struct WindowGlow {
+            var intensity: Float   // 1 = lit, animates toward 0
+            var drawIndex: Int     // index into transparentCalls
+            var emissive:  SIMD3<Float>
         }
-        var buildings: [Building] = []
+        var windows:          [WindowGlow] = []
+        var extinguishedCount = 0
 
-        // MARK: - Init
+        // MARK: Fireflies
+        var fireflyPositions: [SIMD3<Float>] = []
+        var fireflyPhases:    [Float] = []
+
+        // MARK: Frame state
+        let startTime = CACurrentMediaTime()
+        var aspect: Float = 1
+        var lastTapCount  = 0
+
+        // Ambient / moon brightness (dims as windows go out)
+        var ambientLevel: Float = 1.0
+        var moonLevel:    Float = 1.0
+
+        // MARK: Init
 
         override init() {
-            device       = MTLCreateSystemDefaultDevice()!
-            commandQueue = device.makeCommandQueue()!
+            guard let dev = MTLCreateSystemDefaultDevice(),
+                  let q   = dev.makeCommandQueue()
+            else { fatalError("Metal not available") }
+            device       = dev
+            commandQueue = q
             super.init()
-            do {
-                opaquePipeline   = try makeOpaquePipeline(device: device)
-                glowPipeline     = try makeAlphaBlendPipeline(device: device)
-                particlePipeline = try makeParticlePipeline(device: device)
-            } catch {
-                print("MedievalVillage3D Metal pipeline error: \(error)")
-            }
-            depthState   = makeDepthState(device: device)
-            depthROState = makeDepthReadOnlyState(device: device)
+
+            opaquePipeline   = try? makeOpaquePipeline(device: dev)
+            glowPipeline     = try? makeAlphaBlendPipeline(device: dev)
+            particlePipeline = try? makeParticlePipeline(device: dev)
+            depthState       = makeDepthState(device: dev)
+            depthROState     = makeDepthReadOnlyState(device: dev)
+
             buildScene()
         }
 
-        // MARK: - Build scene geometry
+        // MARK: Geometry helpers
+
+        func addOpaque(_ verts: [Vertex3D], model: simd_float4x4) {
+            guard let buf = makeVertexBuffer(verts, device: device) else { return }
+            opaqueCalls.append(DrawCall(buffer: buf, count: verts.count,
+                                       model: model, emissiveCol: .zero,
+                                       emissiveMix: 0, opacity: 1))
+        }
+
+        @discardableResult
+        func addGlow(_ verts: [Vertex3D], model: simd_float4x4,
+                     emissive: SIMD3<Float>, opacity: Float) -> Int {
+            guard let buf = makeVertexBuffer(verts, device: device) else { return -1 }
+            let idx = transparentCalls.count
+            transparentCalls.append(DrawCall(buffer: buf, count: verts.count,
+                                            model: model, emissiveCol: emissive,
+                                            emissiveMix: 1, opacity: opacity))
+            return idx
+        }
+
+        // MARK: - Build scene
 
         private func buildScene() {
+            buildGround()
+            buildBuildings()
+            buildTrees()
+            buildFireflies()
+        }
+
+        private func buildGround() {
+            addOpaque(buildPlane(w: 30, d: 30, color: [0.06, 0.10, 0.04, 1]),
+                      model: matrix_identity_float4x4)
+            addOpaque(buildBox(w: 1.0, h: 0.01, d: 14, color: [0.12, 0.09, 0.06, 1]),
+                      model: m4Translation(0, 0.005, 0))
+        }
+
+        private func buildBuildings() {
             var rng = SplitMix64(seed: 1350)
 
-            // Ground
-            let groundColor: SIMD4<Float> = [0.06, 0.10, 0.04, 1]
-            addOpaque(buildPlane(w: 30, d: 30, color: groundColor),
-                      model: matrix_identity_float4x4)
-
-            // Path
-            let pathColor: SIMD4<Float> = [0.12, 0.09, 0.06, 1]
-            addOpaque(buildBox(w: 1.0, h: 0.01, d: 14, color: pathColor),
-                      model: m4Translation(0, 0.005, 0))
-
-            // Buildings
-            let wallCol: SIMD4<Float> = [0.20, 0.16, 0.10, 1]
-            let roofCol: SIMD4<Float> = [0.28, 0.18, 0.08, 1]
-
-            struct Spot { let x: Float; let z: Float; let s: Float; let isChurch: Bool }
+            struct Spot { let x, z, s: Float; let isChurch: Bool }
             let spots: [Spot] = [
                 Spot(x: -3.2, z: -2.0, s: 1.0,  isChurch: false),
                 Spot(x: -1.0, z: -3.2, s: 0.8,  isChurch: false),
@@ -119,109 +137,98 @@ private struct MedievalVillage3DRepresentable: NSViewRepresentable {
                 Spot(x:  2.5, z:  1.8, s: 0.95, isChurch: false),
             ]
 
-            var windowIndex = 0
+            let wallCol: SIMD4<Float> = [0.20, 0.16, 0.10, 1]
+            let roofCol: SIMD4<Float> = [0.28, 0.18, 0.08, 1]
 
             for spot in spots {
-                let bh = Float(spot.isChurch ? 2.8 : (1.0 + Double.random(in: 0...0.7, using: &rng)))
-                let bw = Float(spot.isChurch ? 1.3 : (0.7 + Double.random(in: 0...0.5, using: &rng)))
-                let bd = Float(spot.isChurch ? 1.3 : (0.6 + Double.random(in: 0...0.4, using: &rng)))
+                let bh = spot.isChurch
+                    ? Float(2.8)
+                    : Float(1.0 + Double.random(in: 0...0.7, using: &rng))
+                let bw = spot.isChurch
+                    ? Float(1.3)
+                    : Float(0.7 + Double.random(in: 0...0.5, using: &rng))
+                let bd = spot.isChurch
+                    ? Float(1.3)
+                    : Float(0.6 + Double.random(in: 0...0.4, using: &rng))
                 let sw = bw * spot.s, sh = bh * spot.s, sd = bd * spot.s
 
                 // Body
                 addOpaque(buildBox(w: sw, h: sh, d: sd, color: wallCol),
                           model: m4Translation(spot.x, sh / 2, spot.z))
-
                 // Roof
                 let roofH = 0.55 * spot.s
                 addOpaque(buildPyramid(bw: sw + 0.15, bd: sd + 0.15, h: roofH, color: roofCol),
                           model: m4Translation(spot.x, sh, spot.z))
 
-                // Windows (emissive quads on front face)
-                let winCols = 2, winRows = spot.isChurch ? 2 : 1
+                // Windows — emissive quads on front face
+                let winCols = 2
+                let winRows = spot.isChurch ? 2 : 1
                 let winW = sw * 0.12, winH = sh * 0.13
                 let amber: SIMD3<Float> = [0.95, 0.70, 0.30]
-                let amberA: SIMD4<Float> = [amber.x, amber.y, amber.z, 1.0]
-                let firstIdx = windowIndex
 
                 for row in 0..<winRows {
                     for col in 0..<winCols {
-                        let xFrac = Float(col + 1) / Float(winCols + 1)
-                        let yFrac = Float(row + 1) / Float(winRows + 1)
+                        let xFrac = (Float(col) + 1) / Float(winCols + 1)
+                        let yFrac = (Float(row) + 1) / Float(winRows + 1)
                         let wx = spot.x + (xFrac - 0.5) * sw
                         let wy = yFrac * sh
-                        let wz = spot.z + sd / 2 + 0.005
+                        let wz = spot.z + sd / 2 + 0.01
 
-                        let winVerts = buildQuad(w: winW, h: winH, color: amberA)
-                        let model = m4Translation(wx, wy, wz)
-                        // Window glow is a transparent draw call
-                        if let buf = makeVertexBuffer(winVerts, device: device) {
-                            transparentCalls.append(DrawCall(
-                                buffer:      buf,
-                                count:       winVerts.count,
-                                model:       model,
-                                emissiveCol: amber,
-                                emissiveMix: 1.0
-                            ))
-                        }
-                        windowGlowIntensities.append(1.0)
-                        windowIndex += 1
+                        let idx = addGlow(
+                            buildQuad(w: winW, h: winH,
+                                      color: [amber.x, amber.y, amber.z, 1]),
+                            model: m4Translation(wx, wy, wz),
+                            emissive: amber, opacity: 0.9)
+                        windows.append(WindowGlow(intensity: 1,
+                                                   drawIndex: idx,
+                                                   emissive: amber))
                     }
                 }
-
-                buildings.append(Building(x: spot.x, z: spot.z,
-                                          w: sw, h: sh, d: sd,
-                                          isChurch: spot.isChurch,
-                                          windowCount: winRows * winCols,
-                                          firstWindowIndex: firstIdx))
-            }
-
-            // Trees
-            var rng2 = SplitMix64(seed: 1351)
-            let trunkCol: SIMD4<Float> = [0.18, 0.10, 0.05, 1]
-            let leafCol:  SIMD4<Float> = [0.05, 0.14, 0.05, 1]
-            for _ in 0..<12 {
-                let tx = Float(Double.random(in: -6...6, using: &rng2))
-                let tz = Float(Double.random(in: -5...5, using: &rng2))
-                let ts = Float(0.5 + Double.random(in: 0...0.5, using: &rng2))
-                addOpaque(buildCylinder(radius: 0.06*ts, height: 0.5*ts,
-                                        segments: 8, color: trunkCol),
-                          model: m4Translation(tx, 0.25*ts, tz))
-                addOpaque(buildCone(radius: 0.4*ts, height: 0.9*ts,
-                                    segments: 8, color: leafCol),
-                          model: m4Translation(tx, 0.95*ts, tz))
-            }
-
-            // Firefly spawn positions
-            var rng3 = SplitMix64(seed: 1352)
-            for _ in 0..<60 {
-                let fx = Float(Double.random(in: -5...5, using: &rng3))
-                let fz = Float(Double.random(in: -4...4, using: &rng3))
-                let fy = Float(0.4 + Double.random(in: 0...1.2, using: &rng3))
-                fireflyBase.append([fx, fy, fz])
-                fireflyPhase.append(Float(Double.random(in: 0...2*Double.pi, using: &rng3)))
             }
         }
 
-        private func addOpaque(_ verts: [Vertex3D], model: simd_float4x4) {
-            guard let buf = makeVertexBuffer(verts, device: device) else { return }
-            opaqueCalls.append(DrawCall(buffer: buf, count: verts.count,
-                                        model: model,
-                                        emissiveCol: .zero, emissiveMix: 0))
+        private func buildTrees() {
+            var rng = SplitMix64(seed: 1351)
+            let trunkCol: SIMD4<Float> = [0.18, 0.10, 0.05, 1]
+            let leafCol:  SIMD4<Float> = [0.05, 0.14, 0.05, 1]
+
+            for _ in 0..<12 {
+                let tx = Float(Double.random(in: -6...6, using: &rng))
+                let tz = Float(Double.random(in: -5...5, using: &rng))
+                let ts = Float(0.5 + Double.random(in: 0...0.5, using: &rng))
+
+                addOpaque(buildCylinder(radius: 0.06 * ts, height: 0.5 * ts,
+                                        segments: 6, color: trunkCol),
+                          model: m4Translation(tx, 0.25 * ts, tz))
+                addOpaque(buildCone(radius: 0.4 * ts, height: 0.9 * ts,
+                                    segments: 8, color: leafCol),
+                          model: m4Translation(tx, 0.5 * ts + 0.45 * ts, tz))
+            }
+        }
+
+        private func buildFireflies() {
+            var rng = SplitMix64(seed: 1352)
+            for _ in 0..<20 {
+                let fx = Float(Double.random(in: -5...5, using: &rng))
+                let fy = Float(0.5 + Double.random(in: 0...1.5, using: &rng))
+                let fz = Float(Double.random(in: -4...4, using: &rng))
+                fireflyPositions.append([fx, fy, fz])
+                fireflyPhases.append(Float(Double.random(in: 0...(.pi * 2), using: &rng)))
+            }
         }
 
         // MARK: - Tap interaction
 
-        func handleTap() {
-            guard extinguishedCount < windowGlowIntensities.count else { return }
-            // Fade the next window to dark over ~2 seconds (driven by render loop)
-            windowGlowIntensities[extinguishedCount] = -1  // sentinel: fading out
+        func extinguishNextWindow() {
+            guard extinguishedCount < windows.count else { return }
+            windows[extinguishedCount].intensity = -1
             extinguishedCount += 1
 
-            // Dim overall ambient proportionally
-            let remaining = windowGlowIntensities.count - extinguishedCount
-            let frac = Float(remaining) / Float(max(1, windowGlowIntensities.count))
-            ambientIntensity = 0.14 + 0.86 * frac
-            moonIntensity    = 0.31 + 0.69 * frac
+            let total = Float(windows.count)
+            let remaining = max(0, total - Float(extinguishedCount))
+            let frac = total > 0 ? remaining / total : 0
+            ambientLevel = 0.15 + 0.85 * frac
+            moonLevel    = 0.3  + 0.7  * frac
         }
 
         // MARK: - MTKViewDelegate
@@ -232,48 +239,45 @@ private struct MedievalVillage3DRepresentable: NSViewRepresentable {
 
         func draw(in view: MTKView) {
             guard let pipeline = opaquePipeline,
-                  let drawable  = view.currentDrawable,
-                  let rpDesc    = view.currentRenderPassDescriptor,
-                  let cmdBuf    = commandQueue.makeCommandBuffer(),
-                  let encoder   = cmdBuf.makeRenderCommandEncoder(descriptor: rpDesc)
+                  let drawable = view.currentDrawable,
+                  let rpDesc   = view.currentRenderPassDescriptor,
+                  let cmdBuf   = commandQueue.makeCommandBuffer(),
+                  let encoder  = cmdBuf.makeRenderCommandEncoder(descriptor: rpDesc)
             else { return }
 
             let t = Float(CACurrentMediaTime() - startTime)
 
-            // Fade extinguishing windows over 2 seconds
-            for i in windowGlowIntensities.indices {
-                if windowGlowIntensities[i] < 0 {
-                    // Already fading — value stored as negative progress
-                    let progress = -windowGlowIntensities[i]
-                    if progress >= 2.0 {
-                        windowGlowIntensities[i] = 0
-                    } else {
-                        windowGlowIntensities[i] = -(progress + 1/60.0)
-                    }
+            // Animate window intensities
+            for i in windows.indices {
+                if windows[i].intensity < 0 {
+                    windows[i].intensity += 0.008
+                    if windows[i].intensity >= 0 { windows[i].intensity = 0 }
                 }
             }
 
-            // Camera — slow orbit 120 s/rev, angled down
-            let orbitAngle = t * (2 * Float.pi / 120.0)
-            let orbitR: Float = 13.0, orbitY: Float = 7.0
-            let eye: SIMD3<Float> = [orbitR * sin(orbitAngle), orbitY, orbitR * cos(orbitAngle)]
-            let center: SIMD3<Float> = [0, 0.5, 0]
-            let view4 = m4LookAt(eye: eye, center: center, up: [0, 1, 0])
-            let proj4 = m4Perspective(fovyRad: 48 * .pi / 180, aspect: aspect, near: 0.1, far: 80)
-            let vp    = proj4 * view4
+            // Orbiting camera — one revolution every 120s
+            let orbitAngle = t * (2 * .pi / 120)
+            let orbitR: Float = 11
+            let camY: Float   = 7
+            let eye = SIMD3<Float>(orbitR * sin(orbitAngle), camY,
+                                   orbitR * cos(orbitAngle))
+            let center = SIMD3<Float>(0, 0.5, 0)
 
-            // Moon direction (fixed)
-            let moonDir: SIMD3<Float> = simd_normalize([-0.5, -0.85, -0.3])
-            let moonCol = SIMD3<Float>(0.40, 0.45, 0.70)
-            let ambBase = SIMD3<Float>(0.15, 0.12, 0.25)
+            let view4 = m4LookAt(eye: eye, center: center, up: [0, 1, 0])
+            let proj4 = m4Perspective(fovyRad: 48 * .pi / 180, aspect: aspect,
+                                      near: 0.1, far: 80)
+            let vp = proj4 * view4
+
+            let moonColor = SIMD3<Float>(0.40, 0.45, 0.70) * moonLevel
+            let ambColor  = SIMD3<Float>(0.15, 0.12, 0.25) * ambientLevel
 
             var su = SceneUniforms3D(
                 viewProjection: vp,
-                sunDirection:   SIMD4<Float>(moonDir, 0),
-                sunColor:       SIMD4<Float>(moonCol * moonIntensity, 0),
-                ambientColor:   SIMD4<Float>(ambBase * ambientIntensity, t),
+                sunDirection:   SIMD4<Float>(simd_normalize([-0.3, -0.8, -0.4]), 0),
+                sunColor:       SIMD4<Float>(moonColor, 0),
+                ambientColor:   SIMD4<Float>(ambColor, t),
                 fogParams:      SIMD4<Float>(12, 35, 0, 0),
-                fogColor:       SIMD4<Float>(0.03, 0.03, 0.06, 0),
+                fogColor:       SIMD4<Float>([0.03, 0.03, 0.06], 0),
                 cameraWorldPos: SIMD4<Float>(eye, 0)
             )
 
@@ -283,52 +287,63 @@ private struct MedievalVillage3DRepresentable: NSViewRepresentable {
             encoder.setVertexBytes(&su, length: MemoryLayout<SceneUniforms3D>.size, index: 1)
             encoder.setFragmentBytes(&su, length: MemoryLayout<SceneUniforms3D>.size, index: 1)
 
-            // Opaque pass
             for call in opaqueCalls {
                 encodeDraw(encoder: encoder,
                            vertexBuffer: call.buffer, vertexCount: call.count,
-                           model: call.model,
-                           emissiveColor: call.emissiveCol, emissiveMix: call.emissiveMix)
+                           model: call.model)
             }
 
-            // Window glow (blended, depth read-only)
-            if let glowPL = glowPipeline {
-                encoder.setRenderPipelineState(glowPL)
+            // Glow pass (windows)
+            if let gp = glowPipeline {
+                encoder.setRenderPipelineState(gp)
                 encoder.setDepthStencilState(depthROState)
+
                 for (i, call) in transparentCalls.enumerated() {
-                    let raw = windowGlowIntensities[i]
-                    let intensity: Float = raw >= 0 ? raw : max(0, 1 - (-raw) / 2.0)
-                    guard intensity > 0.01 else { continue }
-                    // Billboard — face camera (simple Y-rotation only, sufficient here)
-                    encodeDraw(encoder: encoder,
-                               vertexBuffer: call.buffer, vertexCount: call.count,
-                               model: call.model,
-                               emissiveColor: call.emissiveCol * intensity,
-                               emissiveMix: 1.0,
-                               opacity: intensity * 0.85)
+                    if let win = windows.first(where: { $0.drawIndex == i }) {
+                        let bright = max(0, win.intensity)
+                        guard bright > 0.001 else { continue }
+                        encodeDraw(encoder: encoder,
+                                   vertexBuffer: call.buffer, vertexCount: call.count,
+                                   model: call.model,
+                                   emissiveColor: call.emissiveCol * bright,
+                                   emissiveMix: 1,
+                                   opacity: call.opacity * bright)
+                    } else {
+                        encodeDraw(encoder: encoder,
+                                   vertexBuffer: call.buffer, vertexCount: call.count,
+                                   model: call.model,
+                                   emissiveColor: call.emissiveCol,
+                                   emissiveMix: call.emissiveMix,
+                                   opacity: call.opacity)
+                    }
                 }
             }
 
             // Firefly particles
             if let ppipe = particlePipeline {
                 var particles: [ParticleVertex3D] = []
-                for i in fireflyBase.indices {
-                    let ph = fireflyPhase[i]
-                    let blink = max(0, sin(t * 1.8 + ph))
-                    if blink < 0.1 { continue }
-                    let wx = fireflyBase[i].x + 0.3 * sin(t * 0.7 + ph)
-                    let wy = fireflyBase[i].y + 0.15 * sin(t * 1.1 + ph * 1.3)
-                    let wz = fireflyBase[i].z + 0.3 * cos(t * 0.5 + ph * 0.9)
-                    let col: SIMD4<Float> = [0.9, 0.8, 0.3, Float(blink) * 0.85]
-                    particles.append(ParticleVertex3D(position: [wx, wy, wz], color: col, size: 6))
+                for i in fireflyPositions.indices {
+                    let ph = fireflyPhases[i]
+                    let drift: Float = 0.4
+                    let fx = fireflyPositions[i].x + drift * sin(t * 0.7 + ph)
+                    let fy = fireflyPositions[i].y + 0.2 * cos(t * 0.5 + ph * 1.3)
+                    let fz = fireflyPositions[i].z + drift * cos(t * 0.6 + ph * 0.8)
+                    let bright = 0.4 + 0.6 * abs(sin(t * 1.2 + ph))
+                    let col = SIMD4<Float>(0.9 * bright, 0.8 * bright,
+                                           0.3 * bright, 0.85 * bright)
+                    particles.append(ParticleVertex3D(position: [fx, fy, fz],
+                                                       color: col, size: 5))
                 }
                 if !particles.isEmpty,
                    let pbuf = makeParticleBuffer(particles, device: device) {
                     encoder.setRenderPipelineState(ppipe)
                     encoder.setDepthStencilState(depthROState)
                     encoder.setVertexBuffer(pbuf, offset: 0, index: 0)
-                    encoder.setVertexBytes(&su, length: MemoryLayout<SceneUniforms3D>.size, index: 1)
-                    encoder.drawPrimitives(type: .point, vertexStart: 0, vertexCount: particles.count)
+                    encoder.setVertexBytes(&su,
+                                           length: MemoryLayout<SceneUniforms3D>.size,
+                                           index: 1)
+                    encoder.drawPrimitives(type: .point, vertexStart: 0,
+                                           vertexCount: particles.count)
                 }
             }
 
@@ -338,23 +353,26 @@ private struct MedievalVillage3DRepresentable: NSViewRepresentable {
         }
     }
 
+    // MARK: - NSViewRepresentable methods
+
     func makeCoordinator() -> Coordinator { Coordinator() }
 
     func makeNSView(context: Context) -> MTKView {
         let view = MTKView(frame: .zero, device: context.coordinator.device)
-        view.delegate              = context.coordinator
-        view.colorPixelFormat      = .bgra8Unorm
+        view.delegate                = context.coordinator
+        view.colorPixelFormat        = .bgra8Unorm
         view.depthStencilPixelFormat = .depth32Float
-        view.clearColor            = MTLClearColor(red: 0.015, green: 0.015, blue: 0.04, alpha: 1)
+        view.clearColor              = MTLClearColor(red: 0.015, green: 0.015,
+                                                      blue: 0.04, alpha: 1)
         view.preferredFramesPerSecond = 60
-        view.autoResizeDrawable    = true
+        view.autoResizeDrawable      = true
         return view
     }
 
     func updateNSView(_ nsView: MTKView, context: Context) {
         let c = context.coordinator
-        guard interaction.tapCount != c.lastTapCount else { return }
-        c.lastTapCount = interaction.tapCount
-        c.handleTap()
+        guard tapCount != c.lastTapCount else { return }
+        c.lastTapCount = tapCount
+        c.extinguishNextWindow()
     }
 }

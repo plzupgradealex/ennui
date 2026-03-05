@@ -25,9 +25,7 @@ counterpart, plus two SceneKit-exclusive scenes (Inner Light 3D, Wireframe City 
 - **Innocent & kind**: haiku prompts emphasize gentleness, wonder, and calm
 
 ## Tech Stack
-- **SwiftUI** + **Canvas** for 2D rendering (34 Canvas scenes, Metal GPU compositing)
-- **Metal** (`MTKView` via `NSViewRepresentable`) for 21 3D scenes — low-poly dioramas rendered with custom vertex/fragment shaders, shared `Metal3DHelpers` geometry builders, multi-pass opaque/glow/particle pipelines
-- **SceneKit** (`SCNView` via `NSViewRepresentable`) for 15 3D scenes — procedural low-poly dioramas with ambient lighting and particle systems (legacy; new scenes target Metal)
+- **SwiftUI** + **Canvas** for all rendering (no SpriteKit, no Metal - portable)
 - **MultipeerConnectivity** for P2P sharing nearby (encryption: `.required` for App Store compliance)
 - **FoundationModels** for on-device AI haiku (Apple Neural Engine)
 - **NSViewRepresentable** (`MouseTrackingView`) for cursor hover detection on macOS

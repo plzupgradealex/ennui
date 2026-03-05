@@ -10,14 +10,16 @@ struct OldCar3DScene: View {
     @ObservedObject var interaction: InteractionState
 
     var body: some View {
-        OldCar3DRepresentable(interaction: interaction)
+        OldCar3DRepresentable(interaction: interaction,
+                               tapCount: interaction.tapCount)
     }
 }
 
 // MARK: - NSViewRepresentable
 
 private struct OldCar3DRepresentable: NSViewRepresentable {
-    @ObservedObject var interaction: InteractionState
+    var interaction: InteractionState
+    var tapCount: Int
 
     // MARK: Coordinator / Renderer
 
@@ -39,69 +41,70 @@ private struct OldCar3DRepresentable: NSViewRepresentable {
             var model:       simd_float4x4
             var emissiveCol: SIMD3<Float>
             var emissiveMix: Float
-            var opacity:     Float = 1
+            var opacity:     Float
         }
         var opaqueCalls:      [DrawCall] = []
         var transparentCalls: [DrawCall] = []
 
         // MARK: Wiper animation
-        var wiperAngle: Float = 0        // oscillates between -0.6 and +0.6
+        var wiperAngle: Float = 0
         var wiperDir:   Float = 1
 
         // MARK: Dash brightness (tap to flash)
         var dashBrightness: Float = 1.0
-        var dashTarget:     Float = 1.0
-        var honkT:          Float = -999   // time of last honk
+        var honkT:          Float = -999
 
         // MARK: Snow particles
-        var snowPositions: [SIMD3<Float>] = []
-        var snowPhases:    [Float] = []
-        var snowVelocities:[SIMD3<Float>] = []
-        var snowSizes:     [Float] = []
+        var snowPositions:  [SIMD3<Float>] = []
+        var snowPhases:     [Float] = []
+        var snowVelocities: [SIMD3<Float>] = []
+        var snowSizes:      [Float] = []
 
-        // MARK: Utility poles scroll
-        var poleOffsets: [Float] = []
+        // MARK: Utility pole count
+        let poleCount = 6
 
-        // MARK: Interaction
-        var lastTapCount = 0
+        // MARK: Frame state
+        let startTime = CACurrentMediaTime()
+        var aspect: Float = 1
+        var lastTapCount  = 0
 
-        // MARK: Animation
-        var startTime: CFTimeInterval = CACurrentMediaTime()
-        var aspect:    Float = 1
-
-        // MARK: - Init
+        // MARK: Init
 
         override init() {
-            device       = MTLCreateSystemDefaultDevice()!
-            commandQueue = device.makeCommandQueue()!
+            guard let dev = MTLCreateSystemDefaultDevice(),
+                  let q   = dev.makeCommandQueue()
+            else { fatalError("Metal not available") }
+            device       = dev
+            commandQueue = q
             super.init()
-            do {
-                opaquePipeline   = try makeOpaquePipeline(device: device)
-                glowPipeline     = try makeAlphaBlendPipeline(device: device)
-                particlePipeline = try makeParticlePipeline(device: device)
-            } catch {
-                print("OldCar3D Metal pipeline error: \(error)")
-            }
-            depthState   = makeDepthState(device: device)
-            depthROState = makeDepthReadOnlyState(device: device)
+
+            opaquePipeline   = try? makeOpaquePipeline(device: dev)
+            glowPipeline     = try? makeAlphaBlendPipeline(device: dev)
+            particlePipeline = try? makeParticlePipeline(device: dev)
+            depthState       = makeDepthState(device: dev)
+            depthROState     = makeDepthReadOnlyState(device: dev)
+
             buildScene()
         }
 
-        // MARK: - Helpers
+        // MARK: Geometry helpers
 
-        private func addOpaque(_ v: [Vertex3D], model: simd_float4x4,
-                               emissive: SIMD3<Float> = .zero, mix: Float = 0) {
-            guard let buf = makeVertexBuffer(v, device: device) else { return }
-            opaqueCalls.append(DrawCall(buffer: buf, count: v.count, model: model,
-                                        emissiveCol: emissive, emissiveMix: mix))
+        func addOpaque(_ verts: [Vertex3D], model: simd_float4x4) {
+            guard let buf = makeVertexBuffer(verts, device: device) else { return }
+            opaqueCalls.append(DrawCall(buffer: buf, count: verts.count,
+                                       model: model, emissiveCol: .zero,
+                                       emissiveMix: 0, opacity: 1))
         }
 
-        private func addGlow(_ v: [Vertex3D], model: simd_float4x4,
-                              emissive: SIMD3<Float>, opacity: Float = 0.9) {
-            guard let buf = makeVertexBuffer(v, device: device) else { return }
-            transparentCalls.append(DrawCall(buffer: buf, count: v.count, model: model,
-                                             emissiveCol: emissive, emissiveMix: 1.0,
-                                             opacity: opacity))
+        @discardableResult
+        func addGlow(_ verts: [Vertex3D], model: simd_float4x4,
+                     emissive: SIMD3<Float>, opacity: Float) -> Int {
+            guard let buf = makeVertexBuffer(verts, device: device) else { return -1 }
+            let idx = transparentCalls.count
+            transparentCalls.append(DrawCall(buffer: buf, count: verts.count,
+                                            model: model, emissiveCol: emissive,
+                                            emissiveMix: 1, opacity: opacity))
+            return idx
         }
 
         // MARK: - Build scene
@@ -117,74 +120,69 @@ private struct OldCar3DRepresentable: NSViewRepresentable {
         }
 
         private func buildExterior() {
-            // Sky dome (stormy dark)
-            addOpaque(buildSphere(radius: 40, rings: 6, segments: 12, color: [0.04, 0.04, 0.07, 1]),
+            // Sky dome
+            addOpaque(buildSphere(radius: 40, rings: 6, segments: 12,
+                                  color: [0.04, 0.04, 0.07, 1]),
                       model: matrix_identity_float4x4)
-
             // Road
             addOpaque(buildBox(w: 12, h: 0.01, d: 80, color: [0.14, 0.13, 0.12, 1]),
                       model: m4Translation(0, -1.5, -18))
-
-            // Snow-covered road overlay
-            addGlow(buildBox(w: 12, h: 0.005, d: 80, color: [1,1,1,0.35]),
+            // Snow overlay
+            addGlow(buildBox(w: 12, h: 0.005, d: 80, color: [1, 1, 1, 0.35]),
                     model: m4Translation(0, -1.48, -18),
                     emissive: [0.55, 0.55, 0.60], opacity: 0.35)
-
-            // Utility pole initial positions (scroll in render loop)
-            var rng = SplitMix64(seed: 5501)
-            for i in 0..<6 {
-                poleOffsets.append(Float(-4 - i * 8))
-                _ = rng  // suppress warning
-            }
-
-            // Barn silhouettes (static)
+            // Barn silhouettes
             addOpaque(buildBox(w: 6, h: 4, d: 0.5, color: [0.06, 0.04, 0.03, 1]),
                       model: m4Translation(-14, 0.5, -30))
-            addOpaque(buildPyramid(bw: 6.2, bd: 0.6, h: 2, color: [0.05, 0.03, 0.02, 1]),
+            addOpaque(buildPyramid(bw: 6.2, bd: 0.6, h: 2,
+                                   color: [0.05, 0.03, 0.02, 1]),
                       model: m4Translation(-14, 4.5, -30))
             addOpaque(buildBox(w: 5, h: 4.5, d: 0.5, color: [0.06, 0.04, 0.03, 1]),
                       model: m4Translation(18, 1.0, -45))
         }
 
         private func buildCarInterior() {
-            let interiorCol: SIMD4<Float> = [0.08, 0.05, 0.03, 1]
-            // A-pillars (sides of windshield)
-            addOpaque(buildBox(w: 0.12, h: 0.9, d: 0.1, color: interiorCol),
+            let col: SIMD4<Float> = [0.08, 0.05, 0.03, 1]
+            // A-pillars
+            addOpaque(buildBox(w: 0.12, h: 0.9, d: 0.1, color: col),
                       model: m4Translation(-1.05, 0.35, -0.6))
-            addOpaque(buildBox(w: 0.12, h: 0.9, d: 0.1, color: interiorCol),
+            addOpaque(buildBox(w: 0.12, h: 0.9, d: 0.1, color: col),
                       model: m4Translation( 1.05, 0.35, -0.6))
-            // Headliner (inside roof)
+            // Headliner
             addOpaque(buildBox(w: 2.2, h: 0.05, d: 1.5, color: [0.12, 0.09, 0.07, 1]),
                       model: m4Translation(0, 0.85, 0.1))
             // Door panels
-            addOpaque(buildBox(w: 0.05, h: 0.8, d: 1.5, color: interiorCol),
+            addOpaque(buildBox(w: 0.05, h: 0.8, d: 1.5, color: col),
                       model: m4Translation(-1.1, 0.2, 0.1))
-            addOpaque(buildBox(w: 0.05, h: 0.8, d: 1.5, color: interiorCol),
+            addOpaque(buildBox(w: 0.05, h: 0.8, d: 1.5, color: col),
                       model: m4Translation( 1.1, 0.2, 0.1))
         }
 
         private func buildWindshield() {
-            // Windshield glass (semi-transparent, facing forward)
-            addGlow(buildQuad(w: 2.1, h: 0.9, color: [1,1,1,1]),
+            // Glass (semi-transparent)
+            addGlow(buildQuad(w: 2.1, h: 0.9, color: [1, 1, 1, 1]),
                     model: m4Translation(0, 0.35, -0.65) * m4RotX(.pi * 0.12),
                     emissive: [0.03, 0.04, 0.07], opacity: 0.18)
-            // Windshield frame
-            addOpaque(buildBox(w: 2.2, h: 0.06, d: 0.06, color: [0.06, 0.04, 0.03, 1]),
-                      model: m4Translation(0, 0.81, -0.63))   // top
-            addOpaque(buildBox(w: 2.2, h: 0.06, d: 0.06, color: [0.06, 0.04, 0.03, 1]),
-                      model: m4Translation(0, -0.10, -0.63))  // bottom (dashboard top)
+            // Frame top
+            addOpaque(buildBox(w: 2.2, h: 0.06, d: 0.06,
+                               color: [0.06, 0.04, 0.03, 1]),
+                      model: m4Translation(0, 0.81, -0.63))
+            // Frame bottom (dashboard top edge)
+            addOpaque(buildBox(w: 2.2, h: 0.06, d: 0.06,
+                               color: [0.06, 0.04, 0.03, 1]),
+                      model: m4Translation(0, -0.10, -0.63))
         }
 
         private func buildDashboard() {
-            // Dashboard panel
             addOpaque(buildBox(w: 2.3, h: 0.28, d: 0.30, color: [0.10, 0.06, 0.04, 1]),
                       model: m4Translation(0, -0.06, -0.6))
-            // Instrument cluster (emissive amber — dash glow)
-            addGlow(buildQuad(w: 0.6, h: 0.14, color: [1,1,1,1]),
+            // Instrument cluster (emissive amber)
+            addGlow(buildQuad(w: 0.6, h: 0.14, color: [1, 1, 1, 1]),
                     model: m4Translation(-0.4, 0.0, -0.46),
                     emissive: [0.85, 0.55, 0.15], opacity: 0.9)
             // Glove box
-            addOpaque(buildBox(w: 0.5, h: 0.16, d: 0.02, color: [0.12, 0.07, 0.04, 1]),
+            addOpaque(buildBox(w: 0.5, h: 0.16, d: 0.02,
+                               color: [0.12, 0.07, 0.04, 1]),
                       model: m4Translation(0.65, -0.06, -0.47))
             // Steering wheel rim
             addOpaque(buildCylinder(radius: 0.23, height: 0.015, segments: 16,
@@ -197,29 +195,26 @@ private struct OldCar3DRepresentable: NSViewRepresentable {
         }
 
         private func buildRadio() {
-            // Radio faceplate
-            addOpaque(buildBox(w: 0.30, h: 0.10, d: 0.02, color: [0.08, 0.06, 0.04, 1]),
+            addOpaque(buildBox(w: 0.30, h: 0.10, d: 0.02,
+                               color: [0.08, 0.06, 0.04, 1]),
                       model: m4Translation(0.2, 0.02, -0.47))
-            // AM/FM dial (emissive amber strip)
-            addGlow(buildQuad(w: 0.18, h: 0.035, color: [1,1,1,1]),
+            // AM/FM dial (emissive amber)
+            addGlow(buildQuad(w: 0.18, h: 0.035, color: [1, 1, 1, 1]),
                     model: m4Translation(0.17, 0.035, -0.461),
                     emissive: [0.90, 0.70, 0.25], opacity: 0.85)
-            // Two chrome knobs
-            for side in [-1.0, 1.0] {
+            // Chrome knobs
+            for side: Float in [-1, 1] {
                 addOpaque(buildCylinder(radius: 0.016, height: 0.025, segments: 8,
                                         color: [0.45, 0.40, 0.35, 1]),
-                          model: m4Translation(Float(0.2 + side * 0.09), 0.02, -0.462))
+                          model: m4Translation(0.2 + side * 0.09, 0.02, -0.462))
             }
         }
 
         private func buildBenchSeat() {
-            // Seat cushion (viewer sits here)
             addOpaque(buildBox(w: 2.0, h: 0.14, d: 0.55, color: [0.30, 0.16, 0.10, 1]),
                       model: m4Translation(0, -0.33, 0.4))
-            // Seat back
             addOpaque(buildBox(w: 2.0, h: 0.60, d: 0.08, color: [0.28, 0.14, 0.09, 1]),
                       model: m4Translation(0, -0.01, 0.65))
-            // Centre armrest divider
             addOpaque(buildBox(w: 0.09, h: 0.16, d: 0.50, color: [0.14, 0.08, 0.05, 1]),
                       model: m4Translation(0, -0.17, 0.4))
         }
@@ -231,7 +226,7 @@ private struct OldCar3DRepresentable: NSViewRepresentable {
                 let sy = Float(Double.random(in: -0.3...1.0, using: &rng))
                 let sz = Float(Double.random(in: -5...0, using: &rng))
                 snowPositions.append([sx, sy, sz])
-                snowPhases.append(Float(Double.random(in: 0...2*Double.pi, using: &rng)))
+                snowPhases.append(Float(Double.random(in: 0...(.pi * 2), using: &rng)))
                 let vx = Float(Double.random(in: -0.15...0.15, using: &rng))
                 let vy = Float(-0.4 - Double.random(in: 0...0.4, using: &rng))
                 let vz = Float(4.0 + Double.random(in: 0...3, using: &rng))
@@ -240,7 +235,7 @@ private struct OldCar3DRepresentable: NSViewRepresentable {
             }
         }
 
-        // MARK: - Interaction
+        // MARK: - Tap interaction
 
         func triggerHonk(time: Float) {
             honkT = time
@@ -254,39 +249,40 @@ private struct OldCar3DRepresentable: NSViewRepresentable {
 
         func draw(in view: MTKView) {
             guard let pipeline = opaquePipeline,
-                  let drawable  = view.currentDrawable,
-                  let rpDesc    = view.currentRenderPassDescriptor,
-                  let cmdBuf    = commandQueue.makeCommandBuffer(),
-                  let encoder   = cmdBuf.makeRenderCommandEncoder(descriptor: rpDesc)
+                  let drawable = view.currentDrawable,
+                  let rpDesc   = view.currentRenderPassDescriptor,
+                  let cmdBuf   = commandQueue.makeCommandBuffer(),
+                  let encoder  = cmdBuf.makeRenderCommandEncoder(descriptor: rpDesc)
             else { return }
 
             let t = Float(CACurrentMediaTime() - startTime)
 
             // Wiper sweep: oscillates ±35°
             wiperAngle += wiperDir * 0.018
-            if wiperAngle > 0.60 { wiperDir = -1 }
-            if wiperAngle < -0.60 { wiperDir = 1 }
+            if wiperAngle >  0.60 { wiperDir = -1 }
+            if wiperAngle < -0.60 { wiperDir =  1 }
 
             // Dash brightness (honk flash then fade)
-            let sincHonk = t - honkT
-            if sincHonk < 0.5 {
-                dashBrightness = 2.5 - sincHonk * 3.0
+            let sinceHonk = t - honkT
+            if sinceHonk < 0.5 {
+                dashBrightness = 2.5 - sinceHonk * 3.0
             } else {
                 dashBrightness = max(1.0, dashBrightness - 0.05)
             }
 
-            // Camera: fixed interior viewpoint, slightly above the seat
-            let eye: SIMD3<Float>    = [0, 0.15, 0.35]
-            let center: SIMD3<Float> = [0, 0.1, -1.0]
-            let view4 = m4LookAt(eye: eye, center: center, up: [0, 1, 0])
-            let proj4 = m4Perspective(fovyRad: 72 * .pi / 180, aspect: aspect, near: 0.02, far: 80)
-            let vp    = proj4 * view4
+            // Fixed interior camera
+            let eye    = SIMD3<Float>(0, 0.15, 0.35)
+            let center = SIMD3<Float>(0, 0.1, -1.0)
+            let view4  = m4LookAt(eye: eye, center: center, up: [0, 1, 0])
+            let proj4  = m4Perspective(fovyRad: 72 * .pi / 180, aspect: aspect,
+                                       near: 0.02, far: 80)
+            let vp = proj4 * view4
 
-            // Ambient from dash glow
-            let dashAmb: SIMD3<Float> = [0.80, 0.50, 0.15] * dashBrightness * 0.1
+            let dashAmb = SIMD3<Float>(0.80, 0.50, 0.15) * dashBrightness * 0.1
+
             var su = SceneUniforms3D(
                 viewProjection: vp,
-                sunDirection:   SIMD4<Float>([0, -1, 0.3], 0),  // headlights pointing forward
+                sunDirection:   SIMD4<Float>([0, -1, 0.3], 0),
                 sunColor:       SIMD4<Float>([0.30, 0.25, 0.20] * dashBrightness * 0.5, 0),
                 ambientColor:   SIMD4<Float>(dashAmb, t),
                 fogParams:      SIMD4<Float>(20, 60, 0, 0),
@@ -296,7 +292,7 @@ private struct OldCar3DRepresentable: NSViewRepresentable {
 
             encoder.setRenderPipelineState(pipeline)
             encoder.setDepthStencilState(depthState)
-            encoder.setCullMode(.none)  // interior geometry needs both sides
+            encoder.setCullMode(.none) // interior needs both sides
             encoder.setVertexBytes(&su, length: MemoryLayout<SceneUniforms3D>.size, index: 1)
             encoder.setFragmentBytes(&su, length: MemoryLayout<SceneUniforms3D>.size, index: 1)
 
@@ -305,32 +301,35 @@ private struct OldCar3DRepresentable: NSViewRepresentable {
                 encodeDraw(encoder: encoder,
                            vertexBuffer: call.buffer, vertexCount: call.count,
                            model: call.model,
-                           emissiveColor: call.emissiveCol, emissiveMix: call.emissiveMix)
+                           emissiveColor: call.emissiveCol,
+                           emissiveMix: call.emissiveMix)
             }
 
-            // Wiper blades (dynamic model matrices)
-            let wiperVerts = buildBox(w: 0.015, h: 0.012, d: 0.60, color: [0.10, 0.09, 0.08, 1])
+            // Wiper blades (dynamic)
+            let wiperVerts = buildBox(w: 0.015, h: 0.012, d: 0.60,
+                                      color: [0.10, 0.09, 0.08, 1])
             if let wBuf = makeVertexBuffer(wiperVerts, device: device) {
-                // Left wiper
-                let lWiperModel = m4Translation(-0.35, -0.12, -0.68) * m4RotZ(wiperAngle)
-                                  * m4Translation(0, 0.30, 0)
-                encodeDraw(encoder: encoder, vertexBuffer: wBuf, vertexCount: wiperVerts.count,
-                           model: lWiperModel)
-                // Right wiper (opposite phase)
-                let rWiperModel = m4Translation( 0.35, -0.12, -0.68) * m4RotZ(-wiperAngle)
-                                  * m4Translation(0, 0.30, 0)
-                encodeDraw(encoder: encoder, vertexBuffer: wBuf, vertexCount: wiperVerts.count,
-                           model: rWiperModel)
+                let lModel = m4Translation(-0.35, -0.12, -0.68)
+                             * m4RotZ(wiperAngle) * m4Translation(0, 0.30, 0)
+                encodeDraw(encoder: encoder, vertexBuffer: wBuf,
+                           vertexCount: wiperVerts.count, model: lModel)
+                let rModel = m4Translation(0.35, -0.12, -0.68)
+                             * m4RotZ(-wiperAngle) * m4Translation(0, 0.30, 0)
+                encodeDraw(encoder: encoder, vertexBuffer: wBuf,
+                           vertexCount: wiperVerts.count, model: rModel)
             }
 
-            // Utility poles scrolling
-            for i in poleOffsets.indices {
-                let pz2 = (Float(-4 - i * 8) + t * 2.5).truncatingRemainder(dividingBy: 48) - 48/2
-                let poleVerts = buildCylinder(radius: 0.06, height: 7.0, segments: 6,
-                                              color: [0.15, 0.12, 0.10, 1])
-                if let pBuf = makeVertexBuffer(poleVerts, device: device) {
-                    encodeDraw(encoder: encoder, vertexBuffer: pBuf, vertexCount: poleVerts.count,
-                               model: m4Translation(5.5, -1.5 + 3.5, pz2))
+            // Utility poles (scrolling)
+            let poleVerts = buildCylinder(radius: 0.06, height: 7.0, segments: 6,
+                                          color: [0.15, 0.12, 0.10, 1])
+            if let pBuf = makeVertexBuffer(poleVerts, device: device) {
+                for i in 0..<poleCount {
+                    let baseZ = Float(-4 - i * 8)
+                    let pz = (baseZ + t * 2.5)
+                        .truncatingRemainder(dividingBy: 48) - 24
+                    encodeDraw(encoder: encoder, vertexBuffer: pBuf,
+                               vertexCount: poleVerts.count,
+                               model: m4Translation(5.5, 2.0, pz))
                 }
             }
 
@@ -348,29 +347,33 @@ private struct OldCar3DRepresentable: NSViewRepresentable {
                 }
             }
 
-            // Snow particles (rushing at windshield)
+            // Snow particles
             if let ppipe = particlePipeline {
                 var particles: [ParticleVertex3D] = []
+                let progress = t * 1.5
                 for i in snowPositions.indices {
                     let ph = snowPhases[i]
-                    // Positions drift forward (toward camera) and wrap
-                    let progress = t * 1.5
                     let vz = snowVelocities[i].z
-                    let baseZ = snowPositions[i].z
-                    let sz = baseZ + (progress * vz).truncatingRemainder(dividingBy: 5.5)
+                    let sz = snowPositions[i].z +
+                             (progress * vz).truncatingRemainder(dividingBy: 5.5)
                     let sx = snowPositions[i].x + 0.05 * sin(t * 2 + ph)
-                    let sy = snowPositions[i].y + snowVelocities[i].y * fmod(progress, 1.5) * 0.3
+                    let sy = snowPositions[i].y +
+                             snowVelocities[i].y * fmod(progress, 1.5) * 0.3
                     let alpha: Float = sz < -0.2 ? 0.7 : max(0, 0.7 * (-sz / 0.2))
-                    let col: SIMD4<Float> = [0.85, 0.88, 0.95, alpha]
+                    let col = SIMD4<Float>(0.85, 0.88, 0.95, alpha)
                     particles.append(ParticleVertex3D(position: [sx, sy, sz],
-                                                      color: col, size: snowSizes[i]))
+                                                       color: col,
+                                                       size: snowSizes[i]))
                 }
                 if let pbuf = makeParticleBuffer(particles, device: device) {
                     encoder.setRenderPipelineState(ppipe)
                     encoder.setDepthStencilState(depthROState)
                     encoder.setVertexBuffer(pbuf, offset: 0, index: 0)
-                    encoder.setVertexBytes(&su, length: MemoryLayout<SceneUniforms3D>.size, index: 1)
-                    encoder.drawPrimitives(type: .point, vertexStart: 0, vertexCount: particles.count)
+                    encoder.setVertexBytes(&su,
+                                           length: MemoryLayout<SceneUniforms3D>.size,
+                                           index: 1)
+                    encoder.drawPrimitives(type: .point, vertexStart: 0,
+                                           vertexCount: particles.count)
                 }
             }
 
@@ -380,23 +383,26 @@ private struct OldCar3DRepresentable: NSViewRepresentable {
         }
     }
 
+    // MARK: - NSViewRepresentable methods
+
     func makeCoordinator() -> Coordinator { Coordinator() }
 
     func makeNSView(context: Context) -> MTKView {
         let view = MTKView(frame: .zero, device: context.coordinator.device)
-        view.delegate              = context.coordinator
-        view.colorPixelFormat      = .bgra8Unorm
+        view.delegate                = context.coordinator
+        view.colorPixelFormat        = .bgra8Unorm
         view.depthStencilPixelFormat = .depth32Float
-        view.clearColor            = MTLClearColor(red: 0.04, green: 0.04, blue: 0.06, alpha: 1)
+        view.clearColor              = MTLClearColor(red: 0.04, green: 0.04,
+                                                      blue: 0.06, alpha: 1)
         view.preferredFramesPerSecond = 60
-        view.autoResizeDrawable    = true
+        view.autoResizeDrawable      = true
         return view
     }
 
     func updateNSView(_ nsView: MTKView, context: Context) {
         let c = context.coordinator
-        guard interaction.tapCount != c.lastTapCount else { return }
-        c.lastTapCount = interaction.tapCount
+        guard tapCount != c.lastTapCount else { return }
+        c.lastTapCount = tapCount
         let t = Float(CACurrentMediaTime() - c.startTime)
         c.triggerHonk(time: t)
     }

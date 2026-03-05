@@ -107,8 +107,8 @@ private struct UrbanDreamscape3DRepresentable: NSViewRepresentable {
                 // Windows on front face
                 let winCount = Int(Double.random(in: 3...6, using: &brng))
                 for _ in 0..<winCount {
-                    let wy = Float(Double.random(in: -bh*0.4...bh*0.4, using: &brng))
-                    let wx = Float(Double.random(in: -bw*0.3...bw*0.3, using: &brng))
+                    let wy = Float(Double.random(in: Double(-bh*0.4)...Double(bh*0.4), using: &brng))
+                    let wx = Float(Double.random(in: Double(-bw*0.3)...Double(bw*0.3), using: &brng))
                     let cidx = Int(Double.random(in: 0...1.99, using: &brng))
                     let (wec, wop) = windowColPairs[cidx]
                     addGlow(buildQuad(w: 0.18, h: 0.14, color: [1,1,1,1], normal: [0,0,1]),
@@ -153,7 +153,7 @@ private struct UrbanDreamscape3DRepresentable: NSViewRepresentable {
                 let sy = Float(Double.random(in: 10...25, using: &srng))
                 let sz = Float(Double.random(in: -25 ... -5, using: &srng))
                 let br = Float(Double.random(in: 0.4...0.8, using: &srng))
-                let ph = Float(Double.random(in: 0...Float.pi*2, using: &srng))
+                let ph = Float(Double.random(in: 0...Double.pi*2, using: &srng))
                 stars.append(StarPt(pos: [sx, sy, sz], brightness: br, phase: ph))
             }
         }

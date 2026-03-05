@@ -1,334 +1,284 @@
-// FloatingKingdom3DScene — Floating sky island with crystalline spires, waterfall, golden motes.
-// Blue sky, orbiting camera, bobbing island, cloud puffs below.
-// Tap to pulse energy through the spires.
-// Rendered in Metal (MTKView) — no SceneKit.
+// FloatingKingdom3DScene — Floating sky island with crystalline spires and waterfall.
+// Island with rocky underside, spires, waterfall, golden motes, cloud particles.
+// Tap to pulse energy through all spires.
 
 import SwiftUI
-import MetalKit
+import SceneKit
 
 struct FloatingKingdom3DScene: View {
     @ObservedObject var interaction: InteractionState
+
     var body: some View {
         FloatingKingdom3DRepresentable(interaction: interaction, tapCount: interaction.tapCount)
     }
 }
 
+// MARK: - NSViewRepresentable
+
 private struct FloatingKingdom3DRepresentable: NSViewRepresentable {
     var interaction: InteractionState
     var tapCount: Int
 
-    final class Coordinator: NSObject, MTKViewDelegate {
-        let device:           MTLDevice
-        let commandQueue:     MTLCommandQueue
-        var opaquePipeline:   MTLRenderPipelineState?
-        var glowPipeline:     MTLRenderPipelineState?
-        var particlePipeline: MTLRenderPipelineState?
-        var depthState:       MTLDepthStencilState?
-        var depthROState:     MTLDepthStencilState?
-
-        struct DrawCall {
-            var buffer: MTLBuffer; var count: Int
-            var model: simd_float4x4
-            var emissiveCol: SIMD3<Float>; var emissiveMix: Float; var opacity: Float = 1
-        }
-        // Static opaque calls (always same transform)
-        var opaqueCalls: [DrawCall] = []
-        // Island pieces (need islandY applied at draw time)
-        struct IslandPiece {
-            var buffer: MTLBuffer; var count: Int; var localModel: simd_float4x4
-        }
-        var islandPieces: [IslandPiece] = []
-        // Spire definitions (corners + center, rendered with glow)
-        struct Spire {
-            var buffer: MTLBuffer; var count: Int; var localModel: simd_float4x4
-            var baseEmissive: SIMD3<Float>
-        }
-        var spires: [Spire] = []
-        // Cloud puffs
-        struct Cloud {
-            var buffer: MTLBuffer; var count: Int; var pos: SIMD3<Float>; var driftSpeed: Float
-        }
-        var clouds: [Cloud] = []
-        // Waterfall plane (glow)
-        var waterfallBuf: MTLBuffer?
-        var waterfallCount: Int = 0
-
-        // Waterfall drops
-        struct WaterfallDrop { var speed: Float; var phase: Float; var xOff: Float }
-        var waterfallDrops: [WaterfallDrop] = []
-
-        // Golden motes
-        struct GoldenMote { var baseX: Float; var baseZ: Float; var phase: Float }
-        var goldenMotes: [GoldenMote] = []
-
-        // Spire pulse
-        var spirePulseT: Float = -999
-
+    final class Coordinator {
         var lastTapCount = 0
-        var startTime: CFTimeInterval = CACurrentMediaTime()
-        var aspect: Float = 1
-
-        override init() {
-            device       = MTLCreateSystemDefaultDevice()!
-            commandQueue = device.makeCommandQueue()!
-            super.init()
-            do {
-                opaquePipeline   = try makeOpaquePipeline(device: device)
-                glowPipeline     = try makeAlphaBlendPipeline(device: device)
-                particlePipeline = try makeParticlePipeline(device: device)
-            } catch { print("FloatingKingdom3D pipeline error: \(error)") }
-            depthState   = makeDepthState(device: device)
-            depthROState = makeDepthReadOnlyState(device: device)
-            buildScene()
-        }
-
-        private func addStaticOpaque(_ v: [Vertex3D], model: simd_float4x4) {
-            guard let buf = makeVertexBuffer(v, device: device) else { return }
-            opaqueCalls.append(DrawCall(buffer: buf, count: v.count, model: model,
-                                        emissiveCol: .zero, emissiveMix: 0))
-        }
-
-        private func buildScene() {
-            var rng = SplitMix64(seed: 12000)
-
-            // Island top (bobs; drawn at runtime with islandY)
-            let topV = buildBox(w: 8, h: 1.5, d: 8, color: [0.28, 0.55, 0.22, 1])
-            if let b = makeVertexBuffer(topV, device: device) {
-                islandPieces.append(IslandPiece(buffer: b, count: topV.count,
-                                                 localModel: matrix_identity_float4x4))
-            }
-            // Rocky underside
-            let underV = buildBox(w: 7, h: 2, d: 7, color: [0.40, 0.35, 0.28, 1])
-            if let b = makeVertexBuffer(underV, device: device) {
-                islandPieces.append(IslandPiece(buffer: b, count: underV.count,
-                                                 localModel: m4Translation(0, -1.8, 0)))
-            }
-            // 6 jagged underside chunks
-            let chunkOffsets: [(Float, Float, Float)] = [
-                (-2, -3.2, -1.5), (2, -3.5, 1), (-1, -4, 2), (1.5, -3.8, -2),
-                (-2.5, -3.4, 0.5), (2.5, -4.2, -0.5)
-            ]
-            for (cx, cy, cz) in chunkOffsets {
-                let cw = Float(rng.nextDouble()) * 1.2 + 0.8
-                let ch = Float(rng.nextDouble()) * 0.8 + 0.4
-                let cd = Float(rng.nextDouble()) * 1.2 + 0.8
-                let rot = Float(rng.nextDouble()) * 0.5 - 0.25
-                let chunkV = buildBox(w: cw, h: ch, d: cd, color: [0.38, 0.33, 0.26, 1])
-                if let b = makeVertexBuffer(chunkV, device: device) {
-                    islandPieces.append(IslandPiece(buffer: b, count: chunkV.count,
-                                                     localModel: m4Translation(cx, cy, cz) * m4RotY(rot)))
-                }
-            }
-
-            // 5 Crystalline spires: 4 corners + 1 center
-            let spireDefs: [(Float, Float, Float)] = [
-                (-3, 0.75, -3), (3, 0.75, -3), (-3, 0.75, 3), (3, 0.75, 3), (0, 0.75, 0)
-            ]
-            for (sx, sy, sz) in spireDefs {
-                let sv = buildPyramid(bw: 0.6, bd: 0.6, h: 2.5, color: [0.75, 0.88, 1.0, 1])
-                if let b = makeVertexBuffer(sv, device: device) {
-                    spires.append(Spire(buffer: b, count: sv.count,
-                                        localModel: m4Translation(sx, sy, sz),
-                                        baseEmissive: [0.4, 0.6, 0.9]))
-                }
-            }
-
-            // Waterfall plane at (4, -0.75, 0), normal = [-1, 0, 0]
-            let wfV = buildQuad(w: 0.5, h: 3, color: [0.7, 0.85, 1.0, 0.35], normal: [-1, 0, 0])
-            if let b = makeVertexBuffer(wfV, device: device) {
-                waterfallBuf   = b
-                waterfallCount = wfV.count
-            }
-
-            // Waterfall drops
-            var wdrng = SplitMix64(seed: 12001)
-            for _ in 0..<50 {
-                let speed = Float(wdrng.nextDouble()) * 1.5 + 0.8
-                let phase = Float(wdrng.nextDouble()) * 3.0
-                let xOff  = Float(wdrng.nextDouble()) * 0.3 - 0.15
-                waterfallDrops.append(WaterfallDrop(speed: speed, phase: phase, xOff: xOff))
-            }
-
-            // Golden motes: 30 in range x=-3..3, z=-3..3
-            var mrng = SplitMix64(seed: 12002)
-            for _ in 0..<30 {
-                let bx    = Float(mrng.nextDouble()) * 6 - 3
-                let bz    = Float(mrng.nextDouble()) * 6 - 3
-                let phase = Float(mrng.nextDouble()) * Float.pi * 2
-                goldenMotes.append(GoldenMote(baseX: bx, baseZ: bz, phase: phase))
-            }
-
-            // Cloud puffs: 12 spheres below island
-            var crng = SplitMix64(seed: 12003)
-            for _ in 0..<12 {
-                let cx    = Float(crng.nextDouble()) * 20 - 10
-                let cy    = -(Float(crng.nextDouble()) * 3 + 4)
-                let cz    = Float(crng.nextDouble()) * 20 - 10
-                let cr    = Float(crng.nextDouble()) * 0.2 + 0.3
-                let drift = Float(crng.nextDouble()) * 0.3 + 0.1
-                let cv    = buildSphere(radius: cr, rings: 6, segments: 8,
-                                        color: [1.0, 1.0, 1.0, 0.7])
-                if let b = makeVertexBuffer(cv, device: device) {
-                    clouds.append(Cloud(buffer: b, count: cv.count,
-                                        pos: [cx, cy, cz], driftSpeed: drift))
-                }
-            }
-        }
-
-        func mtkView(_ view: MTKView, drawableSizeWillChange size: CGSize) {
-            aspect = size.width > 0 ? Float(size.width / size.height) : 1
-        }
-
-        func draw(in view: MTKView) {
-            guard let opPipe = opaquePipeline,
-                  let drawable = view.currentDrawable,
-                  let rpd = view.currentRenderPassDescriptor,
-                  let cmdBuf = commandQueue.makeCommandBuffer(),
-                  let enc = cmdBuf.makeRenderCommandEncoder(descriptor: rpd) else { return }
-
-            let t = Float(CACurrentMediaTime() - startTime)
-            let twoPi = Float.pi * 2
-
-            // Island bob
-            let islandY = 0.3 * sin(t * twoPi / 8.0)
-            let islandTrans = m4Translation(0, islandY, 0)
-
-            // Camera orbits at r=12, height=-3 looking up at island
-            let camAngle = t * twoPi / 80.0
-            let eye = SIMD3<Float>(12 * sin(camAngle), -3, 12 * cos(camAngle))
-            let center3 = SIMD3<Float>(0, 0, 0)
-            let view3D = m4LookAt(eye: eye, center: center3, up: [0, 1, 0])
-            let proj   = m4Perspective(fovyRad: 1.0, aspect: aspect, near: 0.1, far: 60)
-
-            var su = SceneUniforms3D(
-                viewProjection:  proj * view3D,
-                sunDirection:    SIMD4<Float>(simd_normalize([-0.4, -0.7, -0.3]), 0),
-                sunColor:        SIMD4<Float>([1.0, 0.97, 0.88], 0),
-                ambientColor:    SIMD4<Float>([0.35, 0.45, 0.55], t),
-                fogParams:       SIMD4<Float>(60, 100, 0, 0),  // essentially no fog (open sky)
-                fogColor:        SIMD4<Float>([0.4, 0.6, 0.85], 0),
-                cameraWorldPos:  SIMD4<Float>(eye, 0)
-            )
-
-            enc.setRenderPipelineState(opPipe)
-            enc.setDepthStencilState(depthState)
-            enc.setCullMode(.back)
-            enc.setVertexBytes(&su, length: MemoryLayout<SceneUniforms3D>.size, index: 1)
-            enc.setFragmentBytes(&su, length: MemoryLayout<SceneUniforms3D>.size, index: 1)
-
-            // Static opaque
-            for call in opaqueCalls {
-                encodeDraw(encoder: enc, vertexBuffer: call.buffer, vertexCount: call.count,
-                           model: call.model)
-            }
-
-            // Island pieces (with bob)
-            for piece in islandPieces {
-                encodeDraw(encoder: enc, vertexBuffer: piece.buffer, vertexCount: piece.count,
-                           model: islandTrans * piece.localModel)
-            }
-
-            // Glow pass: spires, waterfall, clouds
-            if let gp = glowPipeline {
-                enc.setRenderPipelineState(gp)
-                enc.setDepthStencilState(depthROState)
-                enc.setVertexBytes(&su, length: MemoryLayout<SceneUniforms3D>.size, index: 1)
-                enc.setFragmentBytes(&su, length: MemoryLayout<SceneUniforms3D>.size, index: 1)
-
-                // Spires with optional pulse
-                let pulseFrac: Float
-                let pulseAge = t - spirePulseT
-                if pulseAge >= 0 && pulseAge < 0.8 {
-                    pulseFrac = max(0, 1 - pulseAge / 0.8)
-                } else {
-                    pulseFrac = 0
-                }
-                let pulseSin = pulseFrac > 0 ? max(0, sin(pulseAge * .pi / 0.4)) : 0
-
-                for spire in spires {
-                    let em = spire.baseEmissive + SIMD3<Float>(repeating: pulseFrac * 1.5)
-                    let sc = 1.0 + 0.25 * pulseSin
-                    let model = islandTrans * spire.localModel * m4Scale(sc, sc, sc)
-                    encodeDraw(encoder: enc, vertexBuffer: spire.buffer, vertexCount: spire.count,
-                               model: model, emissiveColor: em, emissiveMix: 0.65 + pulseFrac * 0.35,
-                               opacity: 0.65)
-                }
-
-                // Waterfall
-                if let wfBuf = waterfallBuf {
-                    let wfModel = islandTrans * m4Translation(4, -0.75, 0)
-                    encodeDraw(encoder: enc, vertexBuffer: wfBuf, vertexCount: waterfallCount,
-                               model: wfModel, emissiveColor: [0.7, 0.85, 1.0],
-                               emissiveMix: 0.5, opacity: 0.35)
-                }
-
-                // Cloud puffs (slowly drifting)
-                for cloud in clouds {
-                    let driftX = cloud.pos.x + cloud.driftSpeed * t
-                    let wrappedX = driftX.truncatingRemainder(dividingBy: 20.0)
-                    let cx = wrappedX < -10 ? wrappedX + 20 : (wrappedX > 10 ? wrappedX - 20 : wrappedX)
-                    let model = m4Translation(cx, cloud.pos.y, cloud.pos.z)
-                    encodeDraw(encoder: enc, vertexBuffer: cloud.buffer, vertexCount: cloud.count,
-                               model: model, emissiveColor: [0.9, 0.95, 1.0],
-                               emissiveMix: 0.3, opacity: 0.6)
-                }
-            }
-
-            // Particles
-            if let ppipe = particlePipeline {
-                var pv: [ParticleVertex3D] = []
-
-                // Waterfall drops
-                for drop in waterfallDrops {
-                    let fall = (drop.speed * t + drop.phase).truncatingRemainder(dividingBy: 3.0)
-                    let py   = islandY + 0.8 - fall
-                    let px   = Float(4) + drop.xOff
-                    let alpha = 0.5 + 0.3 * sin(t * 2 + drop.phase)
-                    pv.append(ParticleVertex3D(position: [px, py, 0 + drop.xOff * 0.5],
-                                               color: [0.75, 0.88, 1.0, max(0, alpha)], size: 3))
-                }
-
-                // Golden motes: slow rise in y=0..2
-                for m in goldenMotes {
-                    let rise = (t * 0.15 + m.phase).truncatingRemainder(dividingBy: 2.0)
-                    let py   = islandY + rise
-                    let alpha = max(0, 0.7 + 0.3 * sin(t + m.phase))
-                    pv.append(ParticleVertex3D(position: [m.baseX, py, m.baseZ],
-                                               color: [1.0, 0.88, 0.3, alpha], size: 4))
-                }
-
-                if let pbuf = makeParticleBuffer(pv, device: device) {
-                    enc.setRenderPipelineState(ppipe)
-                    enc.setDepthStencilState(depthROState)
-                    enc.setVertexBuffer(pbuf, offset: 0, index: 0)
-                    enc.setVertexBytes(&su, length: MemoryLayout<SceneUniforms3D>.size, index: 1)
-                    enc.drawPrimitives(type: .point, vertexStart: 0, vertexCount: pv.count)
-                }
-            }
-
-            enc.endEncoding()
-            cmdBuf.present(drawable)
-            cmdBuf.commit()
-        }
+        var spires: [SCNNode] = []
     }
 
     func makeCoordinator() -> Coordinator { Coordinator() }
 
-    func makeNSView(context: Context) -> MTKView {
-        let v = MTKView(frame: .zero, device: context.coordinator.device)
-        v.delegate                 = context.coordinator
-        v.colorPixelFormat         = .bgra8Unorm
-        v.depthStencilPixelFormat  = .depth32Float
-        v.clearColor               = MTLClearColor(red: 0.4, green: 0.6, blue: 0.85, alpha: 1)
-        v.preferredFramesPerSecond = 60
-        v.autoResizeDrawable       = true
-        return v
+    func makeNSView(context: Context) -> SCNView {
+        let view = SCNView()
+        let scene = SCNScene()
+        view.scene = scene
+        view.backgroundColor = NSColor(red: 0.4, green: 0.6, blue: 0.85, alpha: 1)
+        view.antialiasingMode = .multisampling4X
+        view.isPlaying = true
+        view.preferredFramesPerSecond = 60
+        view.allowsCameraControl = false
+        buildScene(scene, coord: context.coordinator)
+        return view
     }
 
-    func updateNSView(_ nsView: MTKView, context: Context) {
+    func updateNSView(_ nsView: SCNView, context: Context) {
         let c = context.coordinator
         guard tapCount != c.lastTapCount else { return }
         c.lastTapCount = tapCount
-        c.spirePulseT = Float(CACurrentMediaTime() - c.startTime)
+        for spire in c.spires {
+            let pulse = SCNAction.sequence([
+                SCNAction.scale(to: 1.25, duration: 0.15),
+                SCNAction.scale(to: 0.9, duration: 0.1),
+                SCNAction.scale(to: 1.0, duration: 0.15)
+            ])
+            spire.runAction(pulse)
+        }
+    }
+
+    // MARK: - Scene construction
+
+    private func buildScene(_ scene: SCNScene, coord: Coordinator) {
+        scene.background.contents = NSColor(red: 0.4, green: 0.6, blue: 0.85, alpha: 1)
+        addLighting(to: scene)
+        addIsland(to: scene)
+        addSpires(to: scene, coord: coord)
+        addWaterfall(to: scene)
+        addGoldenMotes(to: scene)
+        addClouds(to: scene)
+        addCamera(to: scene)
+    }
+
+    // MARK: - Lighting
+
+    private func addLighting(to scene: SCNScene) {
+        let ambient = SCNNode()
+        ambient.light = SCNLight()
+        ambient.light!.type = .ambient
+        ambient.light!.intensity = 120
+        ambient.light!.color = NSColor(red: 0.85, green: 0.9, blue: 1.0, alpha: 1)
+        scene.rootNode.addChildNode(ambient)
+
+        let sun = SCNNode()
+        sun.light = SCNLight()
+        sun.light!.type = .directional
+        sun.light!.intensity = 800
+        sun.light!.color = NSColor(red: 1.0, green: 0.97, blue: 0.88, alpha: 1)
+        sun.eulerAngles = SCNVector3(-Float.pi / 4, Float.pi / 6, 0)
+        scene.rootNode.addChildNode(sun)
+    }
+
+    // MARK: - Island
+
+    private func addIsland(to scene: SCNScene) {
+        // Island container – gently bobs
+        let islandPivot = SCNNode()
+        scene.rootNode.addChildNode(islandPivot)
+        let bob = SCNAction.sequence([
+            SCNAction.moveBy(x: 0, y: 0.3, z: 0, duration: 4.0),
+            SCNAction.moveBy(x: 0, y: -0.3, z: 0, duration: 4.0)
+        ])
+        islandPivot.runAction(SCNAction.repeatForever(bob))
+
+        // Green top surface
+        let top = SCNBox(width: 8, height: 1.5, length: 8, chamferRadius: 0.2)
+        let topMat = SCNMaterial()
+        topMat.diffuse.contents = NSColor(red: 0.28, green: 0.55, blue: 0.22, alpha: 1)
+        let sideMat = SCNMaterial()
+        sideMat.diffuse.contents = NSColor(red: 0.42, green: 0.28, blue: 0.15, alpha: 1)
+        top.materials = [topMat, sideMat, sideMat, sideMat, sideMat, sideMat]
+        let topNode = SCNNode(geometry: top)
+        topNode.position = SCNVector3(0, 0, 0)
+        islandPivot.addChildNode(topNode)
+
+        // Rocky underside main
+        let under = SCNBox(width: 7, height: 2, length: 7, chamferRadius: 0.3)
+        let rockMat = SCNMaterial()
+        rockMat.diffuse.contents = NSColor(red: 0.40, green: 0.35, blue: 0.28, alpha: 1)
+        under.materials = [rockMat]
+        let underNode = SCNNode(geometry: under)
+        underNode.position = SCNVector3(0, -1.8, 0)
+        islandPivot.addChildNode(underNode)
+
+        // Jagged chunks below
+        var rng = SplitMix64(seed: 3333)
+        for _ in 0..<6 {
+            let w = Float(0.8 + rng.nextDouble() * 1.5)
+            let h = Float(0.5 + rng.nextDouble() * 1.2)
+            let d = Float(0.8 + rng.nextDouble() * 1.5)
+            let chunk = SCNBox(width: CGFloat(w), height: CGFloat(h), length: CGFloat(d), chamferRadius: 0.15)
+            chunk.materials = [rockMat]
+            let chunkNode = SCNNode(geometry: chunk)
+            chunkNode.position = SCNVector3(
+                Float(rng.nextDouble() * 5 - 2.5),
+                -3.0 - Float(rng.nextDouble() * 1.0),
+                Float(rng.nextDouble() * 5 - 2.5)
+            )
+            chunkNode.eulerAngles = SCNVector3(
+                Float(rng.nextDouble() * 0.4 - 0.2),
+                Float(rng.nextDouble() * Double.pi),
+                Float(rng.nextDouble() * 0.4 - 0.2)
+            )
+            islandPivot.addChildNode(chunkNode)
+        }
+    }
+
+    // MARK: - Spires
+
+    private func addSpires(to scene: SCNScene, coord: Coordinator) {
+        let spirePositions: [(Float, Float, Float)] = [
+            (-3.0, 0.75, -3.0),
+            ( 3.0, 0.75, -3.0),
+            (-3.0, 0.75,  3.0),
+            ( 3.0, 0.75,  3.0),
+            ( 0.0, 0.75,  0.0)
+        ]
+        let spireMat = SCNMaterial()
+        spireMat.diffuse.contents = NSColor(red: 0.75, green: 0.88, blue: 1.0, alpha: 0.6)
+        spireMat.emission.contents = NSColor(red: 0.4, green: 0.6, blue: 0.9, alpha: 0.5)
+        spireMat.transparency = 0.4
+        spireMat.lightingModel = .constant
+        spireMat.isDoubleSided = true
+
+        // Find island pivot (first child of rootNode that's doing the bob)
+        let islandPivot = scene.rootNode.childNodes.first ?? scene.rootNode
+
+        for pos in spirePositions {
+            let pyramid = SCNPyramid(width: 0.6, height: 2.5, length: 0.6)
+            pyramid.materials = [spireMat]
+            let spireNode = SCNNode(geometry: pyramid)
+            spireNode.position = SCNVector3(pos.0, pos.1, pos.2)
+            scene.rootNode.addChildNode(spireNode)
+            coord.spires.append(spireNode)
+
+            // Subtle pulsing emissive
+            let pulseAction = SCNAction.sequence([
+                SCNAction.customAction(duration: 1.5) { node, t in
+                    let intensity = Float(0.3 + 0.25 * sin(Float(t) * Float.pi))
+                    node.geometry?.materials.first?.emission.contents = NSColor(
+                        red: CGFloat(0.4 * intensity),
+                        green: CGFloat(0.6 * intensity),
+                        blue: CGFloat(0.9 * intensity),
+                        alpha: 1
+                    )
+                },
+                SCNAction.customAction(duration: 1.5) { node, t in
+                    let intensity = Float(0.55 - 0.25 * sin(Float(t) * Float.pi))
+                    node.geometry?.materials.first?.emission.contents = NSColor(
+                        red: CGFloat(0.4 * intensity),
+                        green: CGFloat(0.6 * intensity),
+                        blue: CGFloat(0.9 * intensity),
+                        alpha: 1
+                    )
+                }
+            ])
+            spireNode.runAction(SCNAction.repeatForever(pulseAction))
+        }
+    }
+
+    // MARK: - Waterfall
+
+    private func addWaterfall(to scene: SCNScene) {
+        let fallPlane = SCNPlane(width: 0.5, height: 3)
+        let fallMat = SCNMaterial()
+        fallMat.diffuse.contents = NSColor(red: 0.7, green: 0.85, blue: 1.0, alpha: 0.35)
+        fallMat.emission.contents = NSColor(red: 0.4, green: 0.6, blue: 0.9, alpha: 0.25)
+        fallMat.isDoubleSided = true
+        fallPlane.materials = [fallMat]
+        let fallNode = SCNNode(geometry: fallPlane)
+        fallNode.position = SCNVector3(4.0, -0.75, 0)
+        scene.rootNode.addChildNode(fallNode)
+
+        // Water drop particles
+        let ps = SCNParticleSystem()
+        ps.birthRate = 40
+        ps.particleLifeSpan = 1.8
+        ps.emitterShape = SCNPlane(width: 0.4, height: 0.1)
+        ps.particleSize = 0.06
+        ps.particleColor = NSColor(red: 0.75, green: 0.88, blue: 1.0, alpha: 0.8)
+        ps.isAffectedByGravity = true
+        ps.particleVelocity = 2.0
+        ps.spreadingAngle = 8
+        let waterNode = SCNNode()
+        waterNode.position = SCNVector3(4.0, 0.75, 0)
+        waterNode.eulerAngles = SCNVector3(-Float.pi / 2, 0, 0)
+        scene.rootNode.addChildNode(waterNode)
+        waterNode.addParticleSystem(ps)
+    }
+
+    // MARK: - Golden Motes
+
+    private func addGoldenMotes(to scene: SCNScene) {
+        let ps = SCNParticleSystem()
+        ps.birthRate = 8
+        ps.particleLifeSpan = 4.0
+        ps.emitterShape = SCNBox(width: 7, height: 0.5, length: 7, chamferRadius: 0)
+        ps.particleSize = 0.05
+        ps.particleColor = NSColor(red: 1.0, green: 0.88, blue: 0.3, alpha: 0.9)
+        ps.isAffectedByGravity = false
+        ps.particleVelocity = 0.6
+        ps.spreadingAngle = 40
+        let motesNode = SCNNode()
+        motesNode.position = SCNVector3(0, 0.8, 0)
+        scene.rootNode.addChildNode(motesNode)
+        motesNode.addParticleSystem(ps)
+    }
+
+    // MARK: - Clouds
+
+    private func addClouds(to scene: SCNScene) {
+        var rng = SplitMix64(seed: 4321)
+        for _ in 0..<12 {
+            let sphere = SCNSphere(radius: CGFloat(0.2 + rng.nextDouble() * 0.15))
+            let mat = SCNMaterial()
+            mat.diffuse.contents = NSColor(red: 1.0, green: 1.0, blue: 1.0, alpha: 0.7)
+            mat.emission.contents = NSColor(red: 0.85, green: 0.85, blue: 0.9, alpha: 0.3)
+            sphere.materials = [mat]
+            let cloudNode = SCNNode(geometry: sphere)
+            cloudNode.position = SCNVector3(
+                Float(rng.nextDouble() * 20 - 10),
+                Float(-4.0 - rng.nextDouble() * 3),
+                Float(rng.nextDouble() * 20 - 10)
+            )
+            scene.rootNode.addChildNode(cloudNode)
+            let drift = SCNAction.moveBy(x: CGFloat(1.5 + rng.nextDouble()), y: 0, z: 0, duration: 12 + rng.nextDouble() * 8)
+            cloudNode.runAction(SCNAction.repeatForever(SCNAction.sequence([drift, SCNAction.moveBy(x: CGFloat(-3.0 - rng.nextDouble() * 0.5), y: 0, z: 0, duration: 0.0), drift])))
+        }
+    }
+
+    // MARK: - Camera
+
+    private func addCamera(to scene: SCNScene) {
+        let pivot = SCNNode()
+        pivot.position = SCNVector3(0, 0, 0)
+        scene.rootNode.addChildNode(pivot)
+
+        let cameraNode = SCNNode()
+        cameraNode.camera = SCNCamera()
+        cameraNode.camera!.zFar = 60
+        cameraNode.camera!.fieldOfView = 70
+        cameraNode.position = SCNVector3(0, -3, 12)
+        cameraNode.eulerAngles = SCNVector3(0.18, 0, 0)
+        pivot.addChildNode(cameraNode)
+
+        let orbit = SCNAction.rotateBy(x: 0, y: CGFloat(Double.pi * 2), z: 0, duration: 80)
+        pivot.runAction(SCNAction.repeatForever(orbit))
     }
 }

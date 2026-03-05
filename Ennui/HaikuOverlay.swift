@@ -2,8 +2,6 @@ import SwiftUI
 import FoundationModels
 
 actor HaikuGenerator {
-    private var session: LanguageModelSession?
-
     func generate(for scene: SceneKind) async -> String? {
         let themes: [SceneKind: String] = [
             .cosmicDrift: "gently drifting through warm nebulae and twinkling stars",
@@ -78,16 +76,21 @@ actor HaikuGenerator {
             .nonsenseLullabies3D: "a three-dimensional watercolour world like a pop-up picture book, soft painted shapes with gentle depth — moons, stars, cats, little houses — paper texture visible on the surfaces, paint drips running slowly, the gentle nonsense of bedtime stories made spatial",
             .innerLight3D: "warm glowing geometric forms floating in deep indigo space, faceted crystalline icosahedra connected by luminous golden filaments that pulse softly, tiny motes rising from below like thoughts forming, the quiet inner space of a mind that thinks in patterns and light",
             .wireframeCity3D: "a green phosphor wireframe cityscape on pure black, glowing vector-graphic buildings viewed from a slow flyover, a scrolling grid floor underneath, the whole scene looks like a nineteen-eighties vector display terminal, scan lines faintly visible, the iconic early-CG aesthetic of wireframe worlds",
+            .rotatingAerial3D: "a rooftop TV antenna on a motorised rotator turning slowly against a dark dusk sky full of stars, the classic Yagi-Uda aerial with its boom and director elements, a small television set on the shingles shows static that clears into warm colour when the aerial finds a broadcast signal, warm window light from below, the nostalgic ritual of tuning an outdoor aerial in rural Canada in the late nineteen-eighties",
+            .lastAndFirstMen3D: "an abstract art deco retelling of Olaf Stapledon's Last and First Men, eighteen human species as glowing geometric forms strung in a luminous arc from a blue Earth to a golden Venus to an icy Neptune, three great Kardashev rings pulsing around the solar system, a central art deco obelisk marking the axis of two billion years, seed particles drifting from Neptune into the cosmos",
+            .murmuration: "an emergent murmuration of hundreds of boids against a dark sky, each following three simple rules — stay close, steer together, don't crowd — warm cream dots forming a single breathing organism, the beauty of emergence from simplicity",
+            .murmuration3D: "a three-dimensional murmuration of small bird-like triangles turning and folding through dark space, an orbiting camera watching hundreds of boids follow three rules and become one breathing organism, warm cream shapes against deep indigo",
+            .silicaBench3D: "a vast golden cathedral-rotunda in the style of a 2003 GPU benchmark, the camera on a Catmull-Rom spline rail gliding between thirty-two pillars under a great dome, a celestial orrery with concentric torus rings and orbiting planets spinning around a pulsing golden sun, forty floating crystal octahedra catching warm light, six thousand golden embers rising like fireflies",
         ]
         let theme = themes[scene] ?? "a peaceful calming moment"
 
         do {
             let session = LanguageModelSession()
-            self.session = session
 
             let prompt = """
             Write a single short calming haiku (3 lines, 5-7-5 syllables) about: \(theme). \
             It must be innocent, kind, gentle, and comforting. Nothing dark or sad. \
+            No religious references. \
             Only output the haiku, nothing else. No title, no quotes.
             """
 
@@ -327,7 +330,7 @@ struct HaikuOverlayView: View {
         ],
         .lushRuins3D: [
             "Waterfalls have depth\nCascading past carved stone walls\nMoss on every face",
-            "God rays pierce the leaves\nThe jungle temple towers\nButterflies orbit",
+            "Warm light pierce the leaves\nThe jungle temple towers\nButterflies orbit",
             "Stone and vine embrace\nIn three dimensions of growth\nThe ruin still stands",
         ],
         .auroraBorealis3D: [
@@ -464,6 +467,31 @@ struct HaikuOverlayView: View {
             "Green lines trace the dark\nA city made of nothing\nBut math and phosphor",
             "Vector buildings glow\nThe grid scrolls beneath my feet\nNineteen eighty-one",
             "Wireframe skyline hums\nEach edge a single photon\nThe future was green",
+        ],
+        .rotatingAerial3D: [
+            "The aerial turns\nSearching the sky for voices\nStatic becomes song",
+            "On the roof at dusk\nThe motor hums, channels drift\nSignals find their way",
+            "Stars above, snow below\nThe antenna knows the way\nTo a clear picture",
+        ],
+        .lastAndFirstMen3D: [
+            "Eighteen kinds of us\nOrbiting the same soft light\nTime is very long",
+            "From Earth to Venus\nFrom Venus to cold Neptune\nWe were always this",
+            "The last ones send seeds\nInto the dark between stars\nLife continues on",
+        ],
+        .murmuration: [
+            "Dark shapes wheel as one\nThe sky remembers a thought\nIt almost finished",
+            "Each bird only knows\nThe few beside it and yet\nThe whole sky responds",
+            "They turn together\nNo leader among the flock\nJust trust and motion",
+        ],
+        .murmuration3D: [
+            "From below they seem\nLike a single breathing thing\nForgetting themselves",
+            "The mathematics\nOf togetherness is just\nStay close and keep up",
+            "Simple rules make this\nEach one trusting what is near\nBeauty none designed",
+        ],
+        .silicaBench3D: [
+            "Gold columns hold up\nA dome that holds up the dark\nThe embers don't mind",
+            "Rings within bright rings\nEach planet knows where to go\nThe clock turns itself",
+            "The camera glides\nThrough a cathedral of light\nWe just watch it move",
         ],
     ]
 

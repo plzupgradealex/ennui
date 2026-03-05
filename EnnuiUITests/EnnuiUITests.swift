@@ -1,7 +1,8 @@
 import XCTest
 
-// Total scene count — update when adding scenes
-private let kSceneCount = 36
+// Total scene count — must match SceneKind.allCases.count in SceneType.swift.
+// 2D: 36 scenes, 3D: 39 scenes = 75 total (as of March 2026)
+private let kSceneCount = 75
 
 final class EnnuiUITests: XCTestCase {
     let app = XCUIApplication()

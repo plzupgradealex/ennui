@@ -1,243 +1,343 @@
-// GouraudSolarSystem3DScene — Metal 3D solar system: central star, orbiting planets, star-field particles.
-// Tap: shimmer pulse on all planets; every 5th tap adds a new planet.
+// GouraudSolarSystem3DScene — Retro solar system with 6 orbiting planets.
+// Central star, phong-lit planets with rings, 200 stars, camera orbit.
+// Tap to shimmer all planets (scale pulse).
 
 import SwiftUI
-import MetalKit
+import SceneKit
 
 struct GouraudSolarSystem3DScene: View {
     @ObservedObject var interaction: InteractionState
-    var body: some View { GouraudSolarSystem3DRepresentable(interaction: interaction) }
+
+    var body: some View {
+        GouraudSolarSystem3DRepresentable(interaction: interaction, tapCount: interaction.tapCount)
+    }
 }
 
+// MARK: - NSViewRepresentable
+
 private struct GouraudSolarSystem3DRepresentable: NSViewRepresentable {
-    @ObservedObject var interaction: InteractionState
+    var interaction: InteractionState
+    var tapCount: Int
 
-    final class Coordinator: NSObject, MTKViewDelegate {
-        let device: MTLDevice
-        let commandQueue: MTLCommandQueue
-        var opaquePipeline:   MTLRenderPipelineState?
-        var glowPipeline:     MTLRenderPipelineState?
-        var particlePipeline: MTLRenderPipelineState?
-        var depthState:       MTLDepthStencilState?
-        var depthROState:     MTLDepthStencilState?
-
-        struct PlanetData {
-            var buf: MTLBuffer; var count: Int
-            var orbitRadius: Float; var period: Float
-            var color: SIMD4<Float>; var emissiveCol: SIMD3<Float>
-            var ringBuf: MTLBuffer?; var ringCount: Int
-        }
-
-        var starBuf: MTLBuffer?
-        var starCount = 0
-        var planets: [PlanetData] = []
-
-        var bgStarPositions:  [SIMD3<Float>] = []
-        var bgStarBrightness: [Float] = []
-        var bgStarSizes:      [Float] = []
-
-        var shimmerT: Float = -999
-        var nextOrbitRadius: Float = 18.0
-        var tapMod5Count = 0
+    final class Coordinator: NSObject {
         var lastTapCount = 0
-        var startTime: CFTimeInterval = CACurrentMediaTime()
-        var aspect: Float = 1
-
-        override init() {
-            device = MTLCreateSystemDefaultDevice()!
-            commandQueue = device.makeCommandQueue()!
-            super.init()
-            do {
-                opaquePipeline   = try makeOpaquePipeline(device: device)
-                glowPipeline     = try makeAlphaBlendPipeline(device: device)
-                particlePipeline = try makeParticlePipeline(device: device)
-            } catch { print("GouraudSolarSystem3D pipeline error: \(error)") }
-            depthState   = makeDepthState(device: device)
-            depthROState = makeDepthReadOnlyState(device: device)
-            buildScene()
-        }
-
-        private func buildScene() {
-            let starVerts = buildSphere(radius: 1.2, rings: 16, segments: 24,
-                                        color: SIMD4<Float>(1.0, 0.85, 0.3, 1))
-            starBuf = makeVertexBuffer(starVerts, device: device)
-            starCount = starVerts.count
-
-            let configs: [(orbitR: Float, size: Float, period: Float, color: SIMD4<Float>, ring: Bool)] = [
-                (3.5,  0.35, 18,   [0.50, 0.55, 0.65, 1], false),
-                (5.5,  0.55, 28,   [0.65, 0.30, 0.20, 1], false),
-                (7.5,  0.45, 40,   [0.20, 0.50, 0.55, 1], true),
-                (10.0, 0.70, 55,   [0.75, 0.65, 0.38, 1], true),
-                (13.0, 0.30, 75,   [0.60, 0.78, 0.95, 1], false),
-                (16.0, 0.25, 100,  [0.50, 0.40, 0.60, 1], false),
-            ]
-            for cfg in configs {
-                let verts = buildSphere(radius: cfg.size, rings: 12, segments: 16, color: cfg.color)
-                guard let buf = makeVertexBuffer(verts, device: device) else { continue }
-                let ec = SIMD3<Float>(cfg.color.x, cfg.color.y, cfg.color.z) * 0.35
-                var ringBuf: MTLBuffer? = nil
-                var ringCount = 0
-                if cfg.ring {
-                    let rc: SIMD4<Float> = [cfg.color.x * 0.85, cfg.color.y * 0.85, cfg.color.z * 0.7, 0.65]
-                    let rv = buildCylinder(radius: cfg.size * 1.85, height: 0.04, segments: 24, color: rc)
-                    ringBuf   = makeVertexBuffer(rv, device: device)
-                    ringCount = rv.count
-                }
-                planets.append(PlanetData(buf: buf, count: verts.count,
-                                          orbitRadius: cfg.orbitR, period: cfg.period,
-                                          color: cfg.color, emissiveCol: ec,
-                                          ringBuf: ringBuf, ringCount: ringCount))
-            }
-
-            var rng = SplitMix64(seed: 99)
-            for _ in 0..<200 {
-                let theta = Float(rng.nextDouble()) * 2 * Float.pi
-                let phi   = Float(rng.nextDouble()) * Float.pi
-                let r     = Float(rng.nextDouble()) * 10 + 30
-                bgStarPositions.append(SIMD3<Float>(
-                    r * sin(phi) * cos(theta),
-                    r * sin(phi) * sin(theta),
-                    r * cos(phi)
-                ))
-                bgStarBrightness.append(Float(rng.nextDouble()) * 0.6 + 0.4)
-                bgStarSizes.append(Float(rng.nextDouble()) * 2.0 + 1.5)
-            }
-        }
-
-        func addPlanet() {
-            let r = nextOrbitRadius
-            let period = r * 7.0
-            var rng = SplitMix64(seed: UInt64(r * 137))
-            let c = SIMD4<Float>(Float(rng.nextDouble()) * 0.6 + 0.35,
-                                 Float(rng.nextDouble()) * 0.6 + 0.25,
-                                 Float(rng.nextDouble()) * 0.6 + 0.30, 1)
-            let verts = buildSphere(radius: 0.32, rings: 12, segments: 16, color: c)
-            guard let buf = makeVertexBuffer(verts, device: device) else { return }
-            let ec = SIMD3<Float>(c.x, c.y, c.z) * 0.25
-            planets.append(PlanetData(buf: buf, count: verts.count,
-                                      orbitRadius: r, period: period,
-                                      color: c, emissiveCol: ec,
-                                      ringBuf: nil, ringCount: 0))
-            nextOrbitRadius += 2.5
-        }
-
-        func mtkView(_ view: MTKView, drawableSizeWillChange size: CGSize) {
-            aspect = size.width > 0 ? Float(size.width / size.height) : 1
-        }
-
-        func draw(in view: MTKView) {
-            guard let opaque = opaquePipeline,
-                  let glow = glowPipeline,
-                  let drawable = view.currentDrawable,
-                  let rpd = view.currentRenderPassDescriptor,
-                  let cmdBuf = commandQueue.makeCommandBuffer(),
-                  let enc = cmdBuf.makeRenderCommandEncoder(descriptor: rpd) else { return }
-
-            let t = Float(CACurrentMediaTime() - startTime)
-            let camAngle = t * 2 * Float.pi / 80
-            let eye = SIMD3<Float>(20 * cos(camAngle), 7, 20 * sin(camAngle))
-            let proj = m4Perspective(fovyRad: 0.65, aspect: aspect, near: 0.1, far: 200)
-            let viewM = m4LookAt(eye: eye, center: .zero, up: SIMD3<Float>(0, 1, 0))
-            let vp = proj * viewM
-
-            let shimmerAge  = t - shimmerT
-            let shimmerBoost = max(0, 1 - shimmerAge / 1.5)
-
-            let sunDir = SIMD4<Float>(simd_normalize(SIMD3<Float>(0.4, 1.0, 0.3)), 0)
-            var su = SceneUniforms3D(
-                viewProjection: vp,
-                sunDirection:   sunDir,
-                sunColor:       SIMD4<Float>(1.0, 0.95, 0.8, 1),
-                ambientColor:   SIMD4<Float>(0.03, 0.03, 0.08, t),
-                fogParams:      SIMD4<Float>(60, 130, 0, 0),
-                fogColor:       SIMD4<Float>(0, 0, 0.01, 1),
-                cameraWorldPos: SIMD4<Float>(eye, 0)
-            )
-
-            enc.setCullMode(.back)
-            enc.setDepthStencilState(depthState)
-            enc.setRenderPipelineState(opaque)
-            enc.setVertexBytes(&su, length: MemoryLayout<SceneUniforms3D>.size, index: 1)
-            enc.setFragmentBytes(&su, length: MemoryLayout<SceneUniforms3D>.size, index: 1)
-
-            // Central star (emissive)
-            if let sb = starBuf {
-                encodeDraw(encoder: enc, vertexBuffer: sb, vertexCount: starCount,
-                           model: matrix_identity_float4x4,
-                           emissiveColor: SIMD3<Float>(1.0, 0.65, 0.15), emissiveMix: 0.95)
-            }
-
-            // Planets
-            for pd in planets {
-                let angle = t * 2 * Float.pi / pd.period
-                let model = m4Translation(pd.orbitRadius * cos(angle), 0, pd.orbitRadius * sin(angle))
-                let emMix = 0.08 + shimmerBoost * 0.85
-                encodeDraw(encoder: enc, vertexBuffer: pd.buf, vertexCount: pd.count,
-                           model: model, emissiveColor: pd.emissiveCol, emissiveMix: emMix)
-            }
-
-            // Rings (alpha-blended)
-            enc.setRenderPipelineState(glow)
-            enc.setDepthStencilState(depthROState)
-            enc.setVertexBytes(&su, length: MemoryLayout<SceneUniforms3D>.size, index: 1)
-            enc.setFragmentBytes(&su, length: MemoryLayout<SceneUniforms3D>.size, index: 1)
-            for pd in planets {
-                guard let rb = pd.ringBuf else { continue }
-                let angle = t * 2 * Float.pi / pd.period
-                let model = m4Translation(pd.orbitRadius * cos(angle), 0, pd.orbitRadius * sin(angle))
-                            * m4RotX(0.35)
-                encodeDraw(encoder: enc, vertexBuffer: rb, vertexCount: pd.ringCount,
-                           model: model, opacity: 0.7)
-            }
-
-            // Background star particles
-            if let ppipe = particlePipeline {
-                var pv: [ParticleVertex3D] = []
-                pv.reserveCapacity(bgStarPositions.count)
-                for i in 0..<bgStarPositions.count {
-                    let b = bgStarBrightness[i]
-                    pv.append(ParticleVertex3D(
-                        position: bgStarPositions[i],
-                        color: SIMD4<Float>(b, b * 0.95, b * 0.85, 1),
-                        size: bgStarSizes[i]
-                    ))
-                }
-                if let pbuf = makeParticleBuffer(pv, device: device) {
-                    enc.setRenderPipelineState(ppipe)
-                    enc.setDepthStencilState(depthROState)
-                    enc.setVertexBuffer(pbuf, offset: 0, index: 0)
-                    enc.setVertexBytes(&su, length: MemoryLayout<SceneUniforms3D>.size, index: 1)
-                    enc.drawPrimitives(type: .point, vertexStart: 0, vertexCount: pv.count)
-                }
-            }
-
-            enc.endEncoding()
-            cmdBuf.present(drawable)
-            cmdBuf.commit()
-        }
+        var planetNodes: [SCNNode] = []
+        var sceneRef: SCNScene?
+        var nextOrbitRadius: Float = 19.0
+        var idCounter = 100
     }
 
     func makeCoordinator() -> Coordinator { Coordinator() }
 
-    func makeNSView(context: Context) -> MTKView {
-        let v = MTKView(frame: .zero, device: context.coordinator.device)
-        v.delegate = context.coordinator
-        v.colorPixelFormat = .bgra8Unorm
-        v.depthStencilPixelFormat = .depth32Float
-        v.clearColor = MTLClearColor(red: 0, green: 0, blue: 0.02, alpha: 1)
-        v.preferredFramesPerSecond = 60
-        v.autoResizeDrawable = true
-        return v
+    func makeNSView(context: Context) -> SCNView {
+        let view = SCNView()
+        let scene = SCNScene()
+        view.scene = scene
+        view.backgroundColor = NSColor(red: 0.0, green: 0.0, blue: 0.02, alpha: 1)
+        view.antialiasingMode = .multisampling4X
+        view.isPlaying = true
+        view.preferredFramesPerSecond = 60
+        view.allowsCameraControl = false
+        buildScene(scene, coord: context.coordinator)
+        context.coordinator.sceneRef = scene
+
+        // Configure camera controller for tidally-locked star orbit
+        let cc = view.defaultCameraController
+        cc.interactionMode = .orbitTurntable
+        cc.inertiaEnabled = true
+        cc.minimumVerticalAngle = -60
+        cc.maximumVerticalAngle = 60
+        cc.automaticTarget = false  // lock orbit center to star at origin
+        return view
     }
 
-    func updateNSView(_ nsView: MTKView, context: Context) {
+    func updateNSView(_ nsView: SCNView, context: Context) {
         let c = context.coordinator
-        guard interaction.tapCount != c.lastTapCount else { return }
-        c.lastTapCount = interaction.tapCount
-        c.shimmerT = Float(CACurrentMediaTime() - c.startTime)
-        c.tapMod5Count += 1
-        if c.tapMod5Count % 5 == 0 {
-            c.addPlanet()
+        guard tapCount != c.lastTapCount else { return }
+        c.lastTapCount = tapCount
+
+        var rng = SplitMix64(seed: UInt64(tapCount * 53 + 7))
+        let roll = rng.nextDouble()
+
+        if roll < 0.80 {
+            // ~80%: shimmer all planets
+            for planet in c.planetNodes {
+                let shimmer = SCNAction.sequence([
+                    SCNAction.scale(to: 1.2, duration: 0.15),
+                    SCNAction.scale(to: 0.9, duration: 0.1),
+                    SCNAction.scale(to: 1.0, duration: 0.15)
+                ])
+                planet.runAction(shimmer)
+            }
+        } else if roll < 0.90, let scene = c.sceneRef {
+            // ~10%: add a new planet
+            let hue = rng.nextDouble()
+            let radius = CGFloat(0.2 + rng.nextDouble() * 0.55)
+            let orbitR = c.nextOrbitRadius
+            c.nextOrbitRadius += Float(1.5 + rng.nextDouble() * 2.0)
+            let orbitDur = Double(20 + rng.nextDouble() * 80)
+            let hasRing = rng.nextDouble() > 0.6
+
+            let pivot = SCNNode()
+            pivot.eulerAngles.y = CGFloat(rng.nextDouble() * Double.pi * 2)
+            scene.rootNode.addChildNode(pivot)
+            pivot.runAction(SCNAction.repeatForever(
+                SCNAction.rotateBy(x: 0, y: CGFloat(Double.pi * 2), z: 0, duration: orbitDur)
+            ))
+
+            let sphere = SCNSphere(radius: radius)
+            let mat = SCNMaterial()
+            mat.diffuse.contents = NSColor(
+                hue: CGFloat(hue), saturation: CGFloat(0.3 + rng.nextDouble() * 0.4),
+                brightness: CGFloat(0.4 + rng.nextDouble() * 0.4), alpha: 1)
+            mat.lightingModel = .phong; mat.shininess = 80
+            sphere.materials = [mat]
+            let pn = SCNNode(geometry: sphere)
+            pn.position = SCNVector3(orbitR, 0, 0)
+            pivot.addChildNode(pn)
+            c.planetNodes.append(pn)
+
+            pn.runAction(SCNAction.repeatForever(
+                SCNAction.rotateBy(x: 0, y: CGFloat(Double.pi * 2), z: 0, duration: 5 + rng.nextDouble() * 6)
+            ))
+
+            if hasRing {
+                let torus = SCNTorus(ringRadius: radius * 1.8, pipeRadius: radius * 0.12)
+                let rm = SCNMaterial()
+                rm.diffuse.contents = NSColor(
+                    hue: CGFloat(hue + 0.05), saturation: 0.3, brightness: 0.5, alpha: 0.6)
+                rm.isDoubleSided = true
+                torus.materials = [rm]
+                let rn = SCNNode(geometry: torus)
+                rn.eulerAngles = SCNVector3(CGFloat.pi / 6, 0, CGFloat.pi / 10)
+                pn.addChildNode(rn)
+            }
+
+            // Shimmer the new planet
+            pn.runAction(SCNAction.sequence([
+                SCNAction.scale(to: 1.3, duration: 0.15),
+                SCNAction.scale(to: 1.0, duration: 0.2)
+            ]))
+        } else if !c.planetNodes.isEmpty, let scene = c.sceneRef {
+            // ~10%: add a moon to a random planet
+            let idx = Int(rng.nextDouble() * Double(c.planetNodes.count)) % c.planetNodes.count
+            let parent = c.planetNodes[idx]
+            let parentRadius = (parent.geometry as? SCNSphere)?.radius ?? 0.4
+            let moonR = CGFloat(0.06 + rng.nextDouble() * 0.12)
+            let moonOrbitR = parentRadius * CGFloat(2.0 + rng.nextDouble() * 2.0)
+
+            let moonPivot = SCNNode()
+            moonPivot.eulerAngles.y = CGFloat(rng.nextDouble() * Double.pi * 2)
+            parent.addChildNode(moonPivot)
+            moonPivot.runAction(SCNAction.repeatForever(
+                SCNAction.rotateBy(x: 0, y: CGFloat(Double.pi * 2), z: 0, duration: 3 + rng.nextDouble() * 5)
+            ))
+
+            let moonSphere = SCNSphere(radius: moonR)
+            let mm = SCNMaterial()
+            mm.diffuse.contents = NSColor(white: CGFloat(0.5 + rng.nextDouble() * 0.3), alpha: 1)
+            mm.lightingModel = .phong; mm.shininess = 60
+            moonSphere.materials = [mm]
+            let mn = SCNNode(geometry: moonSphere)
+            mn.position = SCNVector3(moonOrbitR, 0, 0)
+            moonPivot.addChildNode(mn)
+
+            // Shimmer the parent
+            parent.runAction(SCNAction.sequence([
+                SCNAction.scale(to: 1.15, duration: 0.12),
+                SCNAction.scale(to: 1.0, duration: 0.15)
+            ]))
+        }
+    }
+
+    // MARK: - Scene construction
+
+    private func buildScene(_ scene: SCNScene, coord: Coordinator) {
+        scene.background.contents = NSColor(red: 0.0, green: 0.0, blue: 0.02, alpha: 1)
+        addStar(to: scene)
+        addPlanets(to: scene, coord: coord)
+        addStars(to: scene)
+        addCamera(to: scene)
+    }
+
+    // MARK: - Central Star
+
+    private func addStar(to scene: SCNScene) {
+        let sphere = SCNSphere(radius: 1.2)
+        let mat = SCNMaterial()
+        mat.diffuse.contents = NSColor(red: 1.0, green: 0.82, blue: 0.3, alpha: 1)
+        mat.emission.contents = NSColor(red: 1.0, green: 0.65, blue: 0.15, alpha: 1)
+        mat.lightingModel = .constant
+        sphere.materials = [mat]
+        let starNode = SCNNode(geometry: sphere)
+        starNode.name = "star"
+        starNode.position = SCNVector3(0, 0, 0)
+        scene.rootNode.addChildNode(starNode)
+
+        // Self-rotation
+        let rot = SCNAction.rotateBy(x: 0, y: CGFloat(Double.pi * 2), z: 0, duration: 20)
+        starNode.runAction(SCNAction.repeatForever(rot))
+
+        // Strong omni light from star
+        let starLight = SCNNode()
+        starLight.light = SCNLight()
+        starLight.light!.type = .omni
+        starLight.light!.intensity = 1200
+        starLight.light!.color = NSColor(red: 1.0, green: 0.92, blue: 0.7, alpha: 1)
+        starLight.light!.attenuationStartDistance = 1.5
+        starLight.light!.attenuationEndDistance = 30
+        starLight.position = SCNVector3(0, 0, 0)
+        scene.rootNode.addChildNode(starLight)
+
+        // Faint ambient
+        let ambient = SCNNode()
+        ambient.light = SCNLight()
+        ambient.light!.type = .ambient
+        ambient.light!.intensity = 15
+        ambient.light!.color = NSColor(red: 0.1, green: 0.1, blue: 0.2, alpha: 1)
+        scene.rootNode.addChildNode(ambient)
+    }
+
+    // MARK: - Planets
+
+    private struct PlanetConfig {
+        let radius: CGFloat
+        let color: NSColor
+        let orbitRadius: Float
+        let orbitDuration: Double
+        let hasRing: Bool
+        let ringRadius: CGFloat
+        let pipeRadius: CGFloat
+    }
+
+    private func addPlanets(to scene: SCNScene, coord: Coordinator) {
+        let configs: [PlanetConfig] = [
+            PlanetConfig(radius: 0.35,
+                         color: NSColor(red: 0.5, green: 0.55, blue: 0.65, alpha: 1),
+                         orbitRadius: 3.5, orbitDuration: 18,
+                         hasRing: false, ringRadius: 0, pipeRadius: 0),
+            PlanetConfig(radius: 0.55,
+                         color: NSColor(red: 0.65, green: 0.3, blue: 0.2, alpha: 1),
+                         orbitRadius: 5.5, orbitDuration: 28,
+                         hasRing: false, ringRadius: 0, pipeRadius: 0),
+            PlanetConfig(radius: 0.45,
+                         color: NSColor(red: 0.2, green: 0.5, blue: 0.55, alpha: 1),
+                         orbitRadius: 7.5, orbitDuration: 40,
+                         hasRing: true, ringRadius: 0.7, pipeRadius: 0.05),
+            PlanetConfig(radius: 0.70,
+                         color: NSColor(red: 0.75, green: 0.65, blue: 0.38, alpha: 1),
+                         orbitRadius: 10.0, orbitDuration: 55,
+                         hasRing: true, ringRadius: 1.1, pipeRadius: 0.08),
+            PlanetConfig(radius: 0.30,
+                         color: NSColor(red: 0.6, green: 0.78, blue: 0.95, alpha: 1),
+                         orbitRadius: 13.0, orbitDuration: 75,
+                         hasRing: false, ringRadius: 0, pipeRadius: 0),
+            PlanetConfig(radius: 0.25,
+                         color: NSColor(red: 0.5, green: 0.4, blue: 0.6, alpha: 1),
+                         orbitRadius: 16.0, orbitDuration: 100,
+                         hasRing: false, ringRadius: 0, pipeRadius: 0),
+        ]
+
+        var rng = SplitMix64(seed: 2222)
+        for (i, cfg) in configs.enumerated() {
+            let pivot = SCNNode()
+            pivot.position = SCNVector3(0, 0, 0)
+            // Random start angle
+            pivot.eulerAngles.y = CGFloat(rng.nextDouble() * Double.pi * 2)
+            scene.rootNode.addChildNode(pivot)
+
+            // Orbit action
+            let orbit = SCNAction.rotateBy(x: 0, y: CGFloat(Double.pi * 2), z: 0, duration: cfg.orbitDuration)
+            pivot.runAction(SCNAction.repeatForever(orbit))
+
+            // Planet node as child of pivot
+            let sphere = SCNSphere(radius: cfg.radius)
+            let mat = SCNMaterial()
+            mat.diffuse.contents = cfg.color
+            mat.lightingModel = .phong
+            mat.shininess = 80
+            sphere.materials = [mat]
+            let planetNode = SCNNode(geometry: sphere)
+            planetNode.position = SCNVector3(cfg.orbitRadius, 0, 0)
+            pivot.addChildNode(planetNode)
+            coord.planetNodes.append(planetNode)
+
+            // Planet self-rotation
+            let selfRot = SCNAction.rotateBy(x: 0, y: CGFloat(Double.pi * 2), z: 0,
+                                              duration: 4.0 + Double(i) * 1.5)
+            planetNode.runAction(SCNAction.repeatForever(selfRot))
+
+            // Optional ring
+            if cfg.hasRing {
+                let torus = SCNTorus(ringRadius: cfg.ringRadius, pipeRadius: cfg.pipeRadius)
+                let ringMat = SCNMaterial()
+                ringMat.diffuse.contents = cfg.color.withAlphaComponent(0.6)
+                ringMat.isDoubleSided = true
+                torus.materials = [ringMat]
+                let ringNode = SCNNode(geometry: torus)
+                ringNode.eulerAngles = SCNVector3(CGFloat.pi / 6, 0, CGFloat.pi / 10)
+                planetNode.addChildNode(ringNode)
+            }
+        }
+    }
+
+    // MARK: - Background Stars
+
+    private func addStars(to scene: SCNScene) {
+        var rng = SplitMix64(seed: 2222)
+        for _ in 0..<200 {
+            let plane = SCNPlane(width: 0.04, height: 0.04)
+            let mat = SCNMaterial()
+            let brightness = Float(0.65 + rng.nextDouble() * 0.35)
+            let blueShift = Float(rng.nextDouble() * 0.2)
+            mat.diffuse.contents = NSColor(
+                red: CGFloat(brightness),
+                green: CGFloat(brightness),
+                blue: CGFloat(min(1.0, brightness + blueShift)),
+                alpha: 1
+            )
+            mat.emission.contents = mat.diffuse.contents
+            mat.lightingModel = .constant
+            mat.isDoubleSided = true
+            plane.materials = [mat]
+            let starNode = SCNNode(geometry: plane)
+            let constraint = SCNBillboardConstraint()
+            constraint.freeAxes = .all
+            starNode.constraints = [constraint]
+            starNode.position = SCNVector3(
+                Float(rng.nextDouble() * 80 - 40),
+                Float(rng.nextDouble() * 60 - 20),
+                Float(rng.nextDouble() * -60 - 20)
+            )
+            scene.rootNode.addChildNode(starNode)
+        }
+    }
+
+    // MARK: - Camera (tidally locked to star)
+
+    private func addCamera(to scene: SCNScene) {
+        // Find the star node for the look-at constraint
+        let starNode = scene.rootNode.childNode(withName: "star", recursively: false)
+
+        let cameraNode = SCNNode()
+        cameraNode.camera = SCNCamera()
+        cameraNode.camera!.zNear = 0.5
+        cameraNode.camera!.zFar = 100
+        cameraNode.camera!.fieldOfView = 60
+        cameraNode.camera!.wantsHDR = true
+        cameraNode.camera!.bloomIntensity = 0.3
+        cameraNode.camera!.bloomThreshold = 0.8
+        cameraNode.camera!.bloomBlurRadius = 6
+        cameraNode.camera!.vignettingIntensity = 0.2
+        cameraNode.camera!.vignettingPower = 1.0
+        cameraNode.position = SCNVector3(0, 6, 20)
+        scene.rootNode.addChildNode(cameraNode)
+
+        // Tidally locked: always face the star
+        if let star = starNode {
+            let lookAt = SCNLookAtConstraint(target: star)
+            lookAt.isGimbalLockEnabled = true
+            cameraNode.constraints = [lookAt]
         }
     }
 }

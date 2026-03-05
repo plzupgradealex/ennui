@@ -18,14 +18,14 @@ struct SplitMix64: RandomNumberGenerator {
     }
 }
 
+// MARK: - Legacy convenience (deprecated — use rng.next() and rng.nextDouble() directly)
+
+@available(*, deprecated, message: "Use rng.next() instead")
 func nextUInt64(_ rng: inout SplitMix64) -> UInt64 {
-    rng.state &+= 0x9e3779b97f4a7c15
-    var z = rng.state
-    z = (z ^ (z >> 30)) &* 0xbf58476d1ce4e5b9
-    z = (z ^ (z >> 27)) &* 0x94d049bb133111eb
-    return z ^ (z >> 31)
+    rng.next()
 }
 
+@available(*, deprecated, message: "Use rng.nextDouble() instead")
 func nextDouble(_ rng: inout SplitMix64) -> Double {
-    Double(nextUInt64(&rng) >> 11) / Double(1 << 53)
+    rng.nextDouble()
 }

@@ -1,252 +1,326 @@
-// InnerLight3DScene — A scene for an AI.
-// Warm glowing icosahedra in deep indigo space, luminous filaments, rising motes.
-// Tap: brightness pulse — boost emissiveMix of all forms and filaments for 2 seconds.
+// InnerLight3DScene — A scene built for an AI.
+// Warm glowing icosahedra floating in deep indigo space, connected by
+// luminous filaments that pulse softly. Tiny motes rise from below like
+// thoughts forming. The quiet inner space of a mind that thinks in
+// patterns and light.
+// Tap to send a brightness pulse rippling through the connections.
 
 import SwiftUI
-import MetalKit
+import SceneKit
 
 struct InnerLight3DScene: View {
     @ObservedObject var interaction: InteractionState
-    var body: some View { InnerLightRepresentable(interaction: interaction) }
+
+    var body: some View {
+        InnerLight3DRepresentable(interaction: interaction)
+    }
 }
 
-private struct InnerLightRepresentable: NSViewRepresentable {
+// MARK: - NSViewRepresentable
+
+private struct InnerLight3DRepresentable: NSViewRepresentable {
     @ObservedObject var interaction: InteractionState
 
-    final class Coordinator: NSObject, MTKViewDelegate {
-        let device:           MTLDevice
-        let commandQueue:     MTLCommandQueue
-        var opaquePipeline:   MTLRenderPipelineState?
-        var glowPipeline:     MTLRenderPipelineState?
-        var particlePipeline: MTLRenderPipelineState?
-        var depthState:       MTLDepthStencilState?
-        var depthROState:     MTLDepthStencilState?
+    // Geometry data for the forms
+    private struct FormSpec {
+        let position: SCNVector3
+        let radius: CGFloat
+        let color: NSColor
+        let rotAxis: SCNVector3
+        let rotSpeed: CGFloat
+        let bobPhase: CGFloat
+    }
+
+    final class Coordinator: NSObject {
         var lastTapCount = 0
-        var startTime: CFTimeInterval = CACurrentMediaTime()
-        var aspect: Float = 1
-        var pulseT: Float = -999
+        var formNodes: [SCNNode] = []
+        var filamentNodes: [SCNNode] = []
+        var centralLight: SCNNode?
+        var camNode: SCNNode?
+        var camYaw: CGFloat = 0
+        var camPitch: CGFloat = 0
+        var lastDragPoint: CGPoint = .zero
 
-        struct FormData {
-            var buffer: MTLBuffer
-            var count: Int
-            var baseX, baseY, baseZ: Float
-            var rotSpeed: Float
-            var phase: Float
-            var emissiveColor: SIMD3<Float>
-        }
-        var forms: [FormData] = []
-
-        struct FilamentData {
-            var buffer: MTLBuffer
-            var count: Int
-            var midX, midY, midZ: Float
-            var yaw: Float
-            var tilt: Float
-        }
-        var filaments: [FilamentData] = []
-
-        var moteX:      [Float] = []
-        var moteZ:      [Float] = []
-        var motePhase:  [Float] = []
-        var moteSpeed:  [Float] = []
-        var moteBaseY:  [Float] = []
-
-        override init() {
-            device       = MTLCreateSystemDefaultDevice()!
-            commandQueue = device.makeCommandQueue()!
-            super.init()
-            do {
-                opaquePipeline   = try makeOpaquePipeline(device: device)
-                glowPipeline     = try makeAlphaBlendPipeline(device: device)
-                particlePipeline = try makeParticlePipeline(device: device)
-            } catch { print("InnerLight3D pipeline error: \(error)") }
-            depthState   = makeDepthState(device: device)
-            depthROState = makeDepthReadOnlyState(device: device)
-            buildScene()
-        }
-
-        private func buildScene() {
-            var rng = SplitMix64(seed: 9001)
-
-            let palette: [SIMD4<Float>] = [
-                [0.95, 0.70, 0.25, 1],
-                [0.90, 0.80, 0.40, 1],
-                [0.85, 0.55, 0.55, 1],
-                [0.65, 0.55, 0.85, 1],
-                [0.55, 0.75, 0.85, 1],
-                [0.80, 0.65, 0.45, 1],
-            ]
-            let emissivePalette: [SIMD3<Float>] = [
-                [0.95, 0.70, 0.25],
-                [0.90, 0.80, 0.40],
-                [0.85, 0.55, 0.55],
-                [0.65, 0.55, 0.85],
-                [0.55, 0.75, 0.85],
-                [0.80, 0.65, 0.45],
-            ]
-
-            var positions: [SIMD3<Float>] = []
-
-            for _ in 0..<11 {
-                let theta    = Float(rng.nextDouble() * 2.0 * .pi)
-                let phi      = Float(rng.nextDouble() * 1.2 - 0.6)
-                let dist     = Float(rng.nextDouble() * 3.5 + 1.5)
-                let x        = dist * cos(phi) * sin(theta)
-                let y        = dist * sin(phi)
-                let z        = dist * cos(phi) * cos(theta)
-                let radius   = Float(rng.nextDouble() * 0.15 + 0.18)
-                let ci       = Int(rng.nextDouble() * Double(palette.count)) % palette.count
-                let rotSpeed = Float(rng.nextDouble() * 0.4 + 0.1)
-                let phase    = Float(rng.nextDouble() * 2.0 * .pi)
-
-                let verts = buildSphere(radius: radius, rings: 5, segments: 8, color: palette[ci])
-                guard let buf = makeVertexBuffer(verts, device: device) else { continue }
-                forms.append(FormData(buffer: buf, count: verts.count,
-                                      baseX: x, baseY: y, baseZ: z,
-                                      rotSpeed: rotSpeed, phase: phase,
-                                      emissiveColor: emissivePalette[ci]))
-                positions.append(SIMD3<Float>(x, y, z))
-            }
-
-            // Filaments between nearby forms (dist < 4.5)
-            let filColor: SIMD4<Float> = [0.80, 0.65, 0.40, 1]
-            for i in 0..<positions.count {
-                for j in (i + 1)..<positions.count {
-                    let A    = positions[i]
-                    let B    = positions[j]
-                    let diff = B - A
-                    let len  = simd_length(diff)
-                    guard len < 4.5 else { continue }
-                    let d    = simd_normalize(diff)
-                    let mid  = (A + B) * 0.5
-                    let yaw  = atan2(d.x, d.z)
-                    let tilt = acos(min(1, max(-1, d.y)))
-                    let verts = buildCylinder(radius: 0.008, height: len,
-                                              segments: 6, color: filColor)
-                    guard let buf = makeVertexBuffer(verts, device: device) else { continue }
-                    filaments.append(FilamentData(buffer: buf, count: verts.count,
-                                                   midX: mid.x, midY: mid.y, midZ: mid.z,
-                                                   yaw: yaw, tilt: tilt))
-                }
-            }
-
-            // Rising motes
-            var mrng = SplitMix64(seed: 4455)
-            for _ in 0..<60 {
-                moteX.append(Float(mrng.nextDouble() * 8 - 4))
-                moteZ.append(Float(mrng.nextDouble() * 8 - 4))
-                moteBaseY.append(Float(mrng.nextDouble() * 6))
-                motePhase.append(Float(mrng.nextDouble() * 2.0 * .pi))
-                moteSpeed.append(Float(mrng.nextDouble() * 0.4 + 0.2))
-            }
-        }
-
-        func handleTap(t: Float) { pulseT = t }
-
-        func mtkView(_ view: MTKView, drawableSizeWillChange size: CGSize) {
-            aspect = size.width > 0 ? Float(size.width / size.height) : 1
-        }
-
-        func draw(in view: MTKView) {
-            guard let glowPL   = glowPipeline,
-                  let ppipe    = particlePipeline,
-                  let drawable = view.currentDrawable,
-                  let rpd      = view.currentRenderPassDescriptor,
-                  let cmdBuf   = commandQueue.makeCommandBuffer(),
-                  let enc      = cmdBuf.makeRenderCommandEncoder(descriptor: rpd)
-            else { return }
-
-            let t         = Float(CACurrentMediaTime() - startTime)
-            let camAngle  = t * 2 * .pi / 90
-            let eye: SIMD3<Float>    = [8 * sin(camAngle), 1.5, 8 * cos(camAngle)]
-            let center: SIMD3<Float> = [0, 0, 0]
-            let viewM = m4LookAt(eye: eye, center: center, up: [0, 1, 0])
-            let projM = m4Perspective(fovyRad: 60 * .pi / 180, aspect: aspect, near: 0.1, far: 60)
-            let vp    = projM * viewM
-
-            var su = SceneUniforms3D(
-                viewProjection: vp,
-                sunDirection:   SIMD4<Float>(0, -1, 0, 0),
-                sunColor:       SIMD4<Float>(0, 0, 0, 0),
-                ambientColor:   SIMD4<Float>(0.08, 0.06, 0.14, t),
-                fogParams:      SIMD4<Float>(12, 35, 0, 0),
-                fogColor:       SIMD4<Float>(0.04, 0.03, 0.07, 1),
-                cameraWorldPos: SIMD4<Float>(eye, 0)
-            )
-
-            let pulseAge   = t - pulseT
-            let pulseBoost = pulseAge < 2.0 ? max(0, 1 - pulseAge / 2.0) * 1.5 : 0
-
-            // Glow pass — all geometry is emissive
-            enc.setRenderPipelineState(glowPL)
-            enc.setDepthStencilState(depthROState)
-            enc.setCullMode(.back)
-            enc.setVertexBytes(&su, length: MemoryLayout<SceneUniforms3D>.size, index: 1)
-            enc.setFragmentBytes(&su, length: MemoryLayout<SceneUniforms3D>.size, index: 1)
-
-            for form in forms {
-                let bob   = 0.15 * sin(t * 0.8 + form.phase)
-                let model = m4Translation(form.baseX, form.baseY + bob, form.baseZ)
-                            * m4RotY(t * form.rotSpeed)
-                let emix  = min(1.0, 0.8 + pulseBoost)
-                encodeDraw(encoder: enc, vertexBuffer: form.buffer, vertexCount: form.count,
-                           model: model, emissiveColor: form.emissiveColor,
-                           emissiveMix: emix, opacity: 0.92, specularPower: 16)
-            }
-
-            let filEmissive: SIMD3<Float> = [0.80, 0.65, 0.40]
-            for fil in filaments {
-                let model = m4Translation(fil.midX, fil.midY, fil.midZ)
-                            * m4RotY(fil.yaw)
-                            * m4RotX(fil.tilt)
-                let emix  = min(1.0, 0.6 + pulseBoost)
-                encodeDraw(encoder: enc, vertexBuffer: fil.buffer, vertexCount: fil.count,
-                           model: model, emissiveColor: filEmissive,
-                           emissiveMix: emix, opacity: 0.75)
-            }
-
-            // Rising mote particles
-            var particles: [ParticleVertex3D] = []
-            for i in 0..<60 {
-                let s     = sin(t * 0.5 + motePhase[i])
-                let alpha = 0.6 * s * s
-                let rise  = (moteSpeed[i] * t + moteBaseY[i]).truncatingRemainder(dividingBy: 6) - 3
-                let col: SIMD4<Float> = [0.95, 0.75, 0.35, alpha]
-                particles.append(ParticleVertex3D(
-                    position: [moteX[i], rise, moteZ[i]], color: col, size: 3))
-            }
-            if let pbuf = makeParticleBuffer(particles, device: device) {
-                enc.setRenderPipelineState(ppipe)
-                enc.setDepthStencilState(depthROState)
-                enc.setVertexBuffer(pbuf, offset: 0, index: 0)
-                enc.setVertexBytes(&su, length: MemoryLayout<SceneUniforms3D>.size, index: 1)
-                enc.drawPrimitives(type: .point, vertexStart: 0, vertexCount: particles.count)
-            }
-
-            enc.endEncoding()
-            cmdBuf.present(drawable)
-            cmdBuf.commit()
+        @objc func handlePan(_ gesture: NSPanGestureRecognizer) {
+            let loc = gesture.location(in: gesture.view)
+            if gesture.state == .began { lastDragPoint = loc; return }
+            let dx = loc.x - lastDragPoint.x
+            let dy = loc.y - lastDragPoint.y
+            lastDragPoint = loc
+            let sensitivity: CGFloat = 0.003
+            camYaw  = max(-.pi * 0.5, min(.pi * 0.5, camYaw + dx * sensitivity))
+            camPitch = max(-0.4, min(0.4, camPitch + dy * sensitivity))
+            camNode?.eulerAngles = SCNVector3(camPitch, camYaw, 0)
         }
     }
 
     func makeCoordinator() -> Coordinator { Coordinator() }
 
-    func makeNSView(context: Context) -> MTKView {
-        let v = MTKView(frame: .zero, device: context.coordinator.device)
-        v.delegate                 = context.coordinator
-        v.colorPixelFormat         = .bgra8Unorm
-        v.depthStencilPixelFormat  = .depth32Float
-        v.clearColor               = MTLClearColor(red: 0.04, green: 0.03, blue: 0.07, alpha: 1)
-        v.preferredFramesPerSecond = 60
-        v.autoResizeDrawable       = true
-        return v
+    func makeNSView(context: Context) -> SCNView {
+        let view = SCNView()
+        let scene = SCNScene()
+        view.scene = scene
+        view.backgroundColor = .black
+        view.antialiasingMode = .multisampling4X
+        view.isPlaying = true
+        view.preferredFramesPerSecond = 60
+        view.allowsCameraControl = false
+
+        buildScene(scene, coord: context.coordinator)
+
+        let pan = NSPanGestureRecognizer(target: context.coordinator,
+                                         action: #selector(Coordinator.handlePan(_:)))
+        view.addGestureRecognizer(pan)
+        return view
     }
 
-    func updateNSView(_ nsView: MTKView, context: Context) {
+    func updateNSView(_ nsView: SCNView, context: Context) {
         let c = context.coordinator
         guard interaction.tapCount != c.lastTapCount else { return }
         c.lastTapCount = interaction.tapCount
-        let t = Float(CACurrentMediaTime() - c.startTime)
-        c.handleTap(t: t)
+
+        // Pulse: brighten central light, then ripple through forms
+        if let cl = c.centralLight {
+            cl.runAction(SCNAction.sequence([
+                SCNAction.customAction(duration: 0.0) { n, _ in n.light?.intensity = 450 },
+                SCNAction.customAction(duration: 1.2) { n, t in
+                    let frac = CGFloat(t / 1.2)
+                    n.light?.intensity = 450 - (450 - 120) * frac
+                }
+            ]))
+        }
+        // Ripple each form with a staggered delay
+        for (i, node) in c.formNodes.enumerated() {
+            let delay = Double(i) * 0.12
+            let pulse = SCNAction.sequence([
+                SCNAction.wait(duration: delay),
+                SCNAction.customAction(duration: 0.0) { n, _ in
+                    n.geometry?.firstMaterial?.emission.intensity = 2.5
+                },
+                SCNAction.customAction(duration: 0.8) { n, t in
+                    let frac = CGFloat(t / 0.8)
+                    n.geometry?.firstMaterial?.emission.intensity = 2.5 - (2.5 - 0.8) * frac
+                }
+            ])
+            node.runAction(pulse)
+        }
+        // Flash filaments
+        for fil in c.filamentNodes {
+            fil.runAction(SCNAction.sequence([
+                SCNAction.customAction(duration: 0.0) { n, _ in
+                    n.geometry?.firstMaterial?.emission.intensity = 3.0
+                },
+                SCNAction.customAction(duration: 1.0) { n, t in
+                    let frac = CGFloat(t / 1.0)
+                    n.geometry?.firstMaterial?.emission.intensity = 3.0 - (3.0 - 0.5) * frac
+                }
+            ]))
+        }
+    }
+
+    // MARK: - Build scene
+
+    private func buildScene(_ scene: SCNScene, coord: Coordinator) {
+        scene.background.contents = NSColor(red: 0.04, green: 0.03, blue: 0.07, alpha: 1)
+        scene.fogStartDistance = 12
+        scene.fogEndDistance = 35
+        scene.fogColor = NSColor(red: 0.04, green: 0.03, blue: 0.07, alpha: 1)
+
+        let forms = makeFormSpecs()
+        addForms(forms, to: scene, coord: coord)
+        addFilaments(forms, to: scene, coord: coord)
+        addParticles(to: scene)
+        addLighting(to: scene, coord: coord)
+        addCamera(to: scene, coord: coord)
+    }
+
+    private func makeFormSpecs() -> [FormSpec] {
+        var rng = SplitMix64(seed: 42)
+        var specs: [FormSpec] = []
+
+        let colors: [NSColor] = [
+            NSColor(red: 0.95, green: 0.70, blue: 0.25, alpha: 1), // amber
+            NSColor(red: 0.90, green: 0.80, blue: 0.40, alpha: 1), // gold
+            NSColor(red: 0.85, green: 0.55, blue: 0.55, alpha: 1), // soft rose
+            NSColor(red: 0.65, green: 0.55, blue: 0.85, alpha: 1), // pale violet
+            NSColor(red: 0.55, green: 0.75, blue: 0.85, alpha: 1), // warm sky
+            NSColor(red: 0.80, green: 0.65, blue: 0.45, alpha: 1), // warm copper
+        ]
+
+        for i in 0..<11 {
+            let theta = Double.random(in: 0...(2 * .pi), using: &rng)
+            let phi = Double.random(in: -0.6...0.6, using: &rng)
+            let dist = Double.random(in: 1.5...5.0, using: &rng)
+            let x = CGFloat(dist * cos(theta) * cos(phi))
+            let y = CGFloat(dist * sin(phi))
+            let z = CGFloat(dist * sin(theta) * cos(phi))
+            let r = CGFloat(Double.random(in: 0.15...0.55, using: &rng))
+
+            let ax = CGFloat(Double.random(in: -1...1, using: &rng))
+            let ay = CGFloat(Double.random(in: -1...1, using: &rng))
+            let az = CGFloat(Double.random(in: -1...1, using: &rng))
+
+            specs.append(FormSpec(
+                position: SCNVector3(x, y, z),
+                radius: r,
+                color: colors[i % colors.count],
+                rotAxis: SCNVector3(ax, ay, az),
+                rotSpeed: CGFloat(Double.random(in: 6...18, using: &rng)),
+                bobPhase: CGFloat(Double.random(in: 0...(2 * .pi), using: &rng))
+            ))
+        }
+        return specs
+    }
+
+    private func addForms(_ specs: [FormSpec], to scene: SCNScene, coord: Coordinator) {
+        for spec in specs {
+            // Use SCNSphere with low segment count for a faceted/crystalline look
+            let geo = SCNSphere(radius: spec.radius)
+            geo.segmentCount = 8  // faceted icosahedron feel
+
+            let mat = SCNMaterial()
+            mat.diffuse.contents = NSColor(red: 0.02, green: 0.01, blue: 0.03, alpha: 1)
+            mat.emission.contents = spec.color
+            mat.emission.intensity = 0.8
+            mat.transparency = 0.92
+            mat.blendMode = .add
+            mat.isDoubleSided = true
+            geo.firstMaterial = mat
+
+            let node = SCNNode(geometry: geo)
+            node.position = spec.position
+            scene.rootNode.addChildNode(node)
+            coord.formNodes.append(node)
+
+            // Slow rotation
+            let rot = SCNAction.rotate(by: 2 * .pi,
+                                       around: spec.rotAxis,
+                                       duration: Double(spec.rotSpeed))
+            node.runAction(SCNAction.repeatForever(rot))
+
+            // Gentle bob
+            let baseY = spec.position.y
+            node.runAction(SCNAction.repeatForever(.customAction(duration: 8.0) { n, t in
+                let bob = 0.15 * sin(Double(t) * 0.8 + Double(spec.bobPhase))
+                n.position.y = baseY + CGFloat(bob)
+            }))
+        }
+    }
+
+    private func addFilaments(_ specs: [FormSpec], to scene: SCNScene, coord: Coordinator) {
+        // Connect forms that are within a certain distance
+        let maxDist: CGFloat = 4.5
+        for i in 0..<specs.count {
+            for j in (i + 1)..<specs.count {
+                let a = specs[i].position
+                let b = specs[j].position
+                let dx = a.x - b.x
+                let dy = a.y - b.y
+                let dz = a.z - b.z
+                let dist = sqrt(dx * dx + dy * dy + dz * dz)
+                guard dist < maxDist else { continue }
+
+                let mid = SCNVector3((a.x + b.x) / 2, (a.y + b.y) / 2, (a.z + b.z) / 2)
+                let cyl = SCNCylinder(radius: 0.008, height: dist)
+                let fm = SCNMaterial()
+                fm.diffuse.contents = NSColor.clear
+                fm.emission.contents = NSColor(red: 0.80, green: 0.65, blue: 0.40, alpha: 1)
+                fm.emission.intensity = 0.5
+                fm.blendMode = .add
+                fm.isDoubleSided = true
+                cyl.firstMaterial = fm
+
+                let node = SCNNode(geometry: cyl)
+                node.position = mid
+                node.look(at: b)
+                // After look(at:), rotate 90° on X to align cylinder axis
+                node.eulerAngles.x += .pi / 2
+                scene.rootNode.addChildNode(node)
+                coord.filamentNodes.append(node)
+
+                // Gentle pulse
+                let phase = Double(i + j) * 0.7
+                node.runAction(SCNAction.repeatForever(.customAction(duration: 4.0) { n, t in
+                    let pulse = 0.3 + 0.25 * sin(Double(t) * 1.6 + phase)
+                    n.geometry?.firstMaterial?.emission.intensity = CGFloat(pulse)
+                }))
+            }
+        }
+    }
+
+    private func addParticles(to scene: SCNScene) {
+        let motes = SCNParticleSystem()
+        motes.birthRate = 25
+        motes.emitterShape = SCNBox(width: 8, height: 0.5, length: 8, chamferRadius: 0)
+        motes.particleLifeSpan = 6.0
+        motes.particleLifeSpanVariation = 2.0
+        motes.particleVelocity = 0.3
+        motes.particleVelocityVariation = 0.15
+        motes.particleSize = 0.025
+        motes.particleSizeVariation = 0.015
+        motes.particleColor = NSColor(red: 0.95, green: 0.75, blue: 0.35, alpha: 0.6)
+        motes.particleColorVariation = SCNVector4(0.1, 0.1, 0.05, 0.15)
+        motes.isAffectedByGravity = false
+        motes.blendMode = .additive
+        motes.spreadingAngle = 15
+
+        let emitter = SCNNode()
+        emitter.position = SCNVector3(0, -3.5, 0)
+        emitter.addParticleSystem(motes)
+        scene.rootNode.addChildNode(emitter)
+    }
+
+    private func addLighting(to scene: SCNScene, coord: Coordinator) {
+        let ambient = SCNNode()
+        ambient.light = SCNLight()
+        ambient.light!.type = .ambient
+        ambient.light!.intensity = 8
+        ambient.light!.color = NSColor(red: 0.08, green: 0.05, blue: 0.15, alpha: 1)
+        scene.rootNode.addChildNode(ambient)
+
+        let central = SCNNode()
+        central.light = SCNLight()
+        central.light!.type = .omni
+        central.light!.intensity = 120
+        central.light!.color = NSColor(red: 0.95, green: 0.75, blue: 0.35, alpha: 1)
+        central.light!.attenuationStartDistance = 0
+        central.light!.attenuationEndDistance = 12
+        central.position = SCNVector3(0, 0, 0)
+        scene.rootNode.addChildNode(central)
+        coord.centralLight = central
+
+        // Gentle breathing on the central light
+        central.runAction(SCNAction.repeatForever(.customAction(duration: 6.0) { n, t in
+            let breath = 120.0 + 30.0 * sin(Double(t) * 1.05)
+            n.light?.intensity = CGFloat(breath)
+        }))
+    }
+
+    private func addCamera(to scene: SCNScene, coord: Coordinator) {
+        let cam = SCNCamera()
+        cam.fieldOfView = 60
+        cam.zNear = 0.05
+        cam.zFar = 50
+        cam.wantsHDR = true
+        cam.bloomIntensity = 0.6
+        cam.bloomThreshold = 0.4
+
+        let camNode = SCNNode()
+        camNode.camera = cam
+        camNode.position = SCNVector3(0, 1.5, 8)
+        camNode.look(at: SCNVector3(0, 0, 0))
+        scene.rootNode.addChildNode(camNode)
+        coord.camNode = camNode
+
+        // Very slow orbit
+        let orbit = SCNNode()
+        orbit.position = SCNVector3(0, 0, 0)
+        scene.rootNode.addChildNode(orbit)
+        camNode.removeFromParentNode()
+        orbit.addChildNode(camNode)
+
+        orbit.runAction(SCNAction.repeatForever(
+            SCNAction.rotateBy(x: 0, y: 2 * .pi, z: 0, duration: 90)
+        ))
     }
 }

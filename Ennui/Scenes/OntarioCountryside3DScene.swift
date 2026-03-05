@@ -134,7 +134,7 @@ private struct OntarioCountryside3DRepresentable: NSViewRepresentable {
                 let sy = Float(Double.random(in: 8...25, using: &srng))
                 let sz = Float(Double.random(in: -30 ... -5, using: &srng))
                 let br = Float(Double.random(in: 0.6...1.0, using: &srng))
-                let ph = Float(Double.random(in: 0...Float.pi*2, using: &srng))
+                let ph = Float(Double.random(in: 0...Double.pi*2, using: &srng))
                 stars.append(StarPt(pos: [sx, sy, sz], brightness: br, phase: ph))
             }
 
@@ -151,7 +151,7 @@ private struct OntarioCountryside3DRepresentable: NSViewRepresentable {
             let vx = Float(Double.random(in: -0.3...0.3, using: &rng))
             let vy = Float(Double.random(in: 0.0...0.25, using: &rng))
             let vz = Float(Double.random(in: -0.15...0.15, using: &rng))
-            let ph = Float(Double.random(in: 0...Float.pi*2, using: &rng))
+            let ph = Float(Double.random(in: 0...Double.pi*2, using: &rng))
             let ls = Float(Double.random(in: 5...11, using: &rng))
             fireflies.append(Firefly(pos: [x, y, z], vel: [vx, vy, vz],
                                      phase: ph, lifespan: ls, born: born))
